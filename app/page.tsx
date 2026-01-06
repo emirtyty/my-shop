@@ -4,61 +4,59 @@ import { supabase } from './lib/supabase';
 
 export default function Home() {
   const [products, setProducts] = useState<any[]>([]);
-  const [stories, setStories] = useState<any[]>([]);
-  const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState('ВСЕ');
 
   useEffect(() => {
     async function fetchData() {
-      const { data } = await supabase.from('product_market').select('*').eq('in_stock', true).order('created_at', { ascending: false });
-      if (data) {
-        setProducts(data.filter(p => !p.is_story)); // Обычные товары
-        setStories(data.filter(p => p.is_story));   // Только сториз
-      }
+      const { data } = await supabase.from('product_market').select('*').order('created_at', { ascending: false });
+      if (data) setProducts(data);
     }
     fetchData();
   }, []);
 
+  const stories = products.filter(p => p.is_story);
+  const feed = products.filter(p => !p.is_story);
+
   return (
-    <main className="min-h-screen bg-black text-white font-sans max-w-md mx-auto pb-10">
-      
-      {/* ЛЕНТА СТОРИЗ */}
-      <div className="flex gap-4 overflow-x-auto p-4 pt-8 no-scrollbar border-b border-white/5">
-        <div className="flex flex-col items-center gap-2 shrink-0">
-          <div className="w-16 h-16 rounded-full border-2 border-zinc-800 flex items-center justify-center text-xl bg-zinc-900">⚡️</div>
-          <span className="text-[7px] font-black opacity-20 uppercase">LIVE</span>
-        </div>
+    <main className="min-h-screen bg-black text-white max-w-md mx-auto relative pb-10 border-x border-white/5">
+      {/* ЛОГОТИП */}
+      <header className="p-6 text-center border-b border-white/5 bg-black/50 backdrop-blur-xl sticky top-0 z-50">
+        <h1 className="font-black tracking-[0.4em] text-xl uppercase">Market</h1>
+      </header>
+
+      {/* СТОРИЗ (Кружочки) */}
+      <div className="flex gap-4 overflow-x-auto no-scrollbar p-6">
         {stories.map(story => (
-          <div key={story.id} className="flex flex-col items-center gap-2 shrink-0 animate-in fade-in zoom-in duration-500">
+          <div key={story.id} className="flex flex-col items-center gap-2 min-w-[70px]">
             <div className="w-16 h-16 rounded-full p-[2px] bg-gradient-to-tr from-purple-500 to-red-500">
-              <img src={story.image_url[0]} className="w-full h-full object-cover rounded-full border-2 border-black" />
+              <div className="w-full h-full rounded-full border-2 border-black overflow-hidden bg-zinc-900">
+                <img src={story.image_url[0]} className="w-full h-full object-cover" />
+              </div>
             </div>
-            <span className="text-[7px] font-black uppercase truncate w-16 text-center">{story.name}</span>
+            <span className="text-[8px] font-black uppercase opacity-40 truncate w-full text-center">
+              {story.name}
+            </span>
           </div>
         ))}
       </div>
 
-      <header className="p-4 space-y-4">
-        <input 
-          placeholder="ПОИСК..." 
-          className="w-full bg-zinc-900/50 p-4 rounded-2xl text-[10px] font-black outline-none border border-white/5"
-          value={search} onChange={(e) => setSearch(e.target.value)}
-        />
-      </header>
-
-      {/* ГРИД ТОВАРОВ */}
-      <div className="px-3 grid grid-cols-2 gap-3">
-        {products.filter(p => p.name.toLowerCase().includes(search.toLowerCase())).map(product => (
-          <article key={product.id} className="bg-zinc-900 rounded-[2.5rem] overflow-hidden border border-white/5">
-            <div className="relative aspect-[3/4]">
+      {/* ЛЕНТА ТОВАРОВ */}
+      <div className="px-4 space-y-12">
+        {feed.map(product => (
+          <article key={product.id} className="group">
+            <div className="relative aspect-square rounded-[2.5rem] overflow-hidden bg-zinc-900 border border-white/5">
               <img src={product.image_url[0]} className="w-full h-full object-cover" />
-              <div className="absolute bottom-3 left-3 bg-black/80 px-3 py-1.5 rounded-2xl text-[11px] font-black">
+              <div className="absolute bottom-4 left-4 bg-black/60 backdrop-blur-md px-4 py-2 rounded-2xl border border-white/10 font-bold text-sm">
                 {product.price} ₽
               </div>
             </div>
-            <div className="p-4 space-y-3">
-              <p className="text-[9px] font-black uppercase opacity-30 truncate text-center">{product.name}</p>
-              <a href={`https://t.me/${product.contact}`} className="block w-full bg-white text-black py-3 rounded-xl font-black text-center text-[9px] uppercase">КУПИТЬ</a>
+            <div className="mt-4 px-2 flex justify-between items-center">
+              <h2 className="font-black uppercase tracking-wider text-[11px]">{product.name}</h2>
+              <a 
+                href={`https://t.me/${product.contact?.replace('@', '')}`}
+                className="bg-white text-black px-6 py-2 rounded-full font-black text-[9px] uppercase tracking-tighter active:scale-90 transition-all"
+              >
+                Купить
+              </a>
             </div>
           </article>
         ))}

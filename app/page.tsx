@@ -17,50 +17,46 @@ export default function Home() {
   const feed = products.filter(p => !p.is_story);
 
   return (
-    <main className="min-h-screen bg-black text-white max-w-md mx-auto relative pb-10 border-x border-white/5">
-      {/* ЛОГОТИП */}
-      <header className="p-6 text-center border-b border-white/5 bg-black/50 backdrop-blur-xl sticky top-0 z-50">
-        <h1 className="font-black tracking-[0.4em] text-xl uppercase">Market</h1>
-      </header>
+    <div className="bg-black min-h-screen">
+      <main className="max-w-md mx-auto bg-black text-white min-h-screen relative pb-10 border-x border-white/10">
+        {/* ШАПКА */}
+        <header className="p-6 text-center border-b border-white/5 sticky top-0 bg-black/80 backdrop-blur-md z-50">
+          <h1 className="font-black tracking-[0.3em] text-lg uppercase">MARKET</h1>
+        </header>
 
-      {/* СТОРИЗ (Кружочки) */}
-      <div className="flex gap-4 overflow-x-auto no-scrollbar p-6">
-        {stories.map(story => (
-          <div key={story.id} className="flex flex-col items-center gap-2 min-w-[70px]">
-            <div className="w-16 h-16 rounded-full p-[2px] bg-gradient-to-tr from-purple-500 to-red-500">
-              <div className="w-full h-full rounded-full border-2 border-black overflow-hidden bg-zinc-900">
-                <img src={story.image_url[0]} className="w-full h-full object-cover" />
+        {/* СТОРИЗ */}
+        <div className="flex gap-4 overflow-x-auto no-scrollbar p-6">
+          {stories.map(story => (
+            <div key={story.id} className="flex flex-col items-center gap-2 min-w-[70px]">
+              <div className="w-16 h-16 rounded-full p-[2px] bg-gradient-to-tr from-yellow-400 to-orange-600">
+                <div className="w-full h-full rounded-full border-2 border-black overflow-hidden bg-zinc-900">
+                  <img src={story.image_url[0]} className="w-full h-full object-cover" />
+                </div>
               </div>
+              <span className="text-[8px] font-black uppercase opacity-40 truncate w-14 text-center">{story.name}</span>
             </div>
-            <span className="text-[8px] font-black uppercase opacity-40 truncate w-full text-center">
-              {story.name}
-            </span>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
 
-      {/* ЛЕНТА ТОВАРОВ */}
-      <div className="px-4 space-y-12">
-        {feed.map(product => (
-          <article key={product.id} className="group">
-            <div className="relative aspect-square rounded-[2.5rem] overflow-hidden bg-zinc-900 border border-white/5">
-              <img src={product.image_url[0]} className="w-full h-full object-cover" />
-              <div className="absolute bottom-4 left-4 bg-black/60 backdrop-blur-md px-4 py-2 rounded-2xl border border-white/10 font-bold text-sm">
-                {product.price} ₽
+        {/* ЛЕНТА */}
+        <div className="px-4 space-y-10">
+          {feed.length === 0 && <p className="text-center opacity-20 text-[10px] py-20 font-black uppercase">Нет товаров</p>}
+          {feed.map(product => (
+            <article key={product.id} className="w-full">
+              <div className="relative aspect-[4/5] rounded-[2rem] overflow-hidden bg-zinc-900 border border-white/5">
+                <img src={product.image_url[0]} className="w-full h-full object-cover" />
+                <div className="absolute bottom-4 left-4 bg-white text-black px-4 py-2 rounded-xl font-black text-xs">
+                  {product.price} ₽
+                </div>
               </div>
-            </div>
-            <div className="mt-4 px-2 flex justify-between items-center">
-              <h2 className="font-black uppercase tracking-wider text-[11px]">{product.name}</h2>
-              <a 
-                href={`https://t.me/${product.contact?.replace('@', '')}`}
-                className="bg-white text-black px-6 py-2 rounded-full font-black text-[9px] uppercase tracking-tighter active:scale-90 transition-all"
-              >
-                Купить
-              </a>
-            </div>
-          </article>
-        ))}
-      </div>
-    </main>
+              <div className="mt-4 px-2 flex justify-between items-center">
+                <h2 className="font-black uppercase tracking-widest text-[10px]">{product.name}</h2>
+                <a href={`https://t.me/${product.contact}`} className="bg-zinc-800 text-white px-5 py-2 rounded-full font-black text-[9px] uppercase">Купить</a>
+              </div>
+            </article>
+          ))}
+        </div>
+      </main>
+    </div>
   );
 }

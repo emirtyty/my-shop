@@ -1,16 +1,13 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
-html, body {
+body {
   background-color: black !important;
-  color: white !important;
+  color: white;
   margin: 0;
   padding: 0;
-  box-sizing: border-box;
 }
 
-:root {
-  --background: #000000;
-  --foreground: #ffffff;
-}
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+* { box-sizing: border-box; }

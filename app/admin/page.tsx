@@ -31,7 +31,7 @@ export default function Admin() {
   };
 
   const updateProduct = async (id: any, updates: any) => {
-    await supabase.from('product_market').update(updates).eq(id, id);
+    await supabase.from('product_market').update(updates).eq('id', id);
     fetchProducts();
   };
 

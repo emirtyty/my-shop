@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 
 export default function AdminOrders() {
-  const [orders, setOrders] = useState<any[]>([]);
+  const [order, setOrder] = useState<any>(null);
   const [seller, setSeller] = useState<any>(null);
 
   useEffect(() => {

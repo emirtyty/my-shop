@@ -3,167 +3,141 @@ import { useEffect, useState, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { useRouter } from 'next/navigation';
 
-export default function AdminOrders() {
+export default function AdminPanel() {
   const [orders, setOrders] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
   const [seller, setSeller] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  
+  // Поля нового товара
+  const [newName, setNewName] = useState('');
+  const [newPrice, setNewPrice] = useState('');
+  const [newCategory, setNewCategory] = useState('Электроника');
   const [uploading, setUploading] = useState(false);
+  
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const productFileRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
+
+  const categories = ['Электроника', 'Одежда', 'Аксессуары', 'Дом', 'Спорт', 'Другое'];
 
   useEffect(() => {
     const sessionData = localStorage.getItem('seller_session');
-    if (!sessionData) {
-      router.push('/login');
-      return;
-    }
-
+    if (!sessionData) { router.push('/login'); return; }
     const session = JSON.parse(sessionData);
     setSeller(session);
-    
-    // ID может быть 1 или "1", приводим к строке для надежности
-    const currentId = String(session.id || session.telegram_id);
-    
-    if (currentId) {
-      loadData(currentId);
-    }
-  }, [router]);
+    loadData(String(session.id));
+  }, []);
 
   const loadData = async (id: string) => {
     setLoading(true);
-    await Promise.all([
-      fetchOrders(id),
-      fetchProducts(id)
-    ]);
+    const { data: p } = await supabase.from('product_market').select('*').eq('seller_id', id);
+    const { data: o } = await supabase.from('orders').select('*').eq('seller_id', id);
+    setProducts(p || []);
+    setOrders(o || []);
     setLoading(false);
   };
 
-  const fetchOrders = async (id: string) => {
-    const { data } = await supabase
-      .from('orders')
-      .select('*')
-      .eq('seller_id', id)
-      .order('created_at', { ascending: false });
-    setOrders(data || []);
-  };
-
-  const fetchProducts = async (id: string) => {
-    const { data, error } = await supabase
-      .from('product_market')
-      .select('*')
-      .eq('seller_id', id);
-    
-    if (error) console.error("Ошибка загрузки товаров:", error.message);
-    setProducts(data || []);
-  };
-
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  // Загрузка сторис
+  const handleStoryUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     try {
       const file = event.target.files?.[0];
       if (!file || !seller) return;
-      
       setUploading(true);
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${Date.now()}.${fileExt}`;
-      const filePath = `stories/${fileName}`;
-
-      // 1. Грузим в Storage
-      const { error: uploadError } = await supabase.storage
-        .from('images')
-        .upload(filePath, file);
-
-      if (uploadError) throw uploadError;
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('images')
-        .getPublicUrl(filePath);
-
-      // 2. Пишем в таблицу seller_stories
-      const { error: dbError } = await supabase.from('seller_stories').insert([{
+      const fileName = `${Date.now()}_story.jpg`;
+      await supabase.storage.from('images').upload(`stories/${fileName}`, file);
+      const { data: { publicUrl } } = supabase.storage.from('images').getPublicUrl(`stories/${fileName}`);
+      
+      await supabase.from('seller_stories').insert([{
         image_url: publicUrl,
-        title: seller.shop_name || 'Маркет',
-        seller_id: String(seller.id || seller.telegram_id)
+        seller_id: String(seller.id),
+        title: seller.shop_name
+      }]);
+      alert("История опубликована! Проверьте сайт.");
+    } catch (e: any) { alert(e.message); } finally { setUploading(false); }
+  };
+
+  // Создание товара
+  const handleAddProduct = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const file = productFileRef.current?.files?.[0];
+    if (!file || !newName || !newPrice) return alert("Заполните все поля и выберите фото");
+
+    try {
+      setUploading(true);
+      const fileName = `${Date.now()}_prod.jpg`;
+      await supabase.storage.from('images').upload(`products/${fileName}`, file);
+      const { data: { publicUrl } } = supabase.storage.from('images').getPublicUrl(`products/${fileName}`);
+
+      await supabase.from('product_market').insert([{
+        name: newName,
+        price: Number(newPrice),
+        category: newCategory,
+        image_url: publicUrl,
+        seller_id: String(seller.id)
       }]);
 
-      if (dbError) throw dbError;
-      alert("История опубликована! 📸");
-    } catch (error: any) {
-      alert("Ошибка: " + error.message);
-    } finally {
-      setUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    }
+      alert("Товар добавлен!");
+      setIsAddModalOpen(false);
+      loadData(String(seller.id));
+    } catch (e: any) { alert(e.message); } finally { setUploading(false); }
   };
 
-  const updateStatus = async (orderId: any, newStatus: string) => {
-    await supabase.from('orders').update({ status: newStatus }).eq('id', orderId);
-    fetchOrders(String(seller.id || seller.telegram_id));
-  };
-
-  if (loading) return (
-    <div className="min-h-screen bg-black flex items-center justify-center">
-      <div className="text-orange-500 font-black animate-pulse uppercase italic">Синхронизация...</div>
-    </div>
-  );
+  if (loading) return <div className="min-h-screen bg-black flex items-center justify-center text-orange-500 font-black italic">ЗАГРУЗКА...</div>;
 
   return (
-    <div className="min-h-screen bg-black text-white p-4 pb-24 font-sans">
-      {/* Шапка */}
-      <header className="mb-10 px-2 flex justify-between items-center pt-4">
+    <div className="min-h-screen bg-black text-white p-4 pb-32">
+      <header className="flex justify-between items-center mb-8 pt-4">
         <div>
-          <h1 className="text-3xl font-black text-orange-500 uppercase italic leading-none">Admin</h1>
-          <p className="text-zinc-500 text-[10px] font-bold uppercase mt-1">{seller?.login}</p>
+          <h1 className="text-3xl font-black text-orange-500 uppercase italic">Admin</h1>
+          <p className="text-zinc-500 text-[10px] uppercase">{seller?.login}</p>
         </div>
-        
-        <button 
-          onClick={() => fileInputRef.current?.click()}
-          disabled={uploading}
-          className="w-16 h-16 bg-orange-500 rounded-[2rem] flex items-center justify-center text-2xl shadow-lg shadow-orange-500/30 active:scale-90 transition-all"
-        >
-          {uploading ? '⏳' : '📸'}
-        </button>
-        <input type="file" accept="image/*" ref={fileInputRef} onChange={handleFileUpload} className="hidden" />
+        <div className="flex gap-2">
+            <button onClick={() => setIsAddModalOpen(true)} className="w-12 h-12 bg-zinc-800 rounded-2xl flex items-center justify-center text-xl">+</button>
+            <button onClick={() => fileInputRef.current?.click()} className="w-12 h-12 bg-orange-500 rounded-2xl flex items-center justify-center text-xl">📸</button>
+        </div>
+        <input type="file" ref={fileInputRef} onChange={handleStoryUpload} className="hidden" />
       </header>
 
-      {/* Список товаров */}
-      <section className="mb-12">
-        <h2 className="text-[10px] font-black text-zinc-600 uppercase tracking-[0.3em] mb-4 px-2">Мои товары ({products.length})</h2>
-        <div className="grid grid-cols-2 gap-3 px-1">
-          {products.map((product) => (
-            <div key={product.id} className="bg-zinc-900/40 rounded-[2rem] p-3 border border-zinc-800/50">
-              <img src={product.image_url} className="w-full h-24 object-cover rounded-2xl mb-2 bg-zinc-800" />
-              <p className="font-bold text-[11px] truncate px-1">{product.name}</p>
-              <p className="text-orange-500 font-black text-[12px] px-1 italic">{product.price}₽</p>
+      {/* Модалка добавления товара */}
+      {isAddModalOpen && (
+        <div className="fixed inset-0 bg-black/90 z-50 p-6 flex items-center justify-center">
+          <div className="bg-zinc-900 w-full rounded-[3rem] p-8 border border-zinc-800">
+            <h2 className="text-xl font-black uppercase italic mb-6">Новый товар</h2>
+            <form onSubmit={handleAddProduct} className="space-y-4">
+              <input type="file" ref={productFileRef} className="w-full text-xs" accept="image/*" />
+              <input placeholder="Название" className="w-full bg-black p-4 rounded-xl outline-none" value={newName} onChange={e => setNewName(e.target.value)} />
+              <input placeholder="Цена" type="number" className="w-full bg-black p-4 rounded-xl outline-none" value={newPrice} onChange={e => setNewPrice(e.target.value)} />
+              <select className="w-full bg-black p-4 rounded-xl outline-none" value={newCategory} onChange={e => setNewCategory(e.target.value)}>
+                {categories.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+              <div className="flex gap-2 pt-4">
+                <button type="button" onClick={() => setIsAddModalOpen(false)} className="flex-1 bg-zinc-800 py-4 rounded-xl font-bold">ОТМЕНА</button>
+                <button type="submit" className="flex-1 bg-orange-500 py-4 rounded-xl font-black uppercase italic">{uploading ? '...' : 'СОЗДАТЬ'}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Сетка товаров */}
+      <section className="mb-10">
+        <h2 className="text-[10px] font-black text-zinc-600 uppercase tracking-widest mb-4">Мои товары ({products.length})</h2>
+        <div className="grid grid-cols-2 gap-3">
+          {products.map(p => (
+            <div key={p.id} className="bg-zinc-900/50 p-3 rounded-[2rem] border border-zinc-800">
+              <img src={p.image_url} className="w-full h-24 object-cover rounded-2xl mb-2" />
+              <p className="font-bold text-[10px] truncate">{p.name}</p>
+              <p className="text-orange-500 font-black text-xs">{p.price}₽</p>
+              <p className="text-zinc-600 text-[8px] uppercase">{p.category}</p>
             </div>
           ))}
         </div>
       </section>
 
-      {/* Список заказов */}
-      <section className="space-y-4">
-        <h2 className="text-[10px] font-black text-zinc-600 uppercase tracking-[0.3em] mb-4 px-2">Новые заказы ({orders.length})</h2>
-        {orders.map((order) => (
-          <div key={order.id} className="bg-zinc-900 rounded-[2.5rem] p-6 border border-zinc-800">
-            <div className="flex justify-between items-start mb-4">
-              <h3 className="font-bold text-lg leading-tight w-[70%]">{order.product_name}</h3>
-              <p className="text-orange-500 font-black italic">{order.price}₽</p>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <button onClick={() => updateStatus(order.id, 'Собираю')} className="bg-zinc-800 py-3 rounded-2xl text-[9px] font-black uppercase">Сборка</button>
-              <button onClick={() => updateStatus(order.id, 'Доставляется')} className="bg-zinc-800 py-3 rounded-2xl text-[9px] font-black uppercase">В пути</button>
-              <button onClick={() => updateStatus(order.id, 'Завершен')} className="col-span-2 bg-orange-500 py-4 rounded-[1.5rem] text-[11px] font-black uppercase italic mt-2">Завершить</button>
-            </div>
-          </div>
-        ))}
-      </section>
-
-      <button 
-        onClick={() => { localStorage.removeItem('seller_session'); router.push('/login'); }}
-        className="mt-12 w-full text-zinc-700 text-[9px] font-black uppercase tracking-[0.2em] py-4"
-      >
-        Выйти из аккаунта
-      </button>
+      {/* Выход */}
+      <button onClick={() => { localStorage.removeItem('seller_session'); router.push('/login'); }} className="w-full text-zinc-700 text-[9px] font-black uppercase tracking-widest">Выйти</button>
     </div>
   );
 }

@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import { supabase } from '@/lib/supabase'; // Проверь, что путь к supabase верный
+import { supabase } from '../lib/supabase'; // Проверь, что путь к supabase верный
 import { useRouter } from 'next/navigation';
 
 export default function RegisterPage() {

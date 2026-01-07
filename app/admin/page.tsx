@@ -3,141 +3,133 @@ import { useEffect, useState, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { useRouter } from 'next/navigation';
 
-export default function AdminPanel() {
+export default function AdminPage() {
   const [orders, setOrders] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
+  const [stories, setStories] = useState<any[]>([]); // Состояние для историй
   const [seller, setSeller] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  
-  // Поля нового товара
-  const [newName, setNewName] = useState('');
-  const [newPrice, setNewPrice] = useState('');
-  const [newCategory, setNewCategory] = useState('Электроника');
   const [uploading, setUploading] = useState(false);
-  
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const productFileRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
-
-  const categories = ['Электроника', 'Одежда', 'Аксессуары', 'Дом', 'Спорт', 'Другое'];
 
   useEffect(() => {
     const sessionData = localStorage.getItem('seller_session');
     if (!sessionData) { router.push('/login'); return; }
+    
     const session = JSON.parse(sessionData);
     setSeller(session);
-    loadData(String(session.id));
-  }, []);
+    
+    fetchData(session.id || 1);
+  }, [router]);
 
-  const loadData = async (id: string) => {
-    setLoading(true);
-    const { data: p } = await supabase.from('product_market').select('*').eq('seller_id', id);
-    const { data: o } = await supabase.from('orders').select('*').eq('seller_id', id);
-    setProducts(p || []);
-    setOrders(o || []);
+  const fetchData = async (sellerId: any) => {
+    const [ordersRes, productsRes, storiesRes] = await Promise.all([
+      supabase.from('orders').select('*').eq('seller_id', sellerId).order('created_at', { ascending: false }),
+      supabase.from('product_market').select('*').eq('seller_id', sellerId),
+      supabase.from('seller_stories').select('*').eq('seller_id', sellerId).order('created_at', { ascending: false })
+    ]);
+    setOrders(ordersRes.data || []);
+    setProducts(productsRes.data || []);
+    setStories(storiesRes.data || []);
     setLoading(false);
   };
 
-  // Загрузка сторис
-  const handleStoryUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     try {
       const file = event.target.files?.[0];
       if (!file || !seller) return;
       setUploading(true);
-      const fileName = `${Date.now()}_story.jpg`;
-      await supabase.storage.from('images').upload(`stories/${fileName}`, file);
+      const fileName = `${Date.now()}.${file.name.split('.').pop()}`;
+      const { error: upErr } = await supabase.storage.from('images').upload(`stories/${fileName}`, file);
+      if (upErr) throw upErr;
+
       const { data: { publicUrl } } = supabase.storage.from('images').getPublicUrl(`stories/${fileName}`);
-      
-      await supabase.from('seller_stories').insert([{
-        image_url: publicUrl,
-        seller_id: String(seller.id),
-        title: seller.shop_name
+      await supabase.from('seller_stories').insert([{ 
+        image_url: publicUrl, 
+        seller_id: seller.id,
+        title: seller.shop_name || 'Маркет' 
       }]);
-      alert("История опубликована! Проверьте сайт.");
-    } catch (e: any) { alert(e.message); } finally { setUploading(false); }
+      alert("История опубликована!");
+      fetchData(seller.id); // Обновляем список после загрузки
+    } catch (e: any) { alert("Ошибка: " + e.message); } finally { setUploading(false); }
   };
 
-  // Создание товара
-  const handleAddProduct = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const file = productFileRef.current?.files?.[0];
-    if (!file || !newName || !newPrice) return alert("Заполните все поля и выберите фото");
-
-    try {
-      setUploading(true);
-      const fileName = `${Date.now()}_prod.jpg`;
-      await supabase.storage.from('images').upload(`products/${fileName}`, file);
-      const { data: { publicUrl } } = supabase.storage.from('images').getPublicUrl(`products/${fileName}`);
-
-      await supabase.from('product_market').insert([{
-        name: newName,
-        price: Number(newPrice),
-        category: newCategory,
-        image_url: publicUrl,
-        seller_id: String(seller.id)
-      }]);
-
-      alert("Товар добавлен!");
-      setIsAddModalOpen(false);
-      loadData(String(seller.id));
-    } catch (e: any) { alert(e.message); } finally { setUploading(false); }
+  // Функция удаления истории
+  const deleteStory = async (storyId: any) => {
+    if (!confirm('Удалить эту историю?')) return;
+    const { error } = await supabase.from('seller_stories').delete().eq('id', storyId);
+    if (error) alert('Ошибка удаления');
+    else fetchData(seller.id);
   };
 
   if (loading) return <div className="min-h-screen bg-black flex items-center justify-center text-orange-500 font-black italic">ЗАГРУЗКА...</div>;
 
   return (
-    <div className="min-h-screen bg-black text-white p-4 pb-32">
-      <header className="flex justify-between items-center mb-8 pt-4">
+    <div className="min-h-screen bg-black text-white p-5 pb-32">
+      <header className="flex justify-between items-center mb-10 pt-4">
         <div>
-          <h1 className="text-3xl font-black text-orange-500 uppercase italic">Admin</h1>
-          <p className="text-zinc-500 text-[10px] uppercase">{seller?.login}</p>
+          <h1 className="text-3xl font-black text-orange-500 uppercase italic leading-none">ADMIN</h1>
+          <p className="text-zinc-500 text-[10px] uppercase font-bold tracking-widest">{seller?.login}</p>
         </div>
-        <div className="flex gap-2">
-            <button onClick={() => setIsAddModalOpen(true)} className="w-12 h-12 bg-zinc-800 rounded-2xl flex items-center justify-center text-xl">+</button>
-            <button onClick={() => fileInputRef.current?.click()} className="w-12 h-12 bg-orange-500 rounded-2xl flex items-center justify-center text-xl">📸</button>
-        </div>
-        <input type="file" ref={fileInputRef} onChange={handleStoryUpload} className="hidden" />
+        <button onClick={() => fileInputRef.current?.click()} className="w-16 h-16 bg-orange-500 rounded-[2.2rem] flex items-center justify-center text-2xl shadow-lg shadow-orange-500/30">
+          {uploading ? '⏳' : '📸'}
+        </button>
+        <input type="file" accept="image/*" ref={fileInputRef} onChange={handleFileUpload} className="hidden" />
       </header>
 
-      {/* Модалка добавления товара */}
-      {isAddModalOpen && (
-        <div className="fixed inset-0 bg-black/90 z-50 p-6 flex items-center justify-center">
-          <div className="bg-zinc-900 w-full rounded-[3rem] p-8 border border-zinc-800">
-            <h2 className="text-xl font-black uppercase italic mb-6">Новый товар</h2>
-            <form onSubmit={handleAddProduct} className="space-y-4">
-              <input type="file" ref={productFileRef} className="w-full text-xs" accept="image/*" />
-              <input placeholder="Название" className="w-full bg-black p-4 rounded-xl outline-none" value={newName} onChange={e => setNewName(e.target.value)} />
-              <input placeholder="Цена" type="number" className="w-full bg-black p-4 rounded-xl outline-none" value={newPrice} onChange={e => setNewPrice(e.target.value)} />
-              <select className="w-full bg-black p-4 rounded-xl outline-none" value={newCategory} onChange={e => setNewCategory(e.target.value)}>
-                {categories.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
-              <div className="flex gap-2 pt-4">
-                <button type="button" onClick={() => setIsAddModalOpen(false)} className="flex-1 bg-zinc-800 py-4 rounded-xl font-bold">ОТМЕНА</button>
-                <button type="submit" className="flex-1 bg-orange-500 py-4 rounded-xl font-black uppercase italic">{uploading ? '...' : 'СОЗДАТЬ'}</button>
+      {/* СЕКЦИЯ МОИ ИСТОРИИ */}
+      <section className="mb-12">
+        <h2 className="text-[10px] font-black text-zinc-600 uppercase tracking-widest mb-6 px-2">Управление историями ({stories.length})</h2>
+        <div className="flex gap-4 overflow-x-auto no-scrollbar pb-4">
+          {stories.map(s => (
+            <div key={s.id} className="flex-shrink-0 flex flex-col items-center gap-3">
+              <div className="w-20 h-20 rounded-full p-[2px] border-2 border-zinc-800">
+                <img src={s.image_url} className="w-full h-full rounded-full object-cover" />
               </div>
-            </form>
-          </div>
+              <button 
+                onClick={() => deleteStory(s.id)}
+                className="bg-red-500/10 text-red-500 text-[8px] font-black uppercase px-3 py-1 rounded-full border border-red-500/20"
+              >
+                Удалить
+              </button>
+            </div>
+          ))}
+          {stories.length === 0 && <p className="text-zinc-800 text-[10px] font-bold uppercase italic px-2">Нет активных историй</p>}
         </div>
-      )}
+      </section>
 
-      {/* Сетка товаров */}
-      <section className="mb-10">
-        <h2 className="text-[10px] font-black text-zinc-600 uppercase tracking-widest mb-4">Мои товары ({products.length})</h2>
-        <div className="grid grid-cols-2 gap-3">
+      {/* ТОВАРЫ */}
+      <section className="mb-12">
+        <h2 className="text-[10px] font-black text-zinc-600 uppercase tracking-widest mb-6 px-2">Мои товары</h2>
+        <div className="grid grid-cols-2 gap-4">
           {products.map(p => (
-            <div key={p.id} className="bg-zinc-900/50 p-3 rounded-[2rem] border border-zinc-800">
-              <img src={p.image_url} className="w-full h-24 object-cover rounded-2xl mb-2" />
-              <p className="font-bold text-[10px] truncate">{p.name}</p>
-              <p className="text-orange-500 font-black text-xs">{p.price}₽</p>
-              <p className="text-zinc-600 text-[8px] uppercase">{p.category}</p>
+            <div key={p.id} className="bg-zinc-900/40 p-2 rounded-[2.5rem] border border-zinc-800/50">
+              <img src={p.image_url} className="w-full h-32 object-cover rounded-[2rem] mb-3" />
+              <div className="px-3 pb-2">
+                <p className="font-bold text-[10px] truncate uppercase">{p.name}</p>
+                <p className="text-orange-500 font-black italic text-xs">{p.price}₽</p>
+              </div>
             </div>
           ))}
         </div>
       </section>
 
-      {/* Выход */}
-      <button onClick={() => { localStorage.removeItem('seller_session'); router.push('/login'); }} className="w-full text-zinc-700 text-[9px] font-black uppercase tracking-widest">Выйти</button>
+      {/* ЗАКАЗЫ */}
+      <section>
+        <h2 className="text-[10px] font-black text-zinc-600 uppercase tracking-widest mb-6 px-2">Заказы</h2>
+        <div className="space-y-3">
+          {orders.map(o => (
+            <div key={o.id} className="bg-zinc-900 p-5 rounded-[2rem] border border-zinc-800 flex justify-between items-center">
+               <div className="flex flex-col gap-1">
+                  <p className="font-black text-xs uppercase italic">{o.product_name}</p>
+                  <p className="text-[9px] text-zinc-500 font-bold uppercase tracking-tighter">{o.status} • {o.buyer_phone}</p>
+               </div>
+               <p className="text-orange-500 font-black italic text-sm">{o.price}₽</p>
+            </div>
+          ))}
+        </div>
+      </section>
     </div>
   );
 }

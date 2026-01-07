@@ -1,8 +1,8 @@
 'use client';
 import React, { useEffect, useState } from 'react';
-import { supabase } from './lib/supabase'; // Исправленный путь
+import { supabase } from './lib/supabase';
 
-// --- ТРЕКЕР (ПЛАШКА СТАТУСА) ---
+// --- ПЛАШКА СТАТУСА (Плавающий баннер в стиле iOS/Android) ---
 function OrderStatusTracker() {
   const [order, setOrder] = useState<any>(null);
 
@@ -29,20 +29,32 @@ function OrderStatusTracker() {
   const isArrived = order.status === 'У дверей';
 
   return (
-    <div className={`fixed bottom-6 left-4 right-4 p-5 rounded-[2.5rem] shadow-2xl flex items-center justify-between z-50 border-2 transition-all duration-500 ${isArrived ? 'bg-orange-500 border-white animate-bounce' : 'bg-zinc-900 border-zinc-800 text-white'}`}>
-      <div className="flex items-center gap-4">
-        <div className="text-2xl">{isArrived ? '🔔' : '🚚'}</div>
-        <div>
-          <p className="text-[10px] uppercase font-black opacity-60">Заказ в пути</p>
-          <p className="font-black text-lg leading-tight uppercase">{isArrived ? 'ЖДЕТ У ДВЕРЕЙ!' : order.status}</p>
+    <div className="fixed bottom-6 left-0 right-0 px-4 z-50">
+      <div className={`p-4 rounded-[2rem] shadow-[0_20px_50px_rgba(0,0,0,0.3)] flex items-center justify-between border-2 transition-all duration-500 ${
+        isArrived ? 'bg-orange-500 border-white animate-bounce' : 'bg-zinc-900 border-zinc-800 text-white'
+      }`}>
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center text-2xl">
+            {isArrived ? '🔔' : '🚚'}
+          </div>
+          <div>
+            <p className="text-[10px] uppercase font-black opacity-60 tracking-wider">Ваш заказ</p>
+            <p className="font-black text-base leading-tight uppercase">
+              {isArrived ? 'У ВАШИХ ДВЕРЕЙ!' : order.status}
+            </p>
+          </div>
         </div>
+        {isArrived && (
+          <div className="bg-white text-orange-600 px-4 py-2 rounded-xl font-black text-[10px] animate-pulse">
+            ВЫХОДИТЕ
+          </div>
+        )}
       </div>
-      {isArrived && <span className="text-[10px] bg-white text-orange-600 px-3 py-1 rounded-full font-black">ВЫХОДИТЕ</span>}
     </div>
   );
 }
 
-// --- ГЛАВНАЯ СТРАНИЦА (СЕТКА 2 В РЯД) ---
+// --- ГЛАВНЫЙ ЭКРАН ПРИЛОЖЕНИЯ ---
 export default function HomePage() {
   const [products, setProducts] = useState<any[]>([]);
 
@@ -55,7 +67,7 @@ export default function HomePage() {
   }, []);
 
   const handleBuy = async (product: any) => {
-    const phone = prompt("Введите номер телефона:");
+    const phone = prompt("Ваш номер телефона:");
     if (!phone) return;
 
     const { error } = await supabase.from('orders').insert([{
@@ -68,39 +80,53 @@ export default function HomePage() {
 
     if (!error) {
       localStorage.setItem('buyer_phone', phone);
-      alert("Заказ принят!");
+      alert("Заказ оформлен! Ожидайте уведомления.");
       window.location.reload();
     }
   };
 
   return (
-    <main className="min-h-screen bg-black text-white p-4 pb-32">
-      <header className="flex justify-between items-center mb-8 px-2">
-        <h1 className="text-3xl font-black text-orange-500 uppercase italic leading-none">Маркет<br/>Радужный</h1>
-        <div className="w-10 h-10 bg-zinc-900 rounded-full border border-zinc-800 flex items-center justify-center text-xl">🛒</div>
+    <main className="min-h-screen bg-[#080808] text-white p-4 pb-32 font-sans">
+      {/* Шапка как в приложении */}
+      <header className="flex justify-between items-center pt-4 mb-8 px-2">
+        <div>
+          <h1 className="text-3xl font-black tracking-tighter leading-none uppercase italic text-orange-500">
+            MARKET<br/>RADUZHNY
+          </h1>
+        </div>
+        <div className="bg-zinc-900 p-3 rounded-2xl border border-zinc-800">
+          <span className="text-xl">📍</span>
+        </div>
       </header>
 
-      {/* Сетка: grid-cols-2 делает 2 товара в ряд */}
+      {/* Сетка товаров: 2 в ряд в стиле Mobile UI */}
       <div className="grid grid-cols-2 gap-3">
         {products.map((p) => (
-          <div key={p.id} className="bg-zinc-900 rounded-[2.2rem] overflow-hidden border border-zinc-800 p-2 shadow-xl">
-            <div className="relative h-36 w-full rounded-[1.8rem] overflow-hidden mb-3">
-              <img src={p.image_url} alt="" className="w-full h-full object-cover" />
+          <div key={p.id} className="bg-zinc-900/50 backdrop-blur-md rounded-[2.5rem] overflow-hidden border border-zinc-800/50 flex flex-col shadow-lg">
+            <div className="h-40 w-full p-2">
+              <img src={p.image_url} alt="" className="w-full h-full object-cover rounded-[2rem]" />
             </div>
-            <div className="px-2 pb-2">
-              <h2 className="font-bold text-[13px] leading-tight mb-1 h-8 overflow-hidden line-clamp-2">{p.name}</h2>
-              <p className="text-orange-500 font-black text-lg mb-3">{p.price}₽</p>
-              <button 
-                onClick={() => handleBuy(p)} 
-                className="w-full bg-white text-black py-2.5 rounded-2xl font-black text-[10px] uppercase active:scale-95 transition-all shadow-md"
-              >
-                Купить
-              </button>
+            <div className="p-4 pt-1 flex flex-col flex-1">
+              <h2 className="font-bold text-[13px] leading-tight mb-2 h-8 overflow-hidden line-clamp-2 opacity-90">
+                {p.name}
+              </h2>
+              <div className="mt-auto flex flex-col gap-3">
+                <p className="text-orange-500 font-black text-lg leading-none italic">
+                  {p.price}₽
+                </p>
+                <button 
+                  onClick={() => handleBuy(p)} 
+                  className="w-full bg-white text-black py-3 rounded-[1.2rem] font-black text-[11px] uppercase active:scale-95 transition-all"
+                >
+                  В корзину
+                </button>
+              </div>
             </div>
           </div>
         ))}
       </div>
 
+      {/* Вызов трекера */}
       <OrderStatusTracker />
     </main>
   );

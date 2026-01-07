@@ -1,67 +1,96 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { supabase } from './lib/supabase';
+import { useRouter } from 'next/navigation';
 
-export default function HomePage() {
-  const [stories, setStories] = useState<any[]>([]);
+export default function AdminPage() {
+  const [orders, setOrders] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
+  const [seller, setSeller] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const router = useRouter();
 
   useEffect(() => {
-    async function loadData() {
-      // 1. Загружаем истории
-      const { data: storyData } = await supabase
-        .from('seller_stories')
-        .select('*')
-        .order('created_at', { ascending: false });
-      setStories(storyData || []);
+    const sessionData = localStorage.getItem('seller_session');
+    if (!sessionData) { router.push('/login'); return; }
+    
+    const session = JSON.parse(sessionData);
+    setSeller(session);
+    
+    const fetchData = async () => {
+      const sellerId = session.id || 1;
+      const [ordersRes, productsRes] = await Promise.all([
+        supabase.from('orders').select('*').eq('seller_id', sellerId).order('created_at', { ascending: false }),
+        supabase.from('product_market').select('*').eq('seller_id', sellerId)
+      ]);
+      setOrders(ordersRes.data || []);
+      setProducts(productsRes.data || []);
+      setLoading(false);
+    };
+    fetchData();
+  }, [router]);
 
-      // 2. Загружаем товары
-      const { data: productData } = await supabase
-        .from('product_market')
-        .select('*');
-      setProducts(productData || []);
-    }
-    loadData();
-  }, []);
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    try {
+      const file = event.target.files?.[0];
+      if (!file || !seller) return;
+      setUploading(true);
+      const fileName = `${Date.now()}.${file.name.split('.').pop()}`;
+      const { error: upErr } = await supabase.storage.from('images').upload(`stories/${fileName}`, file);
+      if (upErr) throw upErr;
+
+      const { data: { publicUrl } } = supabase.storage.from('images').getPublicUrl(`stories/${fileName}`);
+      await supabase.from('seller_stories').insert([{ 
+        image_url: publicUrl, 
+        seller_id: seller.id,
+        title: seller.shop_name || 'Маркет' 
+      }]);
+      alert("История опубликована!");
+    } catch (e: any) { alert("Ошибка: " + e.message); } finally { setUploading(false); }
+  };
+
+  if (loading) return <div className="min-h-screen bg-black flex items-center justify-center text-orange-500 font-black italic">ЗАГРУЗКА...</div>;
 
   return (
-    <div className="min-h-screen bg-black text-white pb-20">
-      {/* СЕКЦИЯ СТОРИС (Кружочки) */}
-      <div className="flex overflow-x-auto gap-4 p-5 no-scrollbar border-b border-zinc-900">
-        {stories.map((story) => (
-          <div key={story.id} className="flex-shrink-0 flex flex-col items-center gap-2">
-            <div className="w-20 h-20 rounded-full p-[3px] bg-gradient-to-tr from-orange-500 to-yellow-500 shadow-lg shadow-orange-500/20">
-              <div className="w-full h-full rounded-full border-4 border-black overflow-hidden bg-zinc-800">
-                <img 
-                  src={story.image_url} 
-                  className="w-full h-full object-cover" 
-                  alt="story"
-                />
-              </div>
-            </div>
-            <span className="text-[10px] font-black uppercase tracking-tighter text-zinc-500">
-              {story.title || 'Маркет'}
-            </span>
-          </div>
-        ))}
-        
-        {stories.length === 0 && (
-          <div className="text-[10px] text-zinc-700 font-bold py-4 uppercase tracking-widest">
-            Пока нет новых историй
-          </div>
-        )}
-      </div>
+    <div className="min-h-screen bg-black text-white p-5 pb-32">
+      <header className="flex justify-between items-center mb-10 pt-4">
+        <div>
+          <h1 className="text-3xl font-black text-orange-500 uppercase italic">ADMIN</h1>
+          <p className="text-zinc-500 text-[10px] uppercase font-bold">{seller?.login}</p>
+        </div>
+        <button onClick={() => fileInputRef.current?.click()} className="w-14 h-14 bg-orange-500 rounded-2xl flex items-center justify-center text-xl shadow-lg shadow-orange-500/30">
+          {uploading ? '⏳' : '📸'}
+        </button>
+        <input type="file" accept="image/*" ref={fileInputRef} onChange={handleFileUpload} className="hidden" />
+      </header>
 
-      {/* ЛЕНТА ТОВАРОВ */}
-      <div className="p-5 grid grid-cols-2 gap-4">
-        {products.map((product) => (
-          <div key={product.id} className="bg-zinc-900 rounded-[2.5rem] p-4 border border-zinc-800">
-             <img src={product.image_url} className="w-full h-40 object-cover rounded-3xl mb-4" />
-             <h3 className="font-bold text-sm mb-1">{product.name}</h3>
-             <p className="text-orange-500 font-black italic">{product.price}₽</p>
+      <section className="mb-10">
+        <h2 className="text-[10px] font-black text-zinc-600 uppercase tracking-widest mb-4">Мои товары</h2>
+        <div className="grid grid-cols-2 gap-3">
+          {products.map(p => (
+            <div key={p.id} className="bg-zinc-900/50 p-2 rounded-3xl border border-zinc-800">
+              <img src={p.image_url} className="w-full h-28 object-cover rounded-2xl mb-2" />
+              <div className="px-2 pb-1 text-[11px] font-bold truncate">{p.name}</div>
+              <div className="px-2 text-orange-500 font-black italic">{p.price}₽</div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section>
+        <h2 className="text-[10px] font-black text-zinc-600 uppercase tracking-widest mb-4">Новые заказы</h2>
+        {orders.map(o => (
+          <div key={o.id} className="bg-zinc-900 p-5 rounded-[2rem] border border-zinc-800 mb-3 flex justify-between items-center">
+             <div>
+                <p className="font-bold text-sm uppercase italic">{o.product_name}</p>
+                <p className="text-[10px] text-zinc-500">{o.status}</p>
+             </div>
+             <p className="text-orange-500 font-black italic">{o.price}₽</p>
           </div>
         ))}
-      </div>
+      </section>
     </div>
   );
 }

@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { useRouter } from 'next/navigation';
 
@@ -11,6 +11,7 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showCompleted, setShowCompleted] = useState(false); // Состояние для спойлера
   
   const [newProduct, setNewProduct] = useState({ name: '', price: '', category: '', image: null as File | null });
 
@@ -36,6 +37,10 @@ export default function AdminPage() {
     setStories(storiesRes.data || []);
     setLoading(false);
   };
+
+  // Разделяем заказы на активные и завершенные
+  const activeOrders = useMemo(() => orders.filter(o => o.status !== 'Завершен'), [orders]);
+  const completedOrders = useMemo(() => orders.filter(o => o.status === 'Завершен'), [orders]);
 
   // --- УПРАВЛЕНИЕ ТОВАРАМИ ---
   const handleAddProduct = async () => {
@@ -105,20 +110,14 @@ export default function AdminPage() {
     fetchData(seller.id);
   };
 
-  // --- УПРАВЛЕНИЕ ЗАКАЗАМИ (ИСПРАВЛЕНО) ---
+  // --- УПРАВЛЕНИЕ ЗАКАЗАМИ ---
   const updateOrderStatus = async (id: any, status: string) => {
     try {
-      const { error } = await supabase
-        .from('orders')
-        .update({ status: status })
-        .eq('id', id);
-
+      const { error } = await supabase.from('orders').update({ status }).eq('id', id);
       if (error) throw error;
-
-      // Обновляем состояние локально, чтобы сразу увидеть результат
-      setOrders(prev => prev.map(o => o.id === id ? { ...o, status: status } : o));
+      setOrders(prev => prev.map(o => o.id === id ? { ...o, status } : o));
     } catch (e: any) {
-      alert("Ошибка обновления: " + e.message);
+      alert("Ошибка: " + e.message);
     }
   };
 
@@ -139,7 +138,7 @@ export default function AdminPage() {
         <input type="file" ref={fileInputRef} onChange={handleStoryUpload} className="hidden" />
       </header>
 
-      {/* СЕКЦИЯ СТОРИС */}
+      {/* СТОРИС И ТОВАРЫ (Оставил как было) */}
       <section className="mb-12">
         <h2 className="text-[9px] font-black text-zinc-600 uppercase tracking-[0.3em] mb-4 px-2">Ваши истории</h2>
         <div className="flex gap-4 overflow-x-auto no-scrollbar pb-2">
@@ -152,7 +151,6 @@ export default function AdminPage() {
         </div>
       </section>
 
-      {/* СЕКЦИЯ ТОВАРОВ */}
       <section className="mb-12">
         <h2 className="text-[9px] font-black text-zinc-600 uppercase tracking-[0.3em] mb-6 px-2">Управление товарами ({products.length})</h2>
         <div className="grid grid-cols-1 gap-4">
@@ -175,11 +173,11 @@ export default function AdminPage() {
         </div>
       </section>
 
-      {/* СЕКЦИЯ ЗАКАЗОВ */}
+      {/* СЕКЦИЯ АКТИВНЫХ ЗАКАЗОВ */}
       <section>
-        <h2 className="text-[9px] font-black text-zinc-600 uppercase tracking-[0.3em] mb-6 px-2">Новые заказы ({orders.length})</h2>
-        <div className="space-y-4">
-          {orders.map(o => (
+        <h2 className="text-[9px] font-black text-zinc-600 uppercase tracking-[0.3em] mb-6 px-2">Новые заказы ({activeOrders.length})</h2>
+        <div className="space-y-4 mb-10">
+          {activeOrders.map(o => (
             <div key={o.id} className="bg-zinc-900 p-6 rounded-[2.5rem] border border-zinc-800">
               <div className="flex justify-between items-start mb-4">
                 <div className="max-w-[70%]">
@@ -195,11 +193,40 @@ export default function AdminPage() {
               </div>
             </div>
           ))}
-          {orders.length === 0 && <p className="text-center py-10 text-zinc-800 font-black uppercase italic text-[10px]">Заказов пока нет</p>}
+          {activeOrders.length === 0 && <p className="text-center py-10 text-zinc-800 font-black uppercase italic text-[10px]">Активных заказов нет</p>}
         </div>
+
+        {/* СПОЙЛЕР ДЛЯ ЗАВЕРШЕННЫХ */}
+        {completedOrders.length > 0 && (
+          <div className="mt-8">
+            <button 
+              onClick={() => setShowCompleted(!showCompleted)}
+              className="w-full py-4 border-t border-zinc-800 flex justify-between items-center px-4 active:bg-zinc-900 transition-all rounded-xl"
+            >
+              <span className="text-[9px] font-black text-zinc-500 uppercase tracking-widest">Архив заказов ({completedOrders.length})</span>
+              <span className="text-zinc-600">{showCompleted ? '▲' : '▼'}</span>
+            </button>
+            
+            {showCompleted && (
+              <div className="space-y-4 mt-6 animate-fade-in">
+                {completedOrders.map(o => (
+                  <div key={o.id} className="bg-zinc-900/40 p-5 rounded-[2rem] border border-zinc-800/50 opacity-60">
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <p className="font-bold text-[10px] uppercase italic text-zinc-400">{o.product_name}</p>
+                        <p className="text-[8px] text-zinc-600 mt-1 uppercase">{o.buyer_phone}</p>
+                      </div>
+                      <p className="text-zinc-500 font-black italic text-xs">{o.price}₽</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </section>
 
-      {/* МОДАЛКА ТОВАРА */}
+      {/* МОДАЛКА (Оставил как было) */}
       {showAddModal && (
         <div className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center p-6 backdrop-blur-md">
           <div className="bg-zinc-900 w-full rounded-[3.5rem] p-8 border border-zinc-800 shadow-2xl animate-fade-in">
@@ -226,7 +253,7 @@ export default function AdminPage() {
 
       <style jsx global>{`
         .no-scrollbar::-webkit-scrollbar { display: none; }
-        @keyframes fade-in { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+        @keyframes fade-in { from { opacity: 0; transform: scale(0.98); } to { opacity: 1; transform: scale(1); } }
         .animate-fade-in { animation: fade-in 0.3s ease-out forwards; }
       `}</style>
     </div>

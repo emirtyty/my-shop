@@ -11,20 +11,48 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
-  const [showCompleted, setShowCompleted] = useState(false); // Состояние для спойлера
+  const [showCompleted, setShowCompleted] = useState(false); 
   
   const [newProduct, setNewProduct] = useState({ name: '', price: '', category: '', image: null as File | null });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
+  // --- ОБНОВЛЕННАЯ ПРОВЕРКА ВХОДА ---
   useEffect(() => {
-    const sessionData = localStorage.getItem('seller_session');
-    if (!sessionData) { router.push('/login'); return; }
-    const session = JSON.parse(sessionData);
-    setSeller(session);
-    fetchData(session.id || 1);
+    const checkUser = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        router.push('/login'); // Если сессии нет, отправляем на страницу с кнопками
+        return;
+      }
+
+      // Получаем данные продавца из таблицы sellers по его ID из Auth
+      const { data: sellerData } = await supabase
+        .from('sellers')
+        .select('*')
+        .eq('id', session.user.id)
+        .single();
+
+      if (sellerData) {
+        setSeller(sellerData);
+        fetchData(sellerData.id);
+      } else {
+        // Если пользователя нет в таблице sellers, используем ID из сессии или 1 по умолчанию
+        setSeller({ id: session.user.id, email: session.user.email });
+        fetchData(session.user.id);
+      }
+    };
+
+    checkUser();
   }, [router]);
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    router.push('/login');
+  };
+  // ---------------------------------
 
   const fetchData = async (sellerId: any) => {
     const [ordersRes, productsRes, storiesRes] = await Promise.all([
@@ -38,11 +66,9 @@ export default function AdminPage() {
     setLoading(false);
   };
 
-  // Разделяем заказы на активные и завершенные
   const activeOrders = useMemo(() => orders.filter(o => o.status !== 'Завершен'), [orders]);
   const completedOrders = useMemo(() => orders.filter(o => o.status === 'Завершен'), [orders]);
 
-  // --- УПРАВЛЕНИЕ ТОВАРАМИ ---
   const handleAddProduct = async () => {
     if (!newProduct.name || !newProduct.price || !newProduct.image) return alert("Заполните все поля!");
     setUploading(true);
@@ -92,7 +118,6 @@ export default function AdminPage() {
     }
   };
 
-  // --- УПРАВЛЕНИЕ ИСТОРИЯМИ ---
   const handleStoryUpload = async (e: any) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -100,7 +125,7 @@ export default function AdminPage() {
     const fileName = `st_${Date.now()}.${file.name.split('.').pop()}`;
     await supabase.storage.from('images').upload(`stories/${fileName}`, file);
     const { data: { publicUrl } } = supabase.storage.from('images').getPublicUrl(`stories/${fileName}`);
-    await supabase.from('seller_stories').insert([{ image_url: publicUrl, seller_id: seller.id, title: seller.shop_name }]);
+    await supabase.from('seller_stories').insert([{ image_url: publicUrl, seller_id: seller.id, title: seller.shop_name || 'Store' }]);
     setUploading(false);
     fetchData(seller.id);
   };
@@ -110,7 +135,6 @@ export default function AdminPage() {
     fetchData(seller.id);
   };
 
-  // --- УПРАВЛЕНИЕ ЗАКАЗАМИ ---
   const updateOrderStatus = async (id: any, status: string) => {
     try {
       const { error } = await supabase.from('orders').update({ status }).eq('id', id);
@@ -126,19 +150,25 @@ export default function AdminPage() {
   return (
     <div className="min-h-screen bg-black text-white p-5 pb-32 font-sans tracking-tight">
       <header className="flex justify-between items-center mb-10 pt-4 px-2">
-        <h1 className="text-3xl font-black text-orange-500 italic uppercase leading-none">Admin</h1>
-        <div className="flex gap-3">
-          <button onClick={() => setShowAddModal(true)} className="bg-white text-black text-[9px] font-black px-5 py-4 rounded-2xl uppercase italic active:scale-95 transition-all">
+        <div>
+           <h1 className="text-3xl font-black text-orange-500 italic uppercase leading-none">Admin</h1>
+           <p className="text-[8px] text-zinc-500 mt-2 uppercase font-bold tracking-widest">{seller?.email}</p>
+        </div>
+        
+        <div className="flex gap-2">
+          <button onClick={() => setShowAddModal(true)} className="bg-white text-black text-[9px] font-black px-4 py-3 rounded-xl uppercase italic active:scale-95 transition-all">
             + Товар
           </button>
-          <button onClick={() => fileInputRef.current?.click()} className="w-14 h-14 bg-zinc-900 border border-zinc-800 rounded-2xl flex items-center justify-center text-xl shadow-lg active:scale-95 transition-all">
+          <button onClick={() => fileInputRef.current?.click()} className="w-10 h-10 bg-zinc-900 border border-zinc-800 rounded-xl flex items-center justify-center text-sm shadow-lg active:scale-95 transition-all">
             {uploading ? '⏳' : '📸'}
+          </button>
+          <button onClick={handleLogout} className="bg-zinc-800 text-red-500 text-[9px] font-black px-4 py-3 rounded-xl uppercase italic active:scale-95 transition-all">
+            Выйти
           </button>
         </div>
         <input type="file" ref={fileInputRef} onChange={handleStoryUpload} className="hidden" />
       </header>
 
-      {/* СТОРИС И ТОВАРЫ (Оставил как было) */}
       <section className="mb-12">
         <h2 className="text-[9px] font-black text-zinc-600 uppercase tracking-[0.3em] mb-4 px-2">Ваши истории</h2>
         <div className="flex gap-4 overflow-x-auto no-scrollbar pb-2">
@@ -173,7 +203,6 @@ export default function AdminPage() {
         </div>
       </section>
 
-      {/* СЕКЦИЯ АКТИВНЫХ ЗАКАЗОВ */}
       <section>
         <h2 className="text-[9px] font-black text-zinc-600 uppercase tracking-[0.3em] mb-6 px-2">Новые заказы ({activeOrders.length})</h2>
         <div className="space-y-4 mb-10">
@@ -196,7 +225,6 @@ export default function AdminPage() {
           {activeOrders.length === 0 && <p className="text-center py-10 text-zinc-800 font-black uppercase italic text-[10px]">Активных заказов нет</p>}
         </div>
 
-        {/* СПОЙЛЕР ДЛЯ ЗАВЕРШЕННЫХ */}
         {completedOrders.length > 0 && (
           <div className="mt-8">
             <button 
@@ -226,16 +254,15 @@ export default function AdminPage() {
         )}
       </section>
 
-      {/* МОДАЛКА (Оставил как было) */}
       {showAddModal && (
         <div className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center p-6 backdrop-blur-md">
           <div className="bg-zinc-900 w-full rounded-[3.5rem] p-8 border border-zinc-800 shadow-2xl animate-fade-in">
             <h2 className="text-xl font-black uppercase italic mb-6 text-orange-500">Добавить товар</h2>
-            <input type="text" placeholder="Название" className="w-full bg-black border border-zinc-800 p-5 rounded-2xl mb-3 text-sm font-bold" 
+            <input type="text" placeholder="Название" className="w-full bg-black border border-zinc-800 p-5 rounded-2xl mb-3 text-sm font-bold text-white" 
                    onChange={e => setNewProduct({...newProduct, name: e.target.value})} />
-            <input type="number" placeholder="Цена (₽)" className="w-full bg-black border border-zinc-800 p-5 rounded-2xl mb-3 text-sm font-bold" 
+            <input type="number" placeholder="Цена (₽)" className="w-full bg-black border border-zinc-800 p-5 rounded-2xl mb-3 text-sm font-bold text-white" 
                    onChange={e => setNewProduct({...newProduct, price: e.target.value})} />
-            <input type="text" placeholder="Категория" className="w-full bg-black border border-zinc-800 p-5 rounded-2xl mb-3 text-sm font-bold" 
+            <input type="text" placeholder="Категория" className="w-full bg-black border border-zinc-800 p-5 rounded-2xl mb-3 text-sm font-bold text-white" 
                    onChange={e => setNewProduct({...newProduct, category: e.target.value})} />
             <div className="mb-6 px-2">
                <p className="text-[10px] text-zinc-500 uppercase font-bold mb-2">Фото товара:</p>

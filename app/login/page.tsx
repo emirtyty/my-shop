@@ -1,59 +1,92 @@
 'use client';
 import { useState } from 'react';
-import { supabase } from '../lib/supabase'; // Проверь, чтобы тут было supabase.js если файл так называется
+import { supabase } from '../lib/supabase';
 import { useRouter } from 'next/navigation';
 
 export default function LoginPage() {
-  const [login, setLogin] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+  const [view, setView] = useState<'selection' | 'login' | 'register'>('selection');
+  const [loading, setLoading] = useState(false);
   const router = useRouter();
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
+  const handleAuth = async (type: 'login' | 'register') => {
+    setLoading(true);
+    const { data, error } = type === 'register' 
+      ? await supabase.auth.signUp({ email, password })
+      : await supabase.auth.signInWithPassword({ email, password });
 
-    const { data, error: dbError } = await supabase
-      .from('sellers')
-      .select('*')
-      .eq('login', login)
-      .eq('password', password)
-      .single();
-
-    if (dbError || !data) {
-      setError('Неверный логин или пароль');
-      return;
+    if (error) {
+      alert(error.message);
+    } else {
+      if (type === 'register') {
+        // При регистрации сразу добавляем в таблицу продавцов
+        await supabase.from('sellers').insert([{ name: email.split('@')[0], telegram_id: '' }]);
+        alert("Регистрация успешна! Теперь войдите.");
+        setView('login');
+      } else {
+        router.push('/admin');
+      }
     }
-
-    // Сохраняем сессию (id=1 из твоей базы)
-    localStorage.setItem('seller_session', JSON.stringify(data));
-    router.push('/admin');
+    setLoading(false);
   };
 
   return (
-    <div className="min-h-screen bg-black flex items-center justify-center p-6">
-      <div className="w-full max-w-md bg-zinc-900 rounded-[3rem] p-10 border border-zinc-800">
-        <h1 className="text-3xl font-black text-white uppercase italic mb-8">Вход</h1>
-        <form onSubmit={handleLogin} className="space-y-4">
-          <input 
-            type="text" 
-            placeholder="Логин" 
-            className="w-full bg-black border border-zinc-800 p-5 rounded-2xl text-white outline-none focus:border-orange-500"
-            value={login}
-            onChange={(e) => setLogin(e.target.value)}
-          />
-          <input 
-            type="password" 
-            placeholder="Пароль" 
-            className="w-full bg-black border border-zinc-800 p-5 rounded-2xl text-white outline-none focus:border-orange-500"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-          {error && <p className="text-red-500 text-[10px] font-bold uppercase text-center">{error}</p>}
-          <button type="submit" className="w-full bg-orange-500 text-white py-5 rounded-2xl font-black uppercase italic shadow-lg shadow-orange-500/20 active:scale-95 transition-all">
-            Войти
-          </button>
-        </form>
+    <div className="min-h-screen bg-[#F8F8F8] flex items-center justify-center p-6 font-black italic uppercase">
+      <div className="bg-white w-full max-w-md p-10 rounded-[3.5rem] shadow-2xl border border-zinc-100 text-center">
+        
+        {/* ЭКРАН ВЫБОРА (ДВЕ КНОПКИ) */}
+        {view === 'selection' && (
+          <div className="space-y-6">
+            <h1 className="text-4xl tracking-tighter mb-12 leading-none text-black">ПАНЕЛЬ<br/>УПРАВЛЕНИЯ</h1>
+            <button 
+              onClick={() => setView('login')}
+              className="w-full bg-black text-white py-6 rounded-3xl text-sm shadow-xl active:scale-95 transition-all"
+            >
+              ВОЙТИ
+            </button>
+            <button 
+              onClick={() => setView('register')}
+              className="w-full bg-white text-black border-2 border-black py-6 rounded-3xl text-sm active:scale-95 transition-all"
+            >
+              РЕГИСТРАЦИЯ
+            </button>
+          </div>
+        )}
+
+        {/* ФОРМЫ ВХОДА И РЕГИСТРАЦИИ */}
+        {view !== 'selection' && (
+          <div className="space-y-4 animate-fade-in">
+            <h2 className="text-2xl mb-6">{view === 'login' ? 'ВХОД' : 'НОВЫЙ АККАУНТ'}</h2>
+            <input 
+              type="email" 
+              placeholder="EMAIL" 
+              className="w-full bg-zinc-100 p-5 rounded-2xl outline-none text-[10px]"
+              onChange={(e) => setEmail(e.target.value)} 
+            />
+            <input 
+              type="password" 
+              placeholder="ПАРОЛЬ" 
+              className="w-full bg-zinc-100 p-5 rounded-2xl outline-none text-[10px]"
+              onChange={(e) => setPassword(e.target.value)} 
+            />
+            
+            <button 
+              onClick={() => handleAuth(view === 'login' ? 'login' : 'register')}
+              disabled={loading}
+              className="w-full bg-orange-500 text-white py-5 rounded-2xl text-xs shadow-lg shadow-orange-500/30"
+            >
+              {loading ? 'ЗАГРУЗКА...' : 'ПОДТВЕРДИТЬ'}
+            </button>
+
+            <button 
+              onClick={() => setView('selection')}
+              className="w-full text-[9px] text-zinc-400 mt-4 tracking-widest"
+            >
+              ← НАЗАД
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

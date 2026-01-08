@@ -61,15 +61,20 @@ export default function Home() {
   }, []);
 
   // ИСПРАВЛЕНИЕ 1: Безопасное сравнение категорий (приводим всё к строке)
-  const filteredProducts = useMemo(() => {
+ const filteredProducts = useMemo(() => {
     return products.filter(p => {
+      // 1. Поиск по названию
       const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase());
-      const pCat = String(p.category || 'Без категории');
-      const matchesCategory = activeCategory === 'Все' || pCat === activeCategory;
+      
+      // 2. Сравнение категорий (без учета регистра и пробелов)
+      const pCat = String(p.category || 'Без категории').toLowerCase().trim();
+      const activeCatLower = activeCategory.toLowerCase().trim();
+
+      const matchesCategory = activeCategory === 'Все' || pCat === activeCatLower;
+      
       return matchesSearch && matchesCategory;
     });
   }, [products, searchQuery, activeCategory]);
-
   // ИСПРАВЛЕНИЕ 2: Безопасный сбор названий категорий для кнопок
   const categories = useMemo(() => {
     const rawCats = products.map(p => String(p.category || 'Без категории'));

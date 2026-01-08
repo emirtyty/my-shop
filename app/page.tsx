@@ -10,9 +10,13 @@ export default function Home() {
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   
+  // НОВОЕ: Для статусов заказов
+  const [userOrders, setUserOrders] = useState<any[]>([]);
+  
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState('Все');
 
+  // Загрузка товаров и сторис
   useEffect(() => {
     async function fetchData() {
       const [prodRes, storyRes] = await Promise.all([
@@ -24,6 +28,42 @@ export default function Home() {
       setLoading(false);
     }
     fetchData();
+  }, []);
+
+  // НОВОЕ: Realtime подписка на статусы
+  useEffect(() => {
+    const phone = localStorage.getItem('userPhone');
+    if (!phone) return;
+
+    // Загружаем начальные заказы
+    const fetchMyOrders = async () => {
+      const { data } = await supabase
+        .from('orders')
+        .select('*')
+        .eq('buyer_phone', phone)
+        .order('created_at', { ascending: false });
+      if (data) setUserOrders(data);
+    };
+    fetchMyOrders();
+
+    // Слушаем изменения статуса в реальном времени
+    const channel = supabase
+      .channel('order-status')
+      .on('postgres_changes', 
+        { event: 'UPDATE', schema: 'public', table: 'orders', filter: `buyer_phone=eq.${phone}` }, 
+        (payload) => {
+          setUserOrders(prev => prev.map(o => o.id === payload.new.id ? payload.new : o));
+        }
+      )
+      .on('postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'orders', filter: `buyer_phone=eq.${phone}` },
+        (payload) => {
+          setUserOrders(prev => [payload.new, ...prev]);
+        }
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
   }, []);
 
   const filteredProducts = useMemo(() => {
@@ -44,11 +84,13 @@ export default function Home() {
     setCart(newCart);
   };
 
-  // ОБНОВЛЕННАЯ ФУНКЦИЯ (Дизайн не затронут, добавлена только отправка боту)
   const checkout = async () => {
     if (cart.length === 0) return;
     const phone = prompt("Введите ваш номер телефона для связи:");
     if (!phone) return;
+
+    // Сохраняем телефон, чтобы видеть свои заказы
+    localStorage.setItem('userPhone', phone);
 
     const ordersBySeller = cart.reduce((acc: any, item: any) => {
       const sId = item.seller_id || 1;
@@ -63,7 +105,6 @@ export default function Home() {
         const pName = items.map((i: any) => i.name).join(', ');
         const totalPrice = items.reduce((sum: number, i: any) => sum + Number(i.price), 0);
 
-        // 1. Сохраняем в Supabase
         const { data, error } = await supabase.from('orders').insert([{
           product_name: pName,
           price: totalPrice,
@@ -72,7 +113,6 @@ export default function Home() {
           status: 'Новый'
         }]).select().single();
 
-        // 2. ОТПРАВЛЯЕМ В ТЕЛЕГРАМ (через созданный ранее API)
         if (data && !error) {
           await fetch('/api/order', {
             method: 'POST',
@@ -81,12 +121,13 @@ export default function Home() {
               order_id: data.id,
               product_name: pName,
               price: totalPrice,
-              buyer_phone: phone
+              buyer_phone: phone,
+              seller_id: sId
             })
           });
         }
       }
-      alert("Заказ оформлен! Бот пришлет уведомление.");
+      alert("Заказ оформлен! Статус появится в корзине.");
       setCart([]);
       setIsCartOpen(false);
     } catch (e) { 
@@ -102,7 +143,6 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-[#F8F8F8] text-black pb-32">
-      {/* Просмотр историй */}
       {selectedStory && (
         <div className="fixed inset-0 z-[200] bg-black flex items-center justify-center" onClick={() => setSelectedStory(null)}>
           <img src={selectedStory} className="max-w-full max-h-full object-contain" alt="Story" />
@@ -110,7 +150,6 @@ export default function Home() {
         </div>
       )}
 
-      {/* Верхняя панель: Поиск и Корзина */}
       <header className="bg-white px-6 pt-12 pb-6 rounded-b-[3.5rem] shadow-sm mb-4">
         <div className="flex gap-4 items-center mb-8">
           <div className="flex-1 bg-zinc-100 rounded-2xl flex items-center px-4 py-4 border border-zinc-200/30">
@@ -128,7 +167,6 @@ export default function Home() {
           </button>
         </div>
 
-        {/* Сторис */}
         <div className="flex gap-4 overflow-x-auto no-scrollbar">
           {stories.map((s) => (
             <div key={s.id} onClick={() => setSelectedStory(s.image_url)} className="flex-shrink-0 w-16 h-16 rounded-full p-[2px] border-2 border-orange-500 active:scale-95 transition-all cursor-pointer shadow-sm">
@@ -138,7 +176,6 @@ export default function Home() {
         </div>
       </header>
 
-      {/* Фильтры по категориям */}
       <div className="px-6 flex gap-2 overflow-x-auto no-scrollbar mb-6">
         {categories.map(cat => (
           <button 
@@ -151,7 +188,6 @@ export default function Home() {
         ))}
       </div>
 
-      {/* Список товаров */}
       <main className="px-4 grid grid-cols-2 gap-4">
         {filteredProducts.map((p) => (
           <div key={p.id} className="bg-white rounded-[2.8rem] p-2 border border-zinc-100 shadow-sm animate-fade-in hover:shadow-md transition-shadow">
@@ -177,16 +213,38 @@ export default function Home() {
         )}
       </main>
 
-      {/* Окно корзины */}
       {isCartOpen && (
         <div className="fixed inset-0 z-[150] bg-black/50 backdrop-blur-md flex items-end" onClick={() => setIsCartOpen(false)}>
-          <div className="bg-white w-full rounded-t-[4rem] p-10 animate-slide-up shadow-2xl" onClick={e => e.stopPropagation()}>
+          <div className="bg-white w-full rounded-t-[4rem] p-10 animate-slide-up shadow-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-10">
               <h2 className="text-3xl font-black uppercase italic tracking-tighter leading-none">Корзина</h2>
               <button onClick={() => setIsCartOpen(false)} className="bg-zinc-100 p-3 rounded-full text-zinc-400">✕</button>
             </div>
+
+            {/* НОВОЕ: Плашки статусов текущих заказов */}
+            {userOrders.length > 0 && (
+              <div className="mb-10 space-y-3">
+                <p className="text-[10px] font-black uppercase italic text-zinc-400 tracking-widest ml-2">Статус ваших заказов:</p>
+                {userOrders.slice(0, 3).map((order) => (
+                  <div key={order.id} className="flex justify-between items-center bg-zinc-50 border border-zinc-100 p-4 rounded-[1.8rem]">
+                    <div className="flex flex-col">
+                      <span className="text-[10px] font-bold uppercase tracking-tighter line-clamp-1 w-32">{order.product_name}</span>
+                      <span className="text-[8px] text-zinc-400 font-mono">#{order.id.slice(0,8)}</span>
+                    </div>
+                    <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase italic ${
+                      order.status === 'В пути' ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/20' : 
+                      order.status === 'Завершен' ? 'bg-green-500 text-white shadow-lg shadow-green-500/20' : 
+                      'bg-orange-500 text-white shadow-lg shadow-orange-500/20'
+                    }`}>
+                      {order.status || 'НОВЫЙ'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
             
-            <div className="max-h-[40vh] overflow-y-auto mb-10 pr-2">
+            <div className="mb-10 pr-2">
+              <p className="text-[10px] font-black uppercase italic text-zinc-400 tracking-widest ml-2 mb-3">Товары к покупке:</p>
               {cart.map((item, idx) => (
                 <div key={idx} onClick={() => removeFromCart(idx)} className="flex items-center justify-between mb-4 bg-zinc-50 p-4 rounded-[1.8rem] border border-zinc-100 active:bg-red-50 active:border-red-100 transition-all">
                   <div className="flex items-center gap-4">
@@ -199,7 +257,7 @@ export default function Home() {
                   <span className="font-black text-orange-500 italic text-sm">{item.price} ₽</span>
                 </div>
               ))}
-              {cart.length === 0 && <p className="text-center py-16 opacity-30 font-black uppercase italic text-xs">Корзина пуста</p>}
+              {cart.length === 0 && <p className="text-center py-10 opacity-30 font-black uppercase italic text-xs">Корзина пуста</p>}
             </div>
 
             {cart.length > 0 && (

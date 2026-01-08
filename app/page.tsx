@@ -26,7 +26,6 @@ export default function Home() {
     fetchData();
   }, []);
 
-  // Реально работающая фильтрация и поиск
   const filteredProducts = useMemo(() => {
     return products.filter(p => {
       const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase());
@@ -45,12 +44,12 @@ export default function Home() {
     setCart(newCart);
   };
 
+  // ОБНОВЛЕННАЯ ФУНКЦИЯ (Дизайн не затронут, добавлена только отправка боту)
   const checkout = async () => {
     if (cart.length === 0) return;
     const phone = prompt("Введите ваш номер телефона для связи:");
     if (!phone) return;
 
-    // Группировка товаров по seller_id
     const ordersBySeller = cart.reduce((acc: any, item: any) => {
       const sId = item.seller_id || 1;
       if (!acc[sId]) acc[sId] = [];
@@ -61,18 +60,38 @@ export default function Home() {
     try {
       for (const sId in ordersBySeller) {
         const items = ordersBySeller[sId];
-        await supabase.from('orders').insert([{
-          product_name: items.map((i: any) => i.name).join(', '),
-          price: items.reduce((sum: number, i: any) => sum + Number(i.price), 0),
+        const pName = items.map((i: any) => i.name).join(', ');
+        const totalPrice = items.reduce((sum: number, i: any) => sum + Number(i.price), 0);
+
+        // 1. Сохраняем в Supabase
+        const { data, error } = await supabase.from('orders').insert([{
+          product_name: pName,
+          price: totalPrice,
           buyer_phone: phone,
           seller_id: sId,
           status: 'Новый'
-        }]);
+        }]).select().single();
+
+        // 2. ОТПРАВЛЯЕМ В ТЕЛЕГРАМ (через созданный ранее API)
+        if (data && !error) {
+          await fetch('/api/order', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              order_id: data.id,
+              product_name: pName,
+              price: totalPrice,
+              buyer_phone: phone
+            })
+          });
+        }
       }
-      alert("Заказ оформлен! Продавцы уведомлены.");
+      alert("Заказ оформлен! Бот пришлет уведомление.");
       setCart([]);
       setIsCartOpen(false);
-    } catch (e) { alert("Ошибка при заказе"); }
+    } catch (e) { 
+      alert("Ошибка при заказе"); 
+    }
   };
 
   if (loading) return (
@@ -105,7 +124,7 @@ export default function Home() {
             />
           </div>
           <button onClick={() => setIsCartOpen(true)} className="relative bg-black text-white p-4.5 rounded-[1.4rem] active:scale-90 transition-all shadow-xl shadow-black/10">
-             🛒 {cart.length > 0 && <span className="absolute -top-1 -right-1 bg-orange-500 w-6 h-6 rounded-full text-[10px] flex items-center justify-center border-2 border-white font-black">{cart.length}</span>}
+              🛒 {cart.length > 0 && <span className="absolute -top-1 -right-1 bg-orange-500 w-6 h-6 rounded-full text-[10px] flex items-center justify-center border-2 border-white font-black">{cart.length}</span>}
           </button>
         </div>
 

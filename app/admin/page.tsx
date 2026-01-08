@@ -12,7 +12,6 @@ export default function AdminPage() {
   const [uploading, setUploading] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   
-  // Поля для нового товара
   const [newProduct, setNewProduct] = useState({ name: '', price: '', category: '', image: null as File | null });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -39,7 +38,6 @@ export default function AdminPage() {
   };
 
   // --- УПРАВЛЕНИЕ ТОВАРАМИ ---
-
   const handleAddProduct = async () => {
     if (!newProduct.name || !newProduct.price || !newProduct.image) return alert("Заполните все поля!");
     setUploading(true);
@@ -90,7 +88,6 @@ export default function AdminPage() {
   };
 
   // --- УПРАВЛЕНИЕ ИСТОРИЯМИ ---
-
   const handleStoryUpload = async (e: any) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -108,11 +105,21 @@ export default function AdminPage() {
     fetchData(seller.id);
   };
 
-  // --- УПРАВЛЕНИЕ ЗАКАЗАМИ ---
-
+  // --- УПРАВЛЕНИЕ ЗАКАЗАМИ (ИСПРАВЛЕНО) ---
   const updateOrderStatus = async (id: any, status: string) => {
-    await supabase.from('orders').update({ status }).eq('id', id);
-    fetchData(seller.id);
+    try {
+      const { error } = await supabase
+        .from('orders')
+        .update({ status: status })
+        .eq('id', id);
+
+      if (error) throw error;
+
+      // Обновляем состояние локально, чтобы сразу увидеть результат
+      setOrders(prev => prev.map(o => o.id === id ? { ...o, status: status } : o));
+    } catch (e: any) {
+      alert("Ошибка обновления: " + e.message);
+    }
   };
 
   if (loading) return <div className="min-h-screen bg-black flex items-center justify-center text-orange-500 font-black italic uppercase">Загрузка админки...</div>;
@@ -120,7 +127,7 @@ export default function AdminPage() {
   return (
     <div className="min-h-screen bg-black text-white p-5 pb-32 font-sans tracking-tight">
       <header className="flex justify-between items-center mb-10 pt-4 px-2">
-        <h1 className="text-3xl font-black text-orange-500 italic uppercase italic leading-none">Admin</h1>
+        <h1 className="text-3xl font-black text-orange-500 italic uppercase leading-none">Admin</h1>
         <div className="flex gap-3">
           <button onClick={() => setShowAddModal(true)} className="bg-white text-black text-[9px] font-black px-5 py-4 rounded-2xl uppercase italic active:scale-95 transition-all">
             + Товар
@@ -178,6 +185,7 @@ export default function AdminPage() {
                 <div className="max-w-[70%]">
                    <p className="font-black text-xs uppercase italic leading-tight">{o.product_name}</p>
                    <p className="text-[10px] text-zinc-500 font-bold mt-2 uppercase tracking-tighter">{o.buyer_phone}</p>
+                   <p className="text-[9px] text-orange-500 mt-1 uppercase font-black">Статус: {o.status}</p>
                 </div>
                 <p className="text-orange-500 font-black italic text-sm">{o.price}₽</p>
               </div>

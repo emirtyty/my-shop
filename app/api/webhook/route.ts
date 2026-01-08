@@ -1,28 +1,32 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-// Прямое создание клиента без лишних символов
 const supabase = createClient(
-  'https://mnzsmbqwvlrmoahtosux.supabase.co', 
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJwcm9mZmlsZSI6InJlZmx1Zml6Im1uenNteWJ3OWhaHRvc3V4Iiwicm9sZSI6ImFub20iLCJpYXQiOjE3MzYxMDEzNjksImV4cCI6MjA1MTY3NzM2OX0.u-Tf-P6iXFhG0YVzXj-N2f6_9Y5_5S_L-8_1_5' 
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-const TELEGRAM_TOKEN = '8456475470:AAFVWRgbEmumHrYpDLPky7hq5ZDMCh-J854';
+const BOT_TOKEN = '7611738981:AAGXgYvVbT04wK0f-N8p27M82G7L6R4Wcl8';
 
 export async function POST(req: Request) {
   try {
     const body = await req.json();
 
+    // Если это нажатие на кнопку (callback_query)
     if (body.callback_query) {
-      const callbackData = body.callback_query.data;
+      const data = body.callback_query.data; // например, status_way_123
       const chatId = body.callback_query.message.chat.id;
       const messageId = body.callback_query.message.message_id;
       const oldText = body.callback_query.message.text;
 
-      const [action, type, orderId] = callbackData.split('_');
-      const newStatus = type === 'way' ? 'В пути' : 'Завершен';
+      const parts = data.split('_');
+      const action = parts[1]; // way или completed
+      const orderId = parts[2];
 
-      // 1. Обновляем статус в базе
+      const newStatus = action === 'way' ? 'В пути' : 'Завершен';
+      const statusIcon = action === 'way' ? '🚚' : '✅';
+
+      // 1. Обновляем статус в Supabase
       const { error } = await supabase
         .from('orders')
         .update({ status: newStatus })
@@ -30,24 +34,26 @@ export async function POST(req: Request) {
 
       if (error) throw error;
 
-      // 2. Обновляем сообщение в боте
-      const newText = `${oldText}\n\n✅ СТАТУС ИЗМЕНЕН: ${newStatus.toUpperCase()}`;
+      // 2. Редактируем сообщение в Telegram, чтобы продавец видел результат
+      const newText = `${oldText}\n\n${statusIcon} **СТАТУС: ${newStatus.toUpperCase()}**`;
       
-      await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/editMessageText`, {
+      await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/editMessageText`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           chat_id: chatId,
           message_id: messageId,
           text: newText,
-          parse_mode: 'Markdown'
-        }),
+          parse_mode: 'Markdown',
+          // Убираем кнопки после завершения, если нужно
+          reply_markup: action === 'way' ? body.callback_query.message.reply_markup : { inline_keyboard: [] }
+        })
       });
     }
 
     return NextResponse.json({ ok: true });
-  } catch (error) {
-    console.error('ошибка:', error);
-    return NextResponse.json({ ok: false }, { status: 500 });
+  } catch (err: any) {
+    console.error("Webhook Error:", err);
+    return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }

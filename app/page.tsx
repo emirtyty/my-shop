@@ -10,13 +10,10 @@ export default function Home() {
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   
-  // НОВОЕ: Для статусов заказов
   const [userOrders, setUserOrders] = useState<any[]>([]);
-  
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState('Все');
 
-  // Загрузка товаров и сторис
   useEffect(() => {
     async function fetchData() {
       const [prodRes, storyRes] = await Promise.all([
@@ -30,12 +27,10 @@ export default function Home() {
     fetchData();
   }, []);
 
-  // НОВОЕ: Realtime подписка на статусы
   useEffect(() => {
     const phone = localStorage.getItem('userPhone');
     if (!phone) return;
 
-    // Загружаем начальные заказы
     const fetchMyOrders = async () => {
       const { data } = await supabase
         .from('orders')
@@ -46,7 +41,6 @@ export default function Home() {
     };
     fetchMyOrders();
 
-    // Слушаем изменения статуса в реальном времени
     const channel = supabase
       .channel('order-status')
       .on('postgres_changes', 
@@ -66,15 +60,21 @@ export default function Home() {
     return () => { supabase.removeChannel(channel); };
   }, []);
 
+  // ИСПРАВЛЕНИЕ 1: Безопасное сравнение категорий (приводим всё к строке)
   const filteredProducts = useMemo(() => {
     return products.filter(p => {
       const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesCategory = activeCategory === 'Все' || p.category === activeCategory;
+      const pCat = String(p.category || 'Без категории');
+      const matchesCategory = activeCategory === 'Все' || pCat === activeCategory;
       return matchesSearch && matchesCategory;
     });
   }, [products, searchQuery, activeCategory]);
 
-  const categories = ['Все', ...Array.from(new Set(products.map(p => p.category).filter(Boolean)))];
+  // ИСПРАВЛЕНИЕ 2: Безопасный сбор названий категорий для кнопок
+  const categories = useMemo(() => {
+    const rawCats = products.map(p => String(p.category || 'Без категории'));
+    return ['Все', ...Array.from(new Set(rawCats))];
+  }, [products]);
 
   const addToCart = (product: any) => setCart([...cart, product]);
   
@@ -89,11 +89,10 @@ export default function Home() {
     const phone = prompt("Введите ваш номер телефона для связи:");
     if (!phone) return;
 
-    // Сохраняем телефон, чтобы видеть свои заказы
     localStorage.setItem('userPhone', phone);
 
     const ordersBySeller = cart.reduce((acc: any, item: any) => {
-      const sId = item.seller_id || 1;
+      const sId = item.seller_id || '589b6a02-9efa-41ba-bcb5-4dc6c2eff9a7'; // Твой ID по умолчанию
       if (!acc[sId]) acc[sId] = [];
       acc[sId].push(item);
       return acc;
@@ -221,7 +220,6 @@ export default function Home() {
               <button onClick={() => setIsCartOpen(false)} className="bg-zinc-100 p-3 rounded-full text-zinc-400">✕</button>
             </div>
 
-            {/* НОВОЕ: Плашки статусов текущих заказов */}
             {userOrders.length > 0 && (
               <div className="mb-10 space-y-3">
                 <p className="text-[10px] font-black uppercase italic text-zinc-400 tracking-widest ml-2">Статус ваших заказов:</p>

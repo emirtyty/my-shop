@@ -60,24 +60,26 @@ export default function Home() {
     return () => { supabase.removeChannel(channel); };
   }, []);
 
-  // ИСПРАВЛЕНИЕ 1: Безопасное сравнение категорий (приводим всё к строке)
- const filteredProducts = useMemo(() => {
+  // ИСПРАВЛЕННЫЙ БЛОК: Теперь видит категории как текст (без учета регистра и пробелов)
+  const filteredProducts = useMemo(() => {
     return products.filter(p => {
-      // 1. Поиск по названию
       const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase());
       
-      // 2. Сравнение категорий (без учета регистра и пробелов)
-      const pCat = String(p.category || 'Без категории').toLowerCase().trim();
+      // Достаем категорию: обрабатываем и строку, и объект
+      const rawCat = typeof p.category === 'object' && p.category !== null ? p.category.name : p.category;
+      const pCat = String(rawCat || 'Без категории').toLowerCase().trim();
       const activeCatLower = activeCategory.toLowerCase().trim();
 
       const matchesCategory = activeCategory === 'Все' || pCat === activeCatLower;
-      
       return matchesSearch && matchesCategory;
     });
   }, [products, searchQuery, activeCategory]);
-  // ИСПРАВЛЕНИЕ 2: Безопасный сбор названий категорий для кнопок
+
   const categories = useMemo(() => {
-    const rawCats = products.map(p => String(p.category || 'Без категории'));
+    const rawCats = products.map(p => {
+      const val = typeof p.category === 'object' && p.category !== null ? p.category.name : p.category;
+      return String(val || 'Без категории');
+    });
     return ['Все', ...Array.from(new Set(rawCats))];
   }, [products]);
 
@@ -97,7 +99,7 @@ export default function Home() {
     localStorage.setItem('userPhone', phone);
 
     const ordersBySeller = cart.reduce((acc: any, item: any) => {
-      const sId = item.seller_id || '589b6a02-9efa-41ba-bcb5-4dc6c2eff9a7'; // Твой ID по умолчанию
+      const sId = item.seller_id || '589b6a02-9efa-41ba-bcb5-4dc6c2eff9a7'; 
       if (!acc[sId]) acc[sId] = [];
       acc[sId].push(item);
       return acc;

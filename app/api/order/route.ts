@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 
 const TELEGRAM_TOKEN = '8456475470:AAFVWRgbEmumHrYpDLPky7hq5ZDMCh-J854';
-const MY_CHAT_ID = 'ТВОЙ_ID_ТУТ'; // ЗАМЕНИ ЭТО НА СВОЙ ID (который дал @userinfobot)
+const MY_CHAT_ID = '6278332517'; // ЗАМЕНИ ЭТО НА СВОЙ ID (который дал @userinfobot)
 
 export async function POST(req: Request) {
   try {

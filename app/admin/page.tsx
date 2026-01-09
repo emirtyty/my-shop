@@ -18,17 +18,15 @@ export default function AdminPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
-  // --- ОБНОВЛЕННАЯ ПРОВЕРКА ВХОДА ---
   useEffect(() => {
     const checkUser = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       
       if (!session) {
-        router.push('/login'); // Если сессии нет, отправляем на страницу с кнопками
+        router.push('/login');
         return;
       }
 
-      // Получаем данные продавца из таблицы sellers по его ID из Auth
       const { data: sellerData } = await supabase
         .from('sellers')
         .select('*')
@@ -39,7 +37,6 @@ export default function AdminPage() {
         setSeller(sellerData);
         fetchData(sellerData.id);
       } else {
-        // Если пользователя нет в таблице sellers, используем ID из сессии или 1 по умолчанию
         setSeller({ id: session.user.id, email: session.user.email });
         fetchData(session.user.id);
       }
@@ -52,7 +49,6 @@ export default function AdminPage() {
     await supabase.auth.signOut();
     router.push('/login');
   };
-  // ---------------------------------
 
   const fetchData = async (sellerId: any) => {
     const [ordersRes, productsRes, storiesRes] = await Promise.all([
@@ -82,6 +78,7 @@ export default function AdminPage() {
       await supabase.from('product_market').insert([{
         name: newProduct.name,
         price: Number(newProduct.price),
+        old_price: null,
         category: newProduct.category || 'Общее',
         image_url: publicUrl,
         seller_id: seller.id
@@ -103,7 +100,10 @@ export default function AdminPage() {
   const updatePrice = async (id: any) => {
     const p = prompt('Новая цена:');
     if (p) {
-      await supabase.from('product_market').update({ price: Number(p) }).eq('id', id);
+      await supabase.from('product_market').update({ 
+        price: Number(p),
+        old_price: null 
+      }).eq('id', id);
       fetchData(seller.id);
     }
   };
@@ -111,9 +111,15 @@ export default function AdminPage() {
   const applyDiscount = async (id: any, currentPrice: number) => {
     const percent = prompt('Введите % скидки (например, 20):');
     if (!percent) return;
-    const finalPrice = Math.round(currentPrice - (currentPrice * (Number(percent) / 100)));
-    if (confirm(`Новая цена: ${finalPrice}₽. Применить?`)) {
-      await supabase.from('product_market').update({ price: finalPrice }).eq('id', id);
+    const discountVal = Number(percent);
+    if (isNaN(discountVal) || discountVal <= 0 || discountVal >= 100) return alert("Введите корректный %");
+
+    const finalPrice = Math.round(currentPrice - (currentPrice * (discountVal / 100)));
+    if (confirm(`Старая цена: ${currentPrice}₽\nНовая цена: ${finalPrice}₽. Применить?`)) {
+      await supabase.from('product_market').update({ 
+        price: finalPrice,
+        old_price: currentPrice 
+      }).eq('id', id);
       fetchData(seller.id);
     }
   };

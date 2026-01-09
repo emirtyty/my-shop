@@ -14,7 +14,6 @@ export default function Home() {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState('Все');
 
-  // Инициализация корзины
   useEffect(() => {
     const saved = localStorage.getItem('cart');
     if (saved) {
@@ -22,7 +21,6 @@ export default function Home() {
     }
   }, []);
 
-  // Синхронизация с localStorage
   useEffect(() => {
     localStorage.setItem('cart', JSON.stringify(cart));
   }, [cart]);
@@ -58,14 +56,12 @@ export default function Home() {
 
   const getProductCount = (id: string) => cart.filter(item => item.id === id).length;
 
-  // ФУНКЦИЯ ОФОРМЛЕНИЯ ЗАКАЗА
   const checkout = async () => {
     if (cart.length === 0) return;
     const phone = prompt("Введите ваш номер телефона для связи:");
     if (!phone) return;
     localStorage.setItem('userPhone', phone);
 
-    // Группируем товары по продавцам, чтобы каждый получил свой заказ
     const ordersBySeller = cart.reduce((acc: any, item: any) => {
       const sId = item.seller_id || 'default-id'; 
       if (!acc[sId]) acc[sId] = [];
@@ -88,7 +84,6 @@ export default function Home() {
         }]).select().single();
 
         if (data && !error) {
-          // Отправка уведомления в Telegram через твой API
           await fetch('/api/order', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -105,11 +100,10 @@ export default function Home() {
       alert("✅ Заказ успешно оформлен!");
       setCart([]);
       setIsCartOpen(false);
-    } catch (e) {
-      alert("❌ Ошибка при оформлении");
-    }
+    } catch (e) { alert("❌ Ошибка"); }
   };
 
+  // Фильтрация товаров по поиску И категориям
   const filteredProducts = useMemo(() => {
     return products.filter(p => {
       const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase());
@@ -118,13 +112,19 @@ export default function Home() {
     });
   }, [products, searchQuery, activeCategory]);
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center font-black italic text-orange-500 uppercase">Загрузка...</div>;
+  // Список категорий для кнопок
+  const categories = useMemo(() => {
+    const cats = products.map(p => String(typeof p.category === 'object' ? p.category.name : p.category || 'Без категории'));
+    return ['Все', ...Array.from(new Set(cats))];
+  }, [products]);
+
+  if (loading) return <div className="min-h-screen flex items-center justify-center font-black italic text-orange-500 uppercase tracking-widest">Загрузка...</div>;
 
   return (
     <div className="min-h-screen bg-[#F8F8F8] text-black pb-32">
       <header className="bg-white px-6 pt-12 pb-6 rounded-b-[3.5rem] shadow-sm mb-4 sticky top-0 z-50">
         <div className="flex gap-4 items-center mb-8">
-          <div className="flex-1 bg-zinc-100 rounded-2xl flex items-center px-4 py-4">
+          <div className="flex-1 bg-zinc-100 rounded-2xl flex items-center px-4 py-4 border border-zinc-200/30">
             <input 
               type="text" 
               placeholder="ПОИСК..." 
@@ -133,10 +133,7 @@ export default function Home() {
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
-          <button 
-            onClick={() => setIsCartOpen(true)} 
-            className={`relative bg-black text-white p-4.5 rounded-[1.4rem] transition-all ${cartBumping ? 'scale-110 bg-orange-500' : ''}`}
-          >
+          <button onClick={() => setIsCartOpen(true)} className={`relative bg-black text-white p-4.5 rounded-[1.4rem] transition-all ${cartBumping ? 'scale-110 bg-orange-500' : ''}`}>
               🛒 {cart.length > 0 && <span className="absolute -top-1 -right-1 bg-orange-500 w-6 h-6 rounded-full text-[10px] flex items-center justify-center border-2 border-white font-black">{cart.length}</span>}
           </button>
         </div>
@@ -149,6 +146,19 @@ export default function Home() {
         </div>
       </header>
 
+      {/* КАТЕГОРИИ ВЕРНУЛИСЬ */}
+      <div className="px-6 flex gap-2 overflow-x-auto no-scrollbar mb-6">
+        {categories.map(cat => (
+          <button 
+            key={cat} 
+            onClick={() => setActiveCategory(cat)}
+            className={`px-7 py-2.5 rounded-full text-[10px] font-black uppercase italic tracking-widest transition-all whitespace-nowrap ${activeCategory === cat ? 'bg-orange-500 text-white shadow-lg' : 'bg-white text-zinc-400 border border-zinc-100'}`}
+          >
+            {cat}
+          </button>
+        ))}
+      </div>
+
       <main className="px-4 grid grid-cols-2 gap-4">
         {filteredProducts.map((p, index) => {
           const count = getProductCount(p.id);
@@ -156,19 +166,19 @@ export default function Home() {
             <div key={p.id} className="bg-white rounded-[2.8rem] p-2 border border-zinc-100 shadow-sm animate-fade-in" style={{ animationDelay: `${index * 0.05}s` }}>
               <div className="relative aspect-square mb-3">
                 <img src={p.image_url} className="w-full h-full object-cover rounded-[2.4rem]" alt={p.name} />
-                <div className="absolute top-3 right-3 bg-white/95 px-3 py-1.5 rounded-full text-[9px] font-black italic shadow-sm">{p.price} ₽</div>
+                <div className="absolute top-3 right-3 bg-white/95 px-3 py-1.5 rounded-full text-[9px] font-black italic">{p.price} ₽</div>
               </div>
               <div className="px-3 pb-3 text-center">
                 <div onClick={() => window.location.href = `/seller/${p.seller_id}`} className="text-[7px] text-zinc-400 uppercase font-bold mb-1 cursor-pointer">{p.sellers?.shop_name || 'МАГАЗИН'}</div>
                 <h3 className="font-bold text-[10px] uppercase tracking-tighter mb-4 h-8 line-clamp-2 leading-none">{p.name}</h3>
                 <div className="relative h-[46px] w-full">
                   {count === 0 ? (
-                    <button onClick={() => addToCart(p)} className="w-full h-full bg-black text-white rounded-[1.2rem] text-[9px] font-black uppercase italic active:scale-95 transition-all">КУПИТЬ</button>
+                    <button onClick={() => addToCart(p)} className="w-full h-full bg-black text-white rounded-[1.2rem] text-[9px] font-black uppercase italic">КУПИТЬ</button>
                   ) : (
-                    <div className="flex items-center justify-between bg-zinc-100 rounded-[1.2rem] h-full overflow-hidden border border-zinc-200">
-                      <button onClick={() => removeFromCartOnce(p.id)} className="flex-1 h-full text-black font-black text-lg active:bg-zinc-200 transition-colors">—</button>
+                    <div className="flex items-center justify-between bg-zinc-100 rounded-[1.2rem] h-full border border-zinc-200">
+                      <button onClick={() => removeFromCartOnce(p.id)} className="flex-1 h-full font-black text-lg">—</button>
                       <span className="px-2 text-[12px] font-black italic">{count}</span>
-                      <button onClick={() => addToCart(p)} className="flex-1 h-full text-black font-black text-lg active:bg-zinc-200 transition-colors">+</button>
+                      <button onClick={() => addToCart(p)} className="flex-1 h-full font-black text-lg">+</button>
                     </div>
                   )}
                 </div>
@@ -206,22 +216,18 @@ export default function Home() {
                         );
                     })}
                     <div className="pt-6">
-                      {/* КНОПКА ОФОРМИТЬ ВЕРНУЛАСЬ С ДЕЙСТВИЕМ CHECKOUT */}
-                      <button 
-                        onClick={checkout} 
-                        className="w-full bg-orange-500 text-white py-6 rounded-[2.2rem] font-black uppercase italic shadow-xl shadow-orange-500/30 active:scale-95 transition-all"
-                      >
+                      <button onClick={checkout} className="w-full bg-orange-500 text-white py-6 rounded-[2.2rem] font-black uppercase italic shadow-xl">
                         ОФОРМИТЬ ({cart.reduce((s, i) => s + Number(i.price), 0)} ₽)
                       </button>
                     </div>
                 </div>
-            ) : <p className="text-center py-10 font-black uppercase italic opacity-20">ПУСТО</p>}
+            ) : <p className="text-center py-10 font-black uppercase italic opacity-20 tracking-widest">ПУСТО</p>}
           </div>
         </div>
       )}
 
       <style jsx global>{`
-        body { -webkit-tap-highlight-color: transparent; }
+        body { -webkit-tap-highlight-color: transparent; scroll-behavior: smooth; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         @keyframes fade-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes slide-up { from { transform: translateY(100%); } to { transform: translateY(0); } }

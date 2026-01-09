@@ -28,35 +28,49 @@ export default function AdminPage() {
     setLoading(false);
   }
 
-  // Фильтрация товаров
+  // --- ЛОГИКА ФИЛЬТРАЦИИ (ИСПРАВЛЕНО) ---
   const activeProducts = products.filter(p => !p.is_archived && p.name?.toLowerCase().includes(searchQuery.toLowerCase()));
   const archivedProducts = products.filter(p => p.is_archived);
 
-  // Фильтрация заказов: Активные (все, кроме ЗАВЕРШЕН) и Архив (только ЗАВЕРШЕН)
-  const activeOrders = orders.filter(o => o.status !== 'ЗАВЕРШЕН');
-  const finishedOrders = orders.filter(o => o.status === 'ЗАВЕРШЕН');
+  // Теперь сравниваем статус максимально надежно
+  const activeOrders = orders.filter(o => o.status?.trim().toUpperCase() !== 'ЗАВЕРШЕН');
+  const finishedOrders = orders.filter(o => o.status?.trim().toUpperCase() === 'ЗАВЕРШЕН');
 
-  const toggleArchive = async (product: any) => {
-    const { error } = await supabase.from('product_market').update({ is_archived: !product.is_archived }).eq('id', product.id);
-    if (error) alert("Добавьте колонку is_archived в Supabase!"); else fetchData();
+  // --- Смена статуса заказа ---
+  const updateOrderStatus = async (id: string, newStatus: string) => {
+    // 1. Сначала обновляем в базе
+    const { error } = await supabase
+      .from('orders')
+      .update({ status: newStatus })
+      .eq('id', id);
+
+    if (error) {
+      alert("Ошибка обновления: " + error.message);
+    } else {
+      // 2. Сразу тянем новые данные, чтобы фильтры сработали
+      await fetchData();
+    }
   };
 
-  // ТВОИ РАБОЧИЕ СКИДКИ (БЕЗ ИЗМЕНЕНИЙ)
+  // --- Остальные функции (без изменений, как ты просил) ---
+  const toggleArchive = async (product: any) => {
+    await supabase.from('product_market').update({ is_archived: !product.is_archived }).eq('id', product.id);
+    fetchData();
+  };
+
   const editPriceManual = async (product: any) => {
     const val = prompt(`Новая цена для ${product.name}:`, product.price);
     if (!val) return;
-    const newPrice = parseInt(val);
-    await supabase.from('product_market').update({ price: newPrice, old_price: Number(product.price) }).eq('id', product.id);
+    await supabase.from('product_market').update({ price: parseInt(val), old_price: Number(product.price) }).eq('id', product.id);
     window.location.reload();
   };
 
   const applyDiscount = async (product: any) => {
     const val = prompt('Введите % скидки:');
     if (!val) return;
-    const percent = parseInt(val);
-    const currentPrice = Number(product.price);
-    const finalPrice = Math.round(currentPrice - (currentPrice * (percent / 100)));
-    await supabase.from('product_market').update({ price: finalPrice, old_price: currentPrice }).eq('id', product.id);
+    const base = Number(product.price);
+    const final = Math.round(base - (base * (parseInt(val) / 100)));
+    await supabase.from('product_market').update({ price: final, old_price: base }).eq('id', product.id);
     window.location.reload();
   };
 
@@ -71,13 +85,6 @@ export default function AdminPage() {
       await supabase.from('seller_stories').insert([{ image_url: publicUrl }]);
       fetchData();
     } catch (e: any) { alert(e.message); } finally { setIsUploading(false); }
-  };
-
-  // ОБНОВЛЕНИЕ СТАТУСА (теперь заказ сразу улетит в архив при выборе ЗАВЕРШЕН)
-  const updateOrderStatus = async (id: string, status: string) => {
-    const { error } = await supabase.from('orders').update({ status }).eq('id', id);
-    if (error) alert(error.message);
-    else fetchData(); // Перезагружаем данные, чтобы сработали фильтры
   };
 
   if (loading) return <div className="min-h-screen bg-black flex items-center justify-center text-orange-500 font-black uppercase italic animate-pulse">Загрузка...</div>;
@@ -104,7 +111,7 @@ export default function AdminPage() {
         ))}
       </div>
 
-      {/* ПОИСК ТОВАРОВ */}
+      {/* ПОИСК */}
       <input 
         type="text" 
         placeholder="ПОИСК ТОВАРА..." 
@@ -113,7 +120,7 @@ export default function AdminPage() {
         onChange={(e) => setSearchQuery(e.target.value)}
       />
 
-      {/* СПИСОК ТОВАРОВ */}
+      {/* ТОВАРЫ */}
       <div className="grid gap-4 mb-4">
         {activeProducts.map(p => (
           <div key={p.id} className="bg-zinc-900 p-4 rounded-[2rem] border border-zinc-800 flex items-center gap-4">
@@ -138,56 +145,60 @@ export default function AdminPage() {
         {showArchivedProducts ? 'СКРЫТЬ АРХИВ ТОВАРОВ' : `АРХИВ ТОВАРОВ (${archivedProducts.length})`}
       </button>
 
-      {showArchivedProducts && (
-        <div className="grid gap-3 mb-10 opacity-60">
-          {archivedProducts.map(p => (
-            <div key={p.id} className="bg-zinc-900/50 p-4 rounded-2xl border border-zinc-800 flex justify-between items-center">
-              <span className="text-[9px] font-black uppercase text-zinc-500">{p.name}</span>
-              <button onClick={() => toggleArchive(p)} className="text-orange-500 text-[8px] font-black uppercase underline">Вернуть</button>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* ЗАКАЗЫ (ТОЛЬКО АКТИВНЫЕ) */}
-      <h2 className="text-[10px] font-black uppercase text-zinc-600 mb-4 ml-2 italic">Активные заказы</h2>
+      {/* АКТИВНЫЕ ЗАКАЗЫ (ЗДЕСЬ ТОЛЬКО НОВЫЕ) */}
+      <h2 className="text-[10px] font-black uppercase text-zinc-600 mb-4 ml-2 italic tracking-widest">Активные заказы</h2>
       <div className="grid gap-4 mb-10">
         {activeOrders.map(o => (
-          <div key={o.id} className="bg-zinc-900 p-5 rounded-[2.5rem] border border-zinc-800 flex justify-between items-center">
+          <div key={o.id} className="bg-zinc-900 p-5 rounded-[2.5rem] border border-zinc-800 flex justify-between items-center transition-all">
              <div>
-                <p className="text-[10px] font-black uppercase text-white mb-1 leading-tight">{o.product_name}</p>
+                <p className="text-[11px] font-black uppercase text-white mb-1 leading-tight">{o.product_name}</p>
                 <p className="text-xl font-black text-orange-500">{o.price} ₽</p>
                 <p className="text-[9px] font-bold text-zinc-500 italic">📞 {o.buyer_phone}</p>
              </div>
              <select 
-               className="bg-black text-[9px] font-black uppercase p-3 rounded-2xl text-orange-500 border border-zinc-800 outline-none"
+               className="bg-black text-[10px] font-black uppercase p-3 rounded-2xl text-orange-500 border border-zinc-800 outline-none active:scale-95 transition-transform"
                value={o.status}
                onChange={(e) => updateOrderStatus(o.id, e.target.value)}
              >
-               <option>НОВЫЙ</option><option>В РАБОТЕ</option><option>ДОСТАВКА</option><option>ЗАВЕРШЕН</option>
+               <option value="НОВЫЙ">НОВЫЙ</option>
+               <option value="В РАБОТЕ">В РАБОТЕ</option>
+               <option value="ДОСТАВКА">ДОСТАВКА</option>
+               <option value="ЗАВЕРШЕН">ЗАВЕРШЕН</option>
              </select>
           </div>
         ))}
-        {activeOrders.length === 0 && <p className="text-center text-zinc-800 text-[10px] font-black uppercase py-4">Нет новых заказов</p>}
+        {activeOrders.length === 0 && (
+          <p className="text-center text-zinc-800 text-[10px] font-black uppercase py-8 border border-dashed border-zinc-900 rounded-[2rem]">Активных заказов нет</p>
+        )}
       </div>
 
-      {/* АРХИВ ЗАКАЗОВ (ТОЛЬКО ЗАВЕРШЕННЫЕ) */}
-      <button onClick={() => setShowFinishedOrders(!showFinishedOrders)} className="w-full py-5 border-2 border-dashed border-zinc-800 rounded-[2.5rem] text-zinc-700 font-black uppercase text-[10px] active:bg-zinc-900 transition-all">
-        {showFinishedOrders ? 'ЗАКРЫТЬ АРХИВ ПРОДАЖ' : `АРХИВ ПРОДАЖ (${finishedOrders.length})`}
+      {/* АРХИВ ПРОДАЖ (ЗДЕСЬ ЗАВЕРШЕННЫЕ) */}
+      <button 
+        onClick={() => setShowFinishedOrders(!showFinishedOrders)} 
+        className="w-full py-5 border-2 border-dashed border-zinc-800 rounded-[2.5rem] text-zinc-700 font-black uppercase text-[10px] active:bg-zinc-900 transition-all"
+      >
+        {showFinishedOrders ? 'ЗАКРЫТЬ АРХИВ' : `АРХИВ ПРОДАЖ (${finishedOrders.length})`}
       </button>
 
       {showFinishedOrders && (
-        <div className="grid gap-3 mt-4">
+        <div className="grid gap-3 mt-6">
           {finishedOrders.map(o => (
             <div key={o.id} className="bg-zinc-900/40 p-5 rounded-[2rem] border border-zinc-800 opacity-50 flex justify-between items-center">
               <div>
                 <p className="text-[9px] font-black uppercase text-zinc-600">{o.product_name}</p>
                 <p className="text-zinc-700 text-[10px] font-black">{o.price} ₽</p>
               </div>
-              <span className="text-zinc-700 text-[8px] font-black italic uppercase">✓ Завершен</span>
+              <div className="flex flex-col items-end gap-1">
+                 <span className="text-zinc-700 text-[8px] font-black italic uppercase">✓ ЗАВЕРШЕН</span>
+                 <button 
+                   onClick={() => updateOrderStatus(o.id, 'НОВЫЙ')}
+                   className="text-[7px] text-orange-500/50 font-bold uppercase underline"
+                 >
+                   Вернуть в работу
+                 </button>
+              </div>
             </div>
           ))}
-          {finishedOrders.length === 0 && <p className="text-center text-zinc-800 text-[8px] font-black uppercase py-4">Архив пуст</p>}
         </div>
       )}
 

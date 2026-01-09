@@ -17,7 +17,8 @@ export default function Home() {
   useEffect(() => {
     async function fetchData() {
       const [prodRes, storyRes] = await Promise.all([
-        supabase.from('product_market').select('*'),
+        // ИЗМЕНЕНИЕ 1: Добавили выборку shop_name из связанной таблицы sellers
+        supabase.from('product_market').select('*, sellers(shop_name)'),
         supabase.from('seller_stories').select('*').order('created_at', { ascending: false })
       ]);
       setProducts(prodRes.data || []);
@@ -60,16 +61,12 @@ export default function Home() {
     return () => { supabase.removeChannel(channel); };
   }, []);
 
-  // ИСПРАВЛЕННЫЙ БЛОК: Теперь видит категории как текст (без учета регистра и пробелов)
   const filteredProducts = useMemo(() => {
     return products.filter(p => {
       const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase());
-      
-      // Достаем категорию: обрабатываем и строку, и объект
       const rawCat = typeof p.category === 'object' && p.category !== null ? p.category.name : p.category;
       const pCat = String(rawCat || 'Без категории').toLowerCase().trim();
       const activeCatLower = activeCategory.toLowerCase().trim();
-
       const matchesCategory = activeCategory === 'Все' || pCat === activeCatLower;
       return matchesSearch && matchesCategory;
     });
@@ -95,22 +92,18 @@ export default function Home() {
     if (cart.length === 0) return;
     const phone = prompt("Введите ваш номер телефона для связи:");
     if (!phone) return;
-
     localStorage.setItem('userPhone', phone);
-
     const ordersBySeller = cart.reduce((acc: any, item: any) => {
       const sId = item.seller_id || '589b6a02-9efa-41ba-bcb5-4dc6c2eff9a7'; 
       if (!acc[sId]) acc[sId] = [];
       acc[sId].push(item);
       return acc;
     }, {});
-
     try {
       for (const sId in ordersBySeller) {
         const items = ordersBySeller[sId];
         const pName = items.map((i: any) => i.name).join(', ');
         const totalPrice = items.reduce((sum: number, i: any) => sum + Number(i.price), 0);
-
         const { data, error } = await supabase.from('orders').insert([{
           product_name: pName,
           price: totalPrice,
@@ -118,7 +111,6 @@ export default function Home() {
           seller_id: sId,
           status: 'Новый'
         }]).select().single();
-
         if (data && !error) {
           await fetch('/api/order', {
             method: 'POST',
@@ -172,7 +164,6 @@ export default function Home() {
               🛒 {cart.length > 0 && <span className="absolute -top-1 -right-1 bg-orange-500 w-6 h-6 rounded-full text-[10px] flex items-center justify-center border-2 border-white font-black">{cart.length}</span>}
           </button>
         </div>
-
         <div className="flex gap-4 overflow-x-auto no-scrollbar">
           {stories.map((s) => (
             <div key={s.id} onClick={() => setSelectedStory(s.image_url)} className="flex-shrink-0 w-16 h-16 rounded-full p-[2px] border-2 border-orange-500 active:scale-95 transition-all cursor-pointer shadow-sm">
@@ -204,6 +195,14 @@ export default function Home() {
               </div>
             </div>
             <div className="px-3 pb-3 text-center">
+              {/* ИЗМЕНЕНИЕ 2: Минималистичная подпись продавца с переходом */}
+              <div 
+                onClick={() => window.location.href = `/seller/${p.seller_id}`}
+                className="text-[7px] text-zinc-400 uppercase font-bold tracking-widest mb-1 cursor-pointer hover:text-orange-500 transition-colors"
+              >
+                {p.sellers?.shop_name || 'Магазин'}
+              </div>
+              
               <h3 className="font-bold text-[10px] uppercase tracking-tighter mb-4 h-8 line-clamp-2 leading-none">{p.name}</h3>
               <button 
                 onClick={() => addToCart(p)}

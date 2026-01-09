@@ -14,10 +14,29 @@ export default function Home() {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState('Все');
 
+  // НОВОЕ: Эффект для инициализации и синхронизации корзины с localStorage
+  useEffect(() => {
+    const syncCart = () => {
+      const savedCart = localStorage.getItem('cart');
+      if (savedCart) {
+        setCart(JSON.parse(savedCart));
+      }
+    };
+
+    syncCart(); // Загружаем при старте
+
+    window.addEventListener('storage', syncCart);
+    window.addEventListener('cartUpdated', syncCart);
+
+    return () => {
+      window.removeEventListener('storage', syncCart);
+      window.removeEventListener('cartUpdated', syncCart);
+    };
+  }, []);
+
   useEffect(() => {
     async function fetchData() {
       const [prodRes, storyRes] = await Promise.all([
-        // ИЗМЕНЕНИЕ 1: Добавили выборку shop_name из связанной таблицы sellers
         supabase.from('product_market').select('*, sellers(shop_name)'),
         supabase.from('seller_stories').select('*').order('created_at', { ascending: false })
       ]);
@@ -80,12 +99,18 @@ export default function Home() {
     return ['Все', ...Array.from(new Set(rawCats))];
   }, [products]);
 
-  const addToCart = (product: any) => setCart([...cart, product]);
+  // ИЗМЕНЕНО: Теперь функции корзины обновляют и localStorage
+  const addToCart = (product: any) => {
+    const newCart = [...cart, product];
+    setCart(newCart);
+    localStorage.setItem('cart', JSON.stringify(newCart));
+  };
   
   const removeFromCart = (index: number) => {
     const newCart = [...cart];
     newCart.splice(index, 1);
     setCart(newCart);
+    localStorage.setItem('cart', JSON.stringify(newCart));
   };
 
   const checkout = async () => {
@@ -126,7 +151,9 @@ export default function Home() {
         }
       }
       alert("Заказ оформлен! Статус появится в корзине.");
+      // ИЗМЕНЕНО: Очистка localStorage после оформления
       setCart([]);
+      localStorage.removeItem('cart');
       setIsCartOpen(false);
     } catch (e) { 
       alert("Ошибка при заказе"); 
@@ -195,7 +222,6 @@ export default function Home() {
               </div>
             </div>
             <div className="px-3 pb-3 text-center">
-              {/* ИЗМЕНЕНИЕ 2: Минималистичная подпись продавца с переходом */}
               <div 
                 onClick={() => window.location.href = `/seller/${p.seller_id}`}
                 className="text-[7px] text-zinc-400 uppercase font-bold tracking-widest mb-1 cursor-pointer hover:text-orange-500 transition-colors"

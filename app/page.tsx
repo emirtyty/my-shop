@@ -177,6 +177,7 @@ export default function Home() {
               <div className="relative aspect-square mb-3 overflow-hidden rounded-[2.4rem] bg-zinc-50">
                 <img src={p.image_url} className="w-full h-full object-cover transition-transform group-hover:scale-110" alt="" />
                 
+                {/* БЕЙДЖ СКИДКИ */}
                 {hasDiscount && (
                   <div className="absolute top-3 left-3 bg-orange-500 text-white px-3 py-1.5 rounded-full text-[10px] font-black italic shadow-lg animate-pulse-subtle">
                     -{discountPercent}%
@@ -196,7 +197,6 @@ export default function Home() {
               </div>
 
               <div className="px-3 pb-3 text-center">
-                {/* КНОПКА МАГАЗИНА (УДОБНАЯ И КРУПНАЯ) */}
                 <button 
                   onClick={() => p.seller_id && (window.location.href = `/seller/${p.seller_id}`)}
                   className="mb-2 inline-flex items-center bg-zinc-100 hover:bg-orange-50 px-3 py-1.5 rounded-full transition-all active:scale-90"

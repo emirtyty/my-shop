@@ -11,7 +11,6 @@ export default function AdminPage() {
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
         setSeller(session.user);
-        // Загружаем товары без фильтра, чтобы ты их видел
         const { data } = await supabase.from('product_market').select('*').order('created_at', { ascending: false });
         setProducts(data || []);
       }
@@ -24,34 +23,38 @@ export default function AdminPage() {
     if (!percent) return;
     
     const disc = Number(percent);
-    // Если уже есть старая цена, берем её за основу. Если нет — берем текущую.
-    const basePrice = product.old_price || product.price;
-    const finalPrice = Math.round(basePrice - (basePrice * (disc / 100)));
+    // Берем текущую цену как базу для скидки
+    const currentPrice = Number(product.price);
+    const finalPrice = Math.round(currentPrice - (currentPrice * (disc / 100)));
     
+    // ВАЖНО: Мы сохраняем старую цену в поле old_price, а новую в price
     const { error } = await supabase
       .from('product_market')
       .update({ 
         price: finalPrice, 
-        old_price: basePrice 
+        old_price: currentPrice // Сюда уходит цена ДО скидки
       })
       .eq('id', product.id);
 
-    if (error) alert(error.message);
-    else {
-      alert("Скидка сохранена в базу!");
+    if (error) {
+      alert("Ошибка базы: " + error.message);
+    } else {
+      alert(`Скидка ${disc}% применена! Старая цена: ${currentPrice}, Новая: ${finalPrice}`);
       window.location.reload(); 
     }
   };
 
-  const removeDiscount = async (id: string, oldPrice: number) => {
-    if (!oldPrice) return;
+  const removeDiscount = async (product: any) => {
+    if (!product.old_price) return;
+    
+    // Возвращаем старую цену на место и зануляем old_price
     const { error } = await supabase
       .from('product_market')
       .update({ 
-        price: oldPrice, 
+        price: product.old_price, 
         old_price: null 
       })
-      .eq('id', id);
+      .eq('id', product.id);
 
     if (error) alert(error.message);
     else window.location.reload();
@@ -62,30 +65,35 @@ export default function AdminPage() {
       <h1 className="text-2xl font-black text-orange-500 mb-8 uppercase italic">Управление</h1>
       <div className="grid gap-4">
         {products.map(p => (
-          <div key={p.id} className="bg-zinc-900 p-4 rounded-3xl flex gap-4 items-center">
+          <div key={p.id} className="bg-zinc-900 p-4 rounded-3xl flex gap-4 items-center border border-zinc-800">
             <img src={p.image_url} className="w-20 h-20 rounded-2xl object-cover" />
             <div className="flex-1">
-              <p className="font-bold text-xs uppercase">{p.name}</p>
-              <div className="flex items-center gap-2">
-                <p className="text-orange-500 font-black">{p.price} ₽</p>
+              <p className="font-bold text-xs uppercase tracking-tighter">{p.name}</p>
+              <div className="flex items-center gap-2 mt-1">
+                <p className="text-orange-500 font-black text-lg">{p.price} ₽</p>
                 {p.old_price && (
-                  <p className="text-zinc-500 text-[10px] line-through">{p.old_price} ₽</p>
+                  <p className="text-zinc-500 text-[10px] line-through font-bold">{p.old_price} ₽</p>
                 )}
               </div>
+              {p.old_price && (
+                <div className="inline-block bg-orange-500/10 text-orange-500 text-[8px] px-2 py-0.5 rounded-full font-black uppercase mt-1">
+                  Активна скидка
+                </div>
+              )}
             </div>
             
             <div className="flex flex-col gap-2">
               <button 
                 onClick={() => applyDiscount(p)}
-                className="bg-orange-500 text-black px-4 py-2 rounded-xl font-bold text-[10px] uppercase"
+                className="bg-orange-500 text-black px-4 py-3 rounded-2xl font-black text-[10px] uppercase shadow-lg shadow-orange-500/20 active:scale-95 transition-all"
               >
                 Скидка %
               </button>
               
               {p.old_price && (
                 <button 
-                  onClick={() => removeDiscount(p.id, p.old_price)}
-                  className="bg-zinc-800 text-zinc-400 px-4 py-2 rounded-xl font-bold text-[10px] uppercase border border-zinc-700"
+                  onClick={() => removeDiscount(p)}
+                  className="bg-zinc-800 text-zinc-400 px-4 py-2 rounded-xl font-bold text-[9px] uppercase border border-zinc-700 active:scale-95 transition-all"
                 >
                   Сбросить
                 </button>

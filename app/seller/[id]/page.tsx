@@ -25,50 +25,75 @@ export default function SellerPage() {
     fetchData();
   }, [id]);
 
-  if (loading) return <div className="p-10 text-center font-bold">Загрузка...</div>;
-  if (!seller) return <div className="p-10 text-center font-bold">Магазин не найден</div>;
+  // Функция добавления в корзину (такая же, как на главной)
+  const addToCart = (product: any) => {
+    // Получаем текущую корзину из памяти браузера
+    const currentCart = JSON.parse(localStorage.getItem('cart') || '[]');
+    
+    // Добавляем новый товар
+    const updatedCart = [...currentCart, {
+      ...product,
+      shop_name: seller.shop_name,
+      seller_telegram_id: seller.telegram_id // Сохраняем ID для бота
+    }];
+    
+    // Сохраняем обратно
+    localStorage.setItem('cart', JSON.stringify(updatedCart));
+    
+    // Оповещаем пользователя (можно заменить на красивое уведомление)
+    alert(`Товар "${product.name}" добавлен в корзину!`);
+  };
+
+  if (loading) return <div className="p-10 text-center font-black italic uppercase">Загрузка...</div>;
+  if (!seller) return <div className="p-10 text-center font-black italic uppercase">Магазин не найден</div>;
 
   return (
     <main className="min-h-screen bg-white text-black p-4">
-      {/* Шапка магазина в стиле главной */}
-      <div className="mb-8 text-center">
-        <h1 className="text-2xl font-black uppercase italic">{seller.shop_name}</h1>
-        <p className="text-sm opacity-60 font-bold uppercase mt-1">{seller.description}</p>
+      {/* Шапка магазина */}
+      <div className="mb-10 text-center pt-4">
+        <h1 className="text-3xl font-black uppercase italic leading-none">{seller.shop_name}</h1>
+        <p className="text-[10px] font-bold uppercase opacity-40 mt-2 tracking-[0.2em]">
+          {seller.description || "Official Partner"}
+        </p>
       </div>
 
-      {/* Сетка товаров как на главной */}
-      <div className="grid grid-cols-1 gap-8 max-w-md mx-auto">
+      {/* Сетка товаров */}
+      <div className="grid grid-cols-1 gap-10 max-w-sm mx-auto pb-24">
         {products.map((product) => (
-          <div key={product.id} className="flex flex-col">
-            {/* Картинка со скругленными углами как на image_28b4ec.jpg */}
-            <div className="aspect-square overflow-hidden rounded-[40px] mb-4">
+          <div key={product.id} className="flex flex-col group">
+            {/* Изображение с закруглением 40px */}
+            <div className="aspect-square overflow-hidden rounded-[40px] mb-5 shadow-sm">
               <img 
                 src={product.image_url} 
                 alt={product.name} 
-                className="w-full h-full object-cover"
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
               />
             </div>
             
-            {/* Инфо о товаре */}
-            <div className="px-2 text-center mb-4">
-                <p className="text-[10px] font-bold uppercase opacity-40 mb-1">{seller.shop_name}</p>
-                <h3 className="text-lg font-black uppercase italic leading-none">{product.name}</h3>
-                <p className="text-sm font-bold mt-2">{product.price.toLocaleString()} ₽</p>
+            {/* Инфо */}
+            <div className="text-center mb-5">
+                <p className="text-[9px] font-black uppercase opacity-30 mb-1 tracking-widest">{seller.shop_name}</p>
+                <h3 className="text-xl font-black uppercase italic leading-none mb-2">{product.name}</h3>
+                <p className="text-lg font-black">{product.price.toLocaleString()} ₽</p>
             </div>
 
-            {/* Черная кнопка как на главной */}
-            <button className="w-full bg-black text-white py-4 rounded-full font-black uppercase italic text-sm hover:opacity-80 transition-opacity">
+            {/* Кнопка КУПИТЬ (добавляет в корзину) */}
+            <button 
+              onClick={() => addToCart(product)}
+              className="w-full bg-black text-white py-5 rounded-full font-black uppercase italic text-sm shadow-xl active:scale-95 transition-all"
+            >
               КУПИТЬ
             </button>
           </div>
         ))}
       </div>
       
+      {/* Ссылка назад */}
       <button 
         onClick={() => router.push('/')}
-        className="mt-12 w-full text-center text-[10px] font-black uppercase opacity-40 underline"
+        className="w-full text-center text-[10px] font-black uppercase opacity-20 underline pb-10"
       >
-        Вернуться на главную
+        Вернуться к общему каталогу
       </button>
     </main>
   );

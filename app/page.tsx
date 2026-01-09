@@ -9,268 +9,318 @@ export default function Home() {
   const [cart, setCart] = useState<any[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [userOrders, setUserOrders] = useState<any[]>([]);
+  const [cartBumping, setCartBumping] = useState(false);
+  
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState('Все');
 
+  const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
+  const [checkPhone, setCheckPhone] = useState('');
+  const [userOrders, setUserOrders] = useState<any[]>([]);
+  const [isSearchingOrders, setIsSearchingOrders] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
+
   useEffect(() => {
-    const syncCart = () => {
-      const savedCart = localStorage.getItem('cart');
-      if (savedCart) setCart(JSON.parse(savedCart));
-    };
-    syncCart();
-    window.addEventListener('storage', syncCart);
-    window.addEventListener('cartUpdated', syncCart);
-    return () => {
-      window.removeEventListener('storage', syncCart);
-      window.removeEventListener('cartUpdated', syncCart);
-    };
+    const saved = localStorage.getItem('cart');
+    if (saved) { try { setCart(JSON.parse(saved)); } catch (e) { console.error(e); } }
+    const savedPhone = localStorage.getItem('userPhone');
+    if (savedPhone) setCheckPhone(savedPhone);
   }, []);
 
   useEffect(() => {
+    localStorage.setItem('cart', JSON.stringify(cart));
+  }, [cart]);
+
+  useEffect(() => {
     async function fetchData() {
-      const [prodRes, storyRes] = await Promise.all([
-        supabase.from('product_market').select('*, sellers(shop_name)'),
-        supabase.from('seller_stories').select('*').order('created_at', { ascending: false })
-      ]);
-      setProducts(prodRes.data || []);
-      setStories(storyRes.data || []);
-      setLoading(false);
+      try {
+        const [prodRes, storyRes] = await Promise.all([
+          supabase.from('product_market').select('*, sellers(id, shop_name)'),
+          supabase.from('seller_stories').select('*').order('created_at', { ascending: false })
+        ]);
+        setProducts(prodRes.data || []);
+        setStories(storyRes.data || []);
+      } catch (err) { console.error(err); } finally { setLoading(false); }
     }
     fetchData();
   }, []);
 
-  useEffect(() => {
-    const phone = localStorage.getItem('userPhone');
-    if (!phone) return;
-    const fetchMyOrders = async () => {
-      const { data } = await supabase.from('orders').select('*').eq('buyer_phone', phone).order('created_at', { ascending: false });
-      if (data) setUserOrders(data);
-    };
-    fetchMyOrders();
-    const channel = supabase.channel('order-status')
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders', filter: `buyer_phone=eq.${phone}` }, (payload) => {
-        setUserOrders(prev => prev.map(o => o.id === payload.new.id ? payload.new : o));
-      })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders', filter: `buyer_phone=eq.${phone}` }, (payload) => {
-        setUserOrders(prev => [payload.new, ...prev]);
-      }).subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, []);
-
-  const filteredProducts = useMemo(() => {
-    return products.filter(p => {
-      const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase());
-      const rawCat = typeof p.category === 'object' && p.category !== null ? p.category.name : p.category;
-      const pCat = String(rawCat || 'Без категории').toLowerCase().trim();
-      const activeCatLower = activeCategory.toLowerCase().trim();
-      return matchesSearch && (activeCategory === 'Все' || pCat === activeCatLower);
-    });
-  }, [products, searchQuery, activeCategory]);
-
-  const categories = useMemo(() => {
-    const rawCats = products.map(p => {
-      const val = typeof p.category === 'object' && p.category !== null ? p.category.name : p.category;
-      return String(val || 'Без категории');
-    });
-    return ['Все', ...Array.from(new Set(rawCats))];
-  }, [products]);
-
   const addToCart = (product: any) => {
-    const newCart = [...cart, product];
-    setCart(newCart);
-    localStorage.setItem('cart', JSON.stringify(newCart));
+    if (!product) return;
+    setCart(prev => [...prev, product]);
+    setCartBumping(true);
+    setTimeout(() => setCartBumping(false), 300);
   };
   
-  const removeFromCart = (index: number) => {
-    const newCart = [...cart];
-    newCart.splice(index, 1);
-    setCart(newCart);
-    localStorage.setItem('cart', JSON.stringify(newCart));
+  const removeFromCartOnce = (productId: string) => {
+    setCart(prev => {
+      const index = prev.findLastIndex(item => item.id === productId);
+      if (index === -1) return prev;
+      const newCart = [...prev];
+      newCart.splice(index, 1);
+      return newCart;
+    });
+  };
+
+  const getProductCount = (id: string) => cart.filter(item => item.id === id).length;
+
+  const fetchMyOrders = async () => {
+    const cleanPhone = checkPhone.trim();
+    if (!cleanPhone) return;
+    setIsSearchingOrders(true);
+    setHasSearched(false);
+    try {
+      const { data } = await supabase
+        .from('orders')
+        .select('*')
+        .eq('buyer_phone', cleanPhone)
+        .order('created_at', { ascending: false });
+      setUserOrders(Array.isArray(data) ? data : []);
+      setHasSearched(true);
+      localStorage.setItem('userPhone', cleanPhone);
+    } catch (err) { console.error(err); } finally { setIsSearchingOrders(false); }
   };
 
   const checkout = async () => {
     if (cart.length === 0) return;
-    const phone = prompt("Введите ваш номер телефона для связи:");
+    const phone = prompt("Введите ваш номер телефона:");
     if (!phone) return;
-    localStorage.setItem('userPhone', phone);
+    const cleanPhone = phone.trim();
+
     const ordersBySeller = cart.reduce((acc: any, item: any) => {
-      const sId = item.seller_id || '589b6a02-9efa-41ba-bcb5-4dc6c2eff9a7';
+      const sId = item.seller_id || 'default'; 
       if (!acc[sId]) acc[sId] = [];
       acc[sId].push(item);
       return acc;
     }, {});
+
     try {
       for (const sId in ordersBySeller) {
         const items = ordersBySeller[sId];
-        const pName = items.map((i: any) => i.name).join(', ');
-        const totalPrice = items.reduce((sum: number, i: any) => sum + Number(i.price), 0);
-        const { data, error } = await supabase.from('orders').insert([{
-          product_name: pName, price: totalPrice, buyer_phone: phone, seller_id: sId, status: 'Новый'
-        }]).select().single();
-        if (data && !error) {
-          await fetch('/api/order', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ order_id: data.id, product_name: pName, price: totalPrice, buyer_phone: phone, seller_id: sId })
-          });
-        }
+        const pName = items.map((i: any) => i.name || 'Товар').join(', ');
+        const totalPrice = items.reduce((sum: number, i: any) => sum + Number(i.price || 0), 0);
+        await supabase.from('orders').insert([{
+          product_name: pName, price: totalPrice, buyer_phone: cleanPhone, seller_id: sId, status: 'НОВЫЙ'
+        }]);
       }
-      alert("Заказ оформлен!");
+      alert("✅ ГОТОВО!");
       setCart([]);
-      localStorage.removeItem('cart');
       setIsCartOpen(false);
-    } catch (e) { alert("Ошибка при заказе"); }
+    } catch (e) { alert("❌ ОШИБКА"); }
   };
 
-  if (loading) return <div className="min-h-screen bg-white flex items-center justify-center font-black italic text-orange-500 uppercase tracking-widest">Загрузка...</div>;
+  const categories = useMemo(() => {
+    const cats = products.map(p => (typeof p.category === 'object' ? p.category?.name : p.category) || 'Без категории');
+    return ['Все', ...Array.from(new Set(cats.map(String)))];
+  }, [products]);
+
+  const filteredProducts = useMemo(() => {
+    return products.filter(p => {
+      const matchesSearch = (p.name || '').toLowerCase().includes(searchQuery.toLowerCase());
+      const catName = String(typeof p.category === 'object' ? p.category?.name : p.category || 'Без категории');
+      return matchesSearch && (activeCategory === 'Все' || catName === activeCategory);
+    });
+  }, [products, searchQuery, activeCategory]);
+
+  if (loading) return <div className="min-h-screen flex items-center justify-center font-black italic text-orange-500 uppercase animate-pulse">Загрузка...</div>;
 
   return (
     <div className="min-h-screen bg-[#F8F8F8] text-black pb-32">
-      {selectedStory && (
-        <div className="fixed inset-0 z-[200] bg-black flex items-center justify-center" onClick={() => setSelectedStory(null)}>
-          <img src={selectedStory} className="max-w-full max-h-full object-contain" alt="Story" />
-          <div className="absolute top-10 right-10 text-white text-3xl font-light">×</div>
-        </div>
-      )}
-
-      <header className="bg-white px-6 pt-12 pb-6 rounded-b-[3.5rem] shadow-sm mb-4">
-        <div className="flex gap-4 items-center mb-8">
+      {/* HEADER */}
+      <header className="bg-white px-6 pt-12 pb-6 rounded-b-[3.5rem] shadow-sm mb-4 sticky top-0 z-50">
+        <div className="flex gap-4 items-center mb-4">
           <div className="flex-1 bg-zinc-100 rounded-2xl flex items-center px-4 py-4 border border-zinc-200/30">
-            <span className="mr-3 text-zinc-400">🔍</span>
-            <input
-              type="text" placeholder="Найти в маркете..."
-              className="bg-transparent outline-none w-full text-[11px] font-black uppercase italic tracking-tighter"
-              value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
+            <input 
+              type="text" 
+              placeholder="ПОИСК..." 
+              className="bg-transparent outline-none w-full text-[11px] font-black uppercase italic"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
-          <button onClick={() => setIsCartOpen(true)} className="relative bg-black text-white p-4.5 rounded-[1.4rem] active:scale-90 transition-all shadow-xl shadow-black/10">
+          <button onClick={() => setIsCartOpen(true)} className={`relative bg-black text-white p-4.5 rounded-[1.4rem] transition-all ${cartBumping ? 'scale-110 bg-orange-500' : ''}`}>
               🛒 {cart.length > 0 && <span className="absolute -top-1 -right-1 bg-orange-500 w-6 h-6 rounded-full text-[10px] flex items-center justify-center border-2 border-white font-black">{cart.length}</span>}
           </button>
         </div>
-        <div className="flex gap-4 overflow-x-auto no-scrollbar">
+        
+        <button onClick={() => setIsStatusModalOpen(true)} className="text-[9px] font-black uppercase italic text-zinc-400 mb-6 ml-2 hover:text-orange-500 transition-colors">🔍 ГДЕ МОЙ ЗАКАЗ?</button>
+
+        <div className="flex gap-4 overflow-x-auto no-scrollbar pb-2">
           {stories.map((s) => (
-            <div key={s.id} onClick={() => setSelectedStory(s.image_url)} className="flex-shrink-0 w-16 h-16 rounded-full p-[2px] border-2 border-orange-500 active:scale-95 transition-all cursor-pointer shadow-sm">
-              <img src={s.image_url} className="w-full h-full rounded-full object-cover" alt="Story preview" />
+            <div key={s.id} onClick={() => setSelectedStory(s.image_url)} className="flex-shrink-0 w-16 h-16 rounded-full p-[2px] border-2 border-orange-500 cursor-pointer">
+              <img src={s.image_url} className="w-full h-full rounded-full object-cover" alt="" />
             </div>
           ))}
         </div>
       </header>
 
+      {/* CATEGORIES */}
       <div className="px-6 flex gap-2 overflow-x-auto no-scrollbar mb-6">
         {categories.map(cat => (
-          <button key={cat} onClick={() => setActiveCategory(cat)}
-            className={`px-7 py-2.5 rounded-full text-[10px] font-black uppercase italic tracking-widest transition-all whitespace-nowrap ${activeCategory === cat ? 'bg-orange-500 text-white shadow-lg shadow-orange-500/30' : 'bg-white text-zinc-400 border border-zinc-100 shadow-sm'}`}
-          > {cat} </button>
+          <button key={cat} onClick={() => setActiveCategory(cat)} className={`px-7 py-2.5 rounded-full text-[10px] font-black uppercase italic transition-all whitespace-nowrap ${activeCategory === cat ? 'bg-orange-500 text-white shadow-lg' : 'bg-white text-zinc-400 border border-zinc-100'}`}>
+            {cat}
+          </button>
         ))}
       </div>
 
+      {/* PRODUCT GRID */}
       <main className="px-4 grid grid-cols-2 gap-4">
-        {filteredProducts.map((p) => {
-          // ЛОГИКА СКИДКИ
-          const hasDiscount = p.old_price && p.old_price > p.price;
-          const discountPercent = hasDiscount ? Math.round(((p.old_price - p.price) / p.old_price) * 100) : 0;
+        {filteredProducts.map((p, index) => {
+          const count = getProductCount(p.id);
+          const currentPrice = Number(p?.price || 0);
+          const oldPrice = p?.old_price ? Number(p.old_price) : null;
+          const hasDiscount = oldPrice !== null && oldPrice > currentPrice;
+          const discountPercent = hasDiscount ? Math.round(((oldPrice - currentPrice) / oldPrice) * 100) : 0;
 
           return (
-            <div key={p.id} className="bg-white rounded-[2.8rem] p-2 border border-zinc-100 shadow-sm animate-fade-in hover:shadow-md transition-shadow">
-              <div className="relative aspect-square mb-3">
-                <img src={p.image_url} className="w-full h-full object-cover rounded-[2.4rem]" alt={p.name} />
+            <div key={p.id || index} className="bg-white rounded-[2.8rem] p-2 border border-zinc-100 shadow-sm animate-fade-in group">
+              <div className="relative aspect-square mb-3 overflow-hidden rounded-[2.4rem] bg-zinc-50">
+                <img src={p.image_url} className="w-full h-full object-cover transition-transform group-hover:scale-110" alt="" />
                 
-                {/* Бейдж скидки */}
                 {hasDiscount && (
-                  <div className="absolute top-3 left-3 bg-orange-500 text-white px-2 py-1 rounded-full text-[8px] font-black italic shadow-lg">
+                  <div className="absolute top-3 left-3 bg-orange-500 text-white px-3 py-1.5 rounded-full text-[10px] font-black italic shadow-lg animate-pulse-subtle">
                     -{discountPercent}%
                   </div>
                 )}
 
                 <div className="absolute bottom-3 right-3 flex flex-col items-end">
                   {hasDiscount && (
-                    <span className="text-[7px] text-zinc-400 line-through font-bold mb-0.5">
-                      {p.old_price} ₽
+                    <span className="bg-white/90 backdrop-blur-sm px-2 py-0.5 rounded-full text-[8px] text-zinc-400 line-through font-bold mb-1">
+                      {oldPrice} ₽
                     </span>
                   )}
-                  <div className="bg-white/95 backdrop-blur px-3 py-1.5 rounded-full text-[9px] font-black italic shadow-sm">
-                    {p.price} ₽
+                  <div className="bg-black text-white px-4 py-2 rounded-full text-[12px] font-black italic shadow-2xl border border-white/10">
+                    {currentPrice} ₽
                   </div>
                 </div>
               </div>
+
               <div className="px-3 pb-3 text-center">
-                <div onClick={() => window.location.href = `/seller/${p.seller_id}`} className="text-[7px] text-zinc-400 uppercase font-bold tracking-widest mb-1 cursor-pointer">
-                  {p.sellers?.shop_name || 'Магазин'}
-                </div>
-                <h3 className="font-bold text-[10px] uppercase tracking-tighter mb-4 h-8 line-clamp-2 leading-none">{p.name}</h3>
-                <button onClick={() => addToCart(p)} className="w-full bg-black text-white py-4.5 rounded-[1.4rem] text-[9px] font-black uppercase italic tracking-[0.1em] active:bg-orange-500 transition-all shadow-sm">
-                  КУПИТЬ
+                {/* КНОПКА МАГАЗИНА (УДОБНАЯ И КРУПНАЯ) */}
+                <button 
+                  onClick={() => p.seller_id && (window.location.href = `/seller/${p.seller_id}`)}
+                  className="mb-2 inline-flex items-center bg-zinc-100 hover:bg-orange-50 px-3 py-1.5 rounded-full transition-all active:scale-90"
+                >
+                  <span className="text-[8px] text-zinc-500 font-black uppercase italic tracking-widest">
+                    🏪 {p?.sellers?.shop_name || 'МАГАЗИН'}
+                  </span>
                 </button>
+
+                <h3 className="font-bold text-[10px] uppercase tracking-tighter mb-4 h-8 line-clamp-2 leading-none text-zinc-800">
+                  {p.name || 'Товар'}
+                </h3>
+                
+                <div className="relative h-[46px] w-full">
+                  {count === 0 ? (
+                    <button onClick={() => addToCart(p)} className="w-full h-full bg-black text-white rounded-[1.2rem] text-[9px] font-black uppercase italic shadow-md active:scale-95 transition-all">КУПИТЬ</button>
+                  ) : (
+                    <div className="flex items-center justify-between bg-zinc-100 rounded-[1.2rem] h-full border border-zinc-200">
+                      <button onClick={() => removeFromCartOnce(p.id)} className="flex-1 h-full font-black text-lg text-zinc-400">—</button>
+                      <span className="px-2 text-[12px] font-black italic">{count}</span>
+                      <button onClick={() => addToCart(p)} className="flex-1 h-full font-black text-lg">+</button>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           );
         })}
       </main>
 
-      {isCartOpen && (
-        <div className="fixed inset-0 z-[150] bg-black/50 backdrop-blur-md flex items-end" onClick={() => setIsCartOpen(false)}>
-          <div className="bg-white w-full rounded-t-[4rem] p-10 animate-slide-up shadow-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <div className="flex justify-between items-center mb-10">
-              <h2 className="text-3xl font-black uppercase italic tracking-tighter leading-none">Корзина</h2>
-              <button onClick={() => setIsCartOpen(false)} className="bg-zinc-100 p-3 rounded-full text-zinc-400">✕</button>
+      {/* МОДАЛКА: ТРЕКИНГ ЗАКАЗА */}
+      {isStatusModalOpen && (
+        <div className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-md flex items-end animate-fade-in" onClick={() => setIsStatusModalOpen(false)}>
+          <div className="bg-white w-full rounded-t-[3.5rem] p-8 animate-slide-up shadow-2xl max-h-[80vh] overflow-y-auto no-scrollbar" onClick={e => e.stopPropagation()}>
+            <div className="w-12 h-1.5 bg-zinc-200 rounded-full mx-auto mb-8" />
+            <h2 className="text-2xl font-black uppercase italic tracking-tighter text-center mb-8">МОИ ЗАКАЗЫ</h2>
+            <div className="relative flex items-center mb-10">
+              <input 
+                type="tel" placeholder="ТЕЛЕФОН..." 
+                className="w-full bg-zinc-100 p-5 rounded-[2rem] text-sm font-black outline-none italic"
+                value={checkPhone} onChange={(e) => setCheckPhone(e.target.value)}
+              />
+              <button onClick={fetchMyOrders} className="absolute right-2 w-12 h-12 rounded-full bg-black flex items-center justify-center">
+                {isSearchingOrders ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <span className="text-white text-lg">🔍</span>}
+              </button>
             </div>
-
-            {userOrders.length > 0 && (
-              <div className="mb-10 space-y-3">
-                <p className="text-[10px] font-black uppercase italic text-zinc-400 tracking-widest ml-2">Статус ваших заказов:</p>
-                {userOrders.slice(0, 3).map((order) => (
-                  <div key={order.id} className="flex justify-between items-center bg-zinc-50 border border-zinc-100 p-4 rounded-[1.8rem]">
-                    <div className="flex flex-col">
-                      <span className="text-[10px] font-bold uppercase tracking-tighter line-clamp-1 w-32">{order.product_name}</span>
-                      <span className="text-[8px] text-zinc-400 font-mono">#{order.id.slice(0,8)}</span>
-                    </div>
-                    <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase italic ${order.status === 'В пути' ? 'bg-blue-500 text-white' : order.status === 'Завершен' ? 'bg-green-500 text-white' : 'bg-orange-500 text-white'}`}>
-                      {order.status || 'НОВЫЙ'}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-            
-            <div className="mb-10 pr-2">
-              <p className="text-[10px] font-black uppercase italic text-zinc-400 tracking-widest ml-2 mb-3">Товары к покупке:</p>
-              {cart.map((item, idx) => (
-                <div key={idx} onClick={() => removeFromCart(idx)} className="flex items-center justify-between mb-4 bg-zinc-50 p-4 rounded-[1.8rem] border border-zinc-100 active:bg-red-50 transition-all">
-                  <div className="flex items-center gap-4">
-                    <img src={item.image_url} className="w-14 h-14 rounded-2xl object-cover" alt={item.name} />
-                    <div className="flex flex-col">
-                       <span className="font-bold text-[11px] uppercase tracking-tighter line-clamp-1">{item.name}</span>
-                       <span className="text-[9px] text-zinc-400 font-bold uppercase italic mt-1">Удалить</span>
+            <div className="space-y-4">
+              {userOrders.length > 0 ? userOrders.map((order, idx) => (
+                <div key={order?.id || idx} className="bg-zinc-50 border border-zinc-100 p-6 rounded-[2.5rem] flex justify-between items-center animate-fade-in">
+                  <div className="max-w-[65%]">
+                    <div className="text-[11px] font-black uppercase italic leading-tight">{order?.product_name || 'ЗАКАЗ'}</div>
+                    <div className="text-[8px] text-zinc-400 font-bold mt-2 uppercase">
+                      {order?.created_at ? new Date(order.created_at).toLocaleDateString() : 'Недавно'} {order?.id ? `• #${String(order.id).slice(0,5)}` : ''}
                     </div>
                   </div>
-                  <span className="font-black text-orange-500 italic text-sm">{item.price} ₽</span>
+                  <div className="bg-white px-4 py-2 rounded-full border border-zinc-200">
+                    <span className="text-[9px] font-black uppercase italic text-orange-500 animate-pulse-slow">{order?.status || 'НОВЫЙ'}</span>
+                  </div>
                 </div>
-              ))}
-              {cart.length === 0 && <p className="text-center py-10 opacity-30 font-black uppercase italic text-xs">Корзина пуста</p>}
+              )) : hasSearched ? (
+                <div className="text-center py-10 opacity-30 font-black uppercase italic text-[10px]">ЗАКАЗЫ НЕ НАЙДЕНЫ</div>
+              ) : <p className="text-center py-10 opacity-20 font-black uppercase italic text-[10px]">ВВЕДИТЕ НОМЕР</p>}
             </div>
-
-            {cart.length > 0 && (
-              <div className="space-y-4">
-                <div className="flex justify-between px-2 font-black uppercase italic text-[10px] tracking-widest text-zinc-400">
-                   <span>Итого:</span>
-                   <span className="text-black">{cart.reduce((s, i) => s + Number(i.price), 0)} ₽</span>
-                </div>
-                <button onClick={checkout} className="w-full bg-orange-500 text-white py-7 rounded-[2.5rem] font-black uppercase italic text-sm shadow-2xl active:scale-95 transition-all">
-                  Оформить заказ
-                </button>
-              </div>
-            )}
           </div>
         </div>
       )}
 
+      {/* МОДАЛКА: КОРЗИНА */}
+      {isCartOpen && (
+        <div className="fixed inset-0 z-[150] bg-black/60 backdrop-blur-md flex items-end animate-fade-in" onClick={() => setIsCartOpen(false)}>
+          <div className="bg-white w-full rounded-t-[3.5rem] p-8 animate-slide-up shadow-2xl max-h-[85vh] overflow-y-auto no-scrollbar" onClick={e => e.stopPropagation()}>
+            <div className="w-12 h-1.5 bg-zinc-200 rounded-full mx-auto mb-6" />
+            <h2 className="text-2xl font-black uppercase italic mb-8 text-center">КОРЗИНА</h2>
+            {cart.length > 0 ? (
+              <div className="space-y-4">
+                {Array.from(new Set(cart.map(i => i.id))).map(id => {
+                  const item = cart.find(c => c.id === id);
+                  const qty = getProductCount(id);
+                  if (!item) return null;
+                  return (
+                    <div key={id} className="flex items-center justify-between bg-zinc-50 p-4 rounded-3xl border border-zinc-100">
+                      <div className="flex items-center gap-3">
+                        <img src={item.image_url} className="w-12 h-12 rounded-xl object-cover" alt="" />
+                        <div className="flex flex-col">
+                          <span className="font-bold text-[10px] uppercase line-clamp-1">{item.name || 'Товар'}</span>
+                          <span className="text-[9px] text-orange-500 font-black italic">{(item.price || 0) * qty} ₽</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center bg-white rounded-xl border border-zinc-200 overflow-hidden shadow-sm">
+                        <button onClick={() => removeFromCartOnce(id)} className="px-3 py-1 font-black text-zinc-400">—</button>
+                        <span className="text-[10px] font-black w-6 text-center">{qty}</span>
+                        <button onClick={() => addToCart(item)} className="px-3 py-1 font-black">+</button>
+                      </div>
+                    </div>
+                  );
+                })}
+                <button onClick={checkout} className="w-full bg-orange-500 text-white py-6 rounded-[2.2rem] font-black uppercase italic shadow-xl shadow-orange-500/30 active:scale-95 mt-6">
+                    ОФОРМИТЬ ({cart.reduce((s, i) => s + Number(i.price || 0), 0)} ₽)
+                </button>
+              </div>
+            ) : <p className="text-center py-10 font-black uppercase italic opacity-20 text-[10px]">ПУСТО</p>}
+          </div>
+        </div>
+      )}
+
+      {selectedStory && (
+        <div className="fixed inset-0 z-[200] bg-black/95 backdrop-blur-xl flex items-center justify-center animate-fade-in" onClick={() => setSelectedStory(null)}>
+          <img src={selectedStory} className="max-w-full max-h-[85vh] object-contain shadow-2xl" alt="" />
+        </div>
+      )}
+
       <style jsx global>{`
+        body { -webkit-tap-highlight-color: transparent; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
+        @keyframes fade-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes slide-up { from { transform: translateY(100%); } to { transform: translateY(0); } }
-        @keyframes fade-in { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
-        .animate-slide-up { animation: slide-up 0.5s cubic-bezier(0.16, 1, 0.3, 1); }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        @keyframes pulse-subtle { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.05); opacity: 0.9; } }
+        @keyframes pulse-slow { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
         .animate-fade-in { animation: fade-in 0.4s ease-out forwards; }
+        .animate-slide-up { animation: slide-up 0.5s cubic-bezier(0.16, 1, 0.3, 1); }
+        .animate-spin { animation: spin 0.8s linear infinite; }
+        .animate-pulse-subtle { animation: pulse-subtle 2s infinite ease-in-out; }
+        .animate-pulse-slow { animation: pulse-slow 2s infinite; }
       `}</style>
     </div>
   );

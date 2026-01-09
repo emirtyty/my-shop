@@ -43,7 +43,8 @@ export default function Home() {
     async function fetchData() {
       try {
         const [prodRes, storyRes] = await Promise.all([
-          supabase.from('product_market').select('*, sellers(id, shop_name)').eq('is_archived', false),
+          // УБРАЛ ФИЛЬТР is_archived, ЧТОБЫ ТОВАРЫ СНОВА ПОЯВИЛИСЬ
+          supabase.from('product_market').select('*, sellers(id, shop_name)'),
           supabase.from('seller_stories').select('*').order('created_at', { ascending: false })
         ]);
         setProducts(prodRes.data || []);
@@ -134,7 +135,6 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-[#F8F8F8] text-black pb-32">
-      {/* HEADER: ДОБАВЛЕНО СКРЫТИЕ ПРИ СКРОЛЛЕ */}
       <header 
         style={{ 
           transform: `translateY(${scrollY > 50 ? '-100%' : '0'})`,
@@ -152,7 +152,7 @@ export default function Home() {
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
-          <button onClick={() => setIsCartOpen(true)} className={`relative bg-black text-white p-4.5 rounded-[1.4rem] transition-all ${cartBumping ? 'scale-110 bg-orange-50' : ''}`}>
+          <button onClick={() => setIsCartOpen(true)} className={`relative bg-black text-white p-4.5 rounded-[1.4rem] transition-all ${cartBumping ? 'scale-110 bg-orange-500' : ''}`}>
               🛒 {cart.length > 0 && <span className="absolute -top-1 -right-1 bg-orange-500 w-6 h-6 rounded-full text-[10px] flex items-center justify-center border-2 border-white font-black">{cart.length}</span>}
           </button>
         </div>
@@ -181,7 +181,6 @@ export default function Home() {
           const count = getProductCount(p.id);
           const currentPrice = Number(p?.price || 0);
           const oldPrice = p?.old_price ? Number(p.old_price) : null;
-          
           const hasDiscount = oldPrice !== null && oldPrice > currentPrice && oldPrice !== 0;
           const discountPercent = hasDiscount ? Math.round(((oldPrice - currentPrice) / oldPrice) * 100) : 0;
 
@@ -189,13 +188,11 @@ export default function Home() {
             <div key={p.id || index} className="bg-white rounded-[2.8rem] p-2 border border-zinc-100 shadow-sm animate-fade-in group">
               <div className="relative aspect-square mb-3 overflow-hidden rounded-[2.4rem] bg-zinc-50">
                 <img src={p.image_url} className="w-full h-full object-cover transition-transform group-hover:scale-110" alt="" />
-                
                 {hasDiscount && (
                   <div className="absolute top-3 left-3 bg-orange-500 text-white px-3 py-1.5 rounded-full text-[10px] font-black italic shadow-lg z-20">
                     -{discountPercent}%
                   </div>
                 )}
-
                 <div className="absolute bottom-3 right-3 flex flex-col items-end z-20">
                   {hasDiscount && (
                     <span className="bg-white/95 backdrop-blur-sm px-2 py-0.5 rounded-full text-[8px] text-zinc-400 line-through font-bold mb-1 shadow-sm">
@@ -217,11 +214,9 @@ export default function Home() {
                     🏪 {p?.sellers?.shop_name || 'МАГАЗИН'}
                   </span>
                 </button>
-
                 <h3 className="font-bold text-[10px] uppercase tracking-tighter mb-4 h-8 line-clamp-2 leading-none text-zinc-800">
                   {p.name || 'Товар'}
                 </h3>
-                
                 <div className="relative h-[46px] w-full">
                   {count === 0 ? (
                     <button onClick={() => addToCart(p)} className="w-full h-full bg-black text-white rounded-[1.2rem] text-[9px] font-black uppercase italic shadow-md active:scale-95 transition-all">КУПИТЬ</button>
@@ -239,7 +234,7 @@ export default function Home() {
         })}
       </main>
 
-      {/* МОДАЛКИ И СТИЛИ */}
+      {/* Модалки и стили без изменений */}
       {isStatusModalOpen && (
         <div className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-md flex items-end animate-fade-in" onClick={() => setIsStatusModalOpen(false)}>
           <div className="bg-white w-full rounded-t-[3.5rem] p-8 animate-slide-up shadow-2xl max-h-[80vh] overflow-y-auto no-scrollbar" onClick={e => e.stopPropagation()}>

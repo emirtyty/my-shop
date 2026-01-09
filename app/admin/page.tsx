@@ -19,27 +19,42 @@ export default function AdminPage() {
     getData();
   }, []);
 
-  const applyDiscount = async (id: string, currentPrice: number) => {
+  const applyDiscount = async (product: any) => {
     const percent = prompt('Введите % скидки:');
     if (!percent) return;
     
     const disc = Number(percent);
-    const finalPrice = Math.round(currentPrice - (currentPrice * (disc / 100)));
+    // Если уже есть старая цена, берем её за основу. Если нет — берем текущую.
+    const basePrice = product.old_price || product.price;
+    const finalPrice = Math.round(basePrice - (basePrice * (disc / 100)));
     
-    // ВАЖНО: записываем и новую цену, и старую
     const { error } = await supabase
       .from('product_market')
       .update({ 
         price: finalPrice, 
-        old_price: currentPrice 
+        old_price: basePrice 
       })
-      .eq('id', id);
+      .eq('id', product.id);
 
     if (error) alert(error.message);
     else {
       alert("Скидка сохранена в базу!");
-      window.location.reload(); // Перезагрузим, чтобы увидеть изменения
+      window.location.reload(); 
     }
+  };
+
+  const removeDiscount = async (id: string, oldPrice: number) => {
+    if (!oldPrice) return;
+    const { error } = await supabase
+      .from('product_market')
+      .update({ 
+        price: oldPrice, 
+        old_price: null 
+      })
+      .eq('id', id);
+
+    if (error) alert(error.message);
+    else window.location.reload();
   };
 
   return (
@@ -51,14 +66,31 @@ export default function AdminPage() {
             <img src={p.image_url} className="w-20 h-20 rounded-2xl object-cover" />
             <div className="flex-1">
               <p className="font-bold text-xs uppercase">{p.name}</p>
-              <p className="text-orange-500 font-black">{p.price} ₽</p>
+              <div className="flex items-center gap-2">
+                <p className="text-orange-500 font-black">{p.price} ₽</p>
+                {p.old_price && (
+                  <p className="text-zinc-500 text-[10px] line-through">{p.old_price} ₽</p>
+                )}
+              </div>
             </div>
-            <button 
-              onClick={() => applyDiscount(p.id, p.price)}
-              className="bg-orange-500 text-black px-4 py-2 rounded-xl font-bold text-[10px] uppercase"
-            >
-              Скидка %
-            </button>
+            
+            <div className="flex flex-col gap-2">
+              <button 
+                onClick={() => applyDiscount(p)}
+                className="bg-orange-500 text-black px-4 py-2 rounded-xl font-bold text-[10px] uppercase"
+              >
+                Скидка %
+              </button>
+              
+              {p.old_price && (
+                <button 
+                  onClick={() => removeDiscount(p.id, p.old_price)}
+                  className="bg-zinc-800 text-zinc-400 px-4 py-2 rounded-xl font-bold text-[10px] uppercase border border-zinc-700"
+                >
+                  Сбросить
+                </button>
+              )}
+            </div>
           </div>
         ))}
       </div>

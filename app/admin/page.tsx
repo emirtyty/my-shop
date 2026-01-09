@@ -18,6 +18,7 @@ export default function AdminPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
+  // ПРОВЕРКА АВТОРИЗАЦИИ
   useEffect(() => {
     const checkUser = async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -65,6 +66,7 @@ export default function AdminPage() {
   const activeOrders = useMemo(() => orders.filter(o => o.status !== 'Завершен'), [orders]);
   const completedOrders = useMemo(() => orders.filter(o => o.status === 'Завершен'), [orders]);
 
+  // ДОБАВЛЕНИЕ ТОВАРА
   const handleAddProduct = async () => {
     if (!newProduct.name || !newProduct.price || !newProduct.image) return alert("Заполните все поля!");
     setUploading(true);
@@ -77,7 +79,7 @@ export default function AdminPage() {
       
       await supabase.from('product_market').insert([{
         name: newProduct.name,
-        price: Number(newProduct.price),
+        price: Math.round(Number(newProduct.price)),
         old_price: null,
         category: newProduct.category || 'Общее',
         image_url: publicUrl,
@@ -97,30 +99,52 @@ export default function AdminPage() {
     fetchData(seller.id);
   };
 
+  // ИСПРАВЛЕННОЕ ОБНОВЛЕНИЕ ЦЕНЫ
   const updatePrice = async (id: any) => {
-    const p = prompt('Новая цена:');
-    if (p) {
-      await supabase.from('product_market').update({ 
-        price: Number(p),
-        old_price: null 
-      }).eq('id', id);
+    const p = prompt('Введите новую цену:');
+    if (!p) return;
+    
+    const newPrice = Math.round(Number(p));
+    if (isNaN(newPrice)) return alert("Введите число!");
+
+    const { error } = await supabase
+      .from('product_market')
+      .update({ price: newPrice, old_price: null })
+      .eq('id', id);
+
+    if (error) {
+      alert("Ошибка Supabase: " + error.message);
+    } else {
+      alert("Цена успешно изменена!");
       fetchData(seller.id);
     }
   };
 
+  // ИСПРАВЛЕННАЯ СКИДКА
   const applyDiscount = async (id: any, currentPrice: number) => {
     const percent = prompt('Введите % скидки (например, 20):');
     if (!percent) return;
-    const discountVal = Number(percent);
-    if (isNaN(discountVal) || discountVal <= 0 || discountVal >= 100) return alert("Введите корректный %");
+    
+    const disc = Number(percent);
+    if (isNaN(disc) || disc <= 0 || disc >= 100) return alert("Введите число от 1 до 99");
 
-    const finalPrice = Math.round(currentPrice - (currentPrice * (discountVal / 100)));
-    if (confirm(`Старая цена: ${currentPrice}₽\nНовая цена: ${finalPrice}₽. Применить?`)) {
-      await supabase.from('product_market').update({ 
-        price: finalPrice,
-        old_price: currentPrice 
-      }).eq('id', id);
-      fetchData(seller.id);
+    const finalPrice = Math.round(currentPrice - (currentPrice * (disc / 100)));
+    
+    if (confirm(`Установить цену ${finalPrice}₽? (Старая цена ${currentPrice}₽ сохранится)`)) {
+      const { error } = await supabase
+        .from('product_market')
+        .update({ 
+          price: finalPrice, 
+          old_price: currentPrice 
+        })
+        .eq('id', id);
+
+      if (error) {
+        alert("Ошибка скидки: " + error.message);
+      } else {
+        alert("Скидка применена!");
+        fetchData(seller.id);
+      }
     }
   };
 

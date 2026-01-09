@@ -5,54 +5,47 @@ import { supabase } from '../lib/supabase';
 export default function AdminPage() {
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [errorInfo, setErrorInfo] = useState<string | null>(null);
-
-  useEffect(() => {
-    fetchData();
-  }, []);
+  const [status, setStatus] = useState('Загрузка...');
 
   async function fetchData() {
     setLoading(true);
-    setErrorInfo(null);
     try {
-      // Прямой запрос без фильтров и проверок
       const { data, error } = await supabase
         .from('product_market')
         .select('*')
         .order('created_at', { ascending: false });
       
       if (error) {
-        setErrorInfo(error.message);
+        setStatus('Ошибка: ' + error.message);
       } else {
         setProducts(data || []);
+        setStatus('Найдено товаров: ' + (data?.length || 0));
       }
     } catch (e: any) {
-      setErrorInfo(e.message);
-    } finally {
-      setLoading(false);
+      setStatus('Ошибка кода: ' + e.message);
     }
+    setLoading(false);
   }
 
+  useEffect(() => {
+    fetchData();
+  }, []);
+
   const applyDiscount = async (product: any) => {
-    const percent = prompt('Введите % скидки (например 10):');
+    const percent = prompt('Введите % скидки:');
     if (!percent) return;
-    
     const disc = Number(percent);
     const basePrice = product.old_price || product.price;
     const finalPrice = Math.round(basePrice - (basePrice * (disc / 100)));
     
     const { error } = await supabase
       .from('product_market')
-      .update({ 
-        price: finalPrice, 
-        old_price: basePrice 
-      })
+      .update({ price: finalPrice, old_price: basePrice })
       .eq('id', product.id);
 
-    if (error) {
-      alert("Ошибка при сохранении: " + error.message);
-    } else {
-      alert("Скидка применена!");
+    if (error) alert(error.message);
+    else {
+      alert("Скидка сохранена!");
       fetchData();
     }
   };
@@ -60,92 +53,58 @@ export default function AdminPage() {
   const resetPrice = async (product: any) => {
     const { error } = await supabase
       .from('product_market')
-      .update({ 
-        price: product.old_price, 
-        old_price: null 
-      })
+      .update({ price: product.old_price, old_price: null })
       .eq('id', product.id);
-
     if (error) alert(error.message);
     else fetchData();
   };
 
   return (
-    <div className="p-6 bg-black min-h-screen text-white font-sans">
-      <div className="flex justify-between items-center mb-10">
-        <h1 className="text-3xl font-black text-orange-500 uppercase italic tracking-tighter">УПРАВЛЕНИЕ</h1>
-        <button 
-          onClick={fetchData} 
-          className="bg-zinc-800 p-3 rounded-full text-[10px] font-bold uppercase"
-        >
-          Обновить 🔄
-        </button>
-      </div>
-
-      {errorInfo && (
-        <div className="bg-red-500/20 border border-red-500 text-red-500 p-4 rounded-2xl mb-6 text-xs font-mono">
-          ОШИБКА БАЗЫ: {errorInfo}
-        </div>
-      )}
+    <div style={{ padding: '40px', background: '#000', minHeight: '100vh', color: '#fff', fontFamily: 'sans-serif' }}>
+      <h1 style={{ color: '#f97316', textTransform: 'uppercase', fontStyle: 'italic', fontWeight: '900', margin: 0 }}>УПРАВЛЕНИЕ</h1>
+      <p style={{ fontSize: '10px', color: '#52525b', fontWeight: 'bold', marginTop: '5px' }}>{status.toUpperCase()}</p>
 
       {loading ? (
-        <div className="flex flex-col items-center justify-center py-20">
-          <div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-          <p className="text-zinc-500 font-black uppercase italic text-[10px] animate-pulse">Загрузка товаров из Supabase...</p>
-        </div>
+        <p style={{ marginTop: '20px', fontSize: '12px', opacity: 0.5 }}>ПОДОЖДИТЕ...</p>
       ) : (
-        <div className="grid gap-4">
-          {products.length === 0 && !errorInfo && (
-            <div className="text-center py-20 bg-zinc-900/50 rounded-[3rem] border border-dashed border-zinc-800">
-              <p className="text-zinc-600 font-bold uppercase italic text-[10px]">В базе данных нет товаров</p>
-            </div>
-          )}
-          
+        <div style={{ display: 'grid', gap: '15px', marginTop: '30px' }}>
           {products.map(p => (
-            <div key={p.id} className="bg-zinc-900 p-5 rounded-[2.5rem] flex gap-4 items-center border border-zinc-800 hover:border-orange-500/30 transition-all shadow-2xl">
-              <div className="relative">
-                <img src={p.image_url} className="w-20 h-20 rounded-[1.5rem] object-cover bg-zinc-800" />
-                {p.old_price && (
-                    <div className="absolute -top-2 -left-2 bg-orange-500 text-black text-[8px] font-black px-2 py-1 rounded-full uppercase italic">Скидка</div>
-                )}
-              </div>
-
-              <div className="flex-1">
-                <p className="font-bold text-[10px] uppercase text-zinc-500 mb-1">{p.name || 'Без названия'}</p>
-                <div className="flex items-center gap-3">
-                  <span className="text-2xl font-black text-white">{p.price} ₽</span>
-                  {p.old_price && (
-                    <span className="text-zinc-600 line-through text-xs font-bold">{p.old_price} ₽</span>
-                  )}
+            <div key={p.id} style={{ background: '#18181b', padding: '20px', borderRadius: '24px', display: 'flex', alignItems: 'center', gap: '20px', border: '1px solid #27272a' }}>
+              <img 
+                src={p.image_url} 
+                style={{ width: '60px', height: '60px', borderRadius: '12px', objectFit: 'cover' }} 
+                alt="" 
+              />
+              <div style={{ flex: 1 }}>
+                <p style={{ margin: 0, fontSize: '10px', color: '#71717a', fontWeight: 'bold', textTransform: 'uppercase' }}>{p.name}</p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '4px' }}>
+                  <span style={{ fontSize: '20px', fontWeight: '900' }}>{p.price} ₽</span>
+                  {p.old_price && <span style={{ textDecoration: 'line-through', color: '#3f3f46', fontSize: '12px', fontWeight: 'bold' }}>{p.old_price} ₽</span>}
                 </div>
               </div>
-
-              <div className="flex flex-col gap-2">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <button 
-                  onClick={() => applyDiscount(p)} 
-                  className="bg-orange-500 text-black px-6 py-3 rounded-2xl font-black text-[10px] uppercase active:scale-90 transition-all shadow-lg shadow-orange-500/20"
+                  onClick={() => applyDiscount(p)}
+                  style={{ background: '#f97316', color: '#000', border: 'none', padding: '10px 20px', borderRadius: '12px', fontWeight: '900', fontSize: '10px', cursor: 'pointer', textTransform: 'uppercase' }}
                 >
                   СКИДКА %
                 </button>
                 {p.old_price && (
                   <button 
                     onClick={() => resetPrice(p)} 
-                    className="bg-zinc-800 text-zinc-400 px-4 py-2 rounded-xl font-bold text-[8px] uppercase border border-zinc-700 active:bg-zinc-700"
+                    style={{ background: 'none', color: '#52525b', border: 'none', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase' }}
                   >
-                    Сброс
+                    СБРОСИТЬ
                   </button>
                 )}
               </div>
             </div>
           ))}
+          {products.length === 0 && (
+            <p style={{ textAlign: 'center', color: '#27272a', fontWeight: 'bold', fontSize: '12px', marginTop: '40px' }}>БАЗА ДАННЫХ ПУСТА</p>
+          )}
         </div>
       )}
-      
-      <div className="mt-10 text-center">
-        <p className="text-zinc-700 text-[8px] font-bold uppercase italic tracking-widest">
-            Connected to: {process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('supabase') ? 'SUPABASE ACTIVE' : 'UNKNOWN'}
-        </p>
-      </div>
     </div>
   );
 }

@@ -9,6 +9,7 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
   const [showFinishedOrders, setShowFinishedOrders] = useState(false);
+  const [showArchivedProducts, setShowArchivedProducts] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
@@ -28,59 +29,42 @@ export default function AdminPage() {
     setLoading(false);
   }
 
-  const filteredProducts = products.filter(p => 
-    p.name?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Фильтрация товаров (Поиск + разделение на активные и архивные)
+  // ВАЖНО: Если у тебя нет колонки is_archived в базе, код ниже будет считать все товары активными
+  const activeProducts = products.filter(p => !p.is_archived && p.name?.toLowerCase().includes(searchQuery.toLowerCase()));
+  const archivedProducts = products.filter(p => p.is_archived);
 
-  // ИСПРАВЛЕННЫЙ РЕДАКТОР ЦЕНЫ С ФИКСАЦИЕЙ OLD_PRICE
-  const editPriceManual = async (product: any) => {
-    const val = prompt(`Новая цена для ${product.name}:`, product.price);
-    if (!val) return;
-    
-    const newPrice = parseInt(val);
-    if (isNaN(newPrice)) return alert("Введите число!");
-
-    // Важно: записываем текущую цену в old_price, а новую в price
+  // ФУНКЦИЯ ОТПРАВКИ ТОВАРА В АРХИВ
+  const toggleArchiveProduct = async (product: any) => {
     const { error } = await supabase
       .from('product_market')
-      .update({ 
-        price: newPrice, 
-        old_price: Number(product.price) 
-      })
+      .update({ is_archived: !product.is_archived })
       .eq('id', product.id);
 
     if (error) {
-      alert("ОШИБКА БАЗЫ: " + error.message);
+      alert("Ошибка: Убедись, что в таблице product_market есть колонка is_archived (boolean)");
     } else {
-      window.location.reload();
+      fetchData();
     }
   };
 
-  // ИСПРАВЛЕННАЯ СКИДКА
-  const applyDiscount = async (product: any) => {
-    const val = prompt('Введите % скидки (например 15):');
+  const editPriceManual = async (product: any) => {
+    const val = prompt(`Новая цена для ${product.name}:`, product.price);
     if (!val) return;
-    
-    const percent = parseInt(val);
-    if (isNaN(percent)) return alert("Введите число!");
+    const newPrice = parseInt(val);
+    if (isNaN(newPrice)) return alert("Введите число!");
+    await supabase.from('product_market').update({ price: newPrice, old_price: Number(product.price) }).eq('id', product.id);
+    window.location.reload();
+  };
 
-    // Берем актуальную цену для расчета
+  const applyDiscount = async (product: any) => {
+    const val = prompt('Введите % скидки:');
+    if (!val) return;
+    const percent = parseInt(val);
     const currentPrice = Number(product.price);
     const finalPrice = Math.round(currentPrice - (currentPrice * (percent / 100)));
-    
-    const { error } = await supabase
-      .from('product_market')
-      .update({ 
-        price: finalPrice, 
-        old_price: currentPrice 
-      })
-      .eq('id', product.id);
-
-    if (error) {
-      alert("ОШИБКА БАЗЫ: " + error.message);
-    } else {
-      window.location.reload();
-    }
+    await supabase.from('product_market').update({ price: finalPrice, old_price: currentPrice }).eq('id', product.id);
+    window.location.reload();
   };
 
   const handleFileUpload = async (event: any) => {
@@ -107,18 +91,21 @@ export default function AdminPage() {
     fetchData();
   };
 
-  if (loading) return <div className="min-h-screen bg-black flex items-center justify-center text-orange-500 font-black italic animate-pulse uppercase tracking-tighter">Синхронизация...</div>;
+  if (loading) return <div className="min-h-screen bg-black flex items-center justify-center text-orange-500 font-black italic animate-pulse uppercase">Загрузка...</div>;
 
   return (
     <div className="p-5 bg-black min-h-screen text-white font-sans pb-20">
+      
+      {/* HEADER */}
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-black text-orange-500 uppercase italic">Админ</h1>
+        <h1 className="text-2xl font-black text-orange-500 uppercase italic">Управление</h1>
         <label className="bg-zinc-900 border border-orange-500/50 px-5 py-2 rounded-full cursor-pointer active:scale-95 transition-all">
           <span className="text-[10px] font-black text-orange-500 uppercase">{isUploading ? '...' : '+ История'}</span>
           <input type="file" accept="image/*" className="hidden" onChange={handleFileUpload} disabled={isUploading} />
         </label>
       </div>
 
+      {/* STORIES */}
       <div className="flex gap-3 overflow-x-auto pb-6 no-scrollbar mb-8 border-b border-zinc-900">
         {stories.map(s => (
           <div key={s.id} className="relative flex-shrink-0">
@@ -128,6 +115,7 @@ export default function AdminPage() {
         ))}
       </div>
 
+      {/* ПОИСК */}
       <input 
         type="text" 
         placeholder="ПОИСК ТОВАРА..." 
@@ -136,31 +124,46 @@ export default function AdminPage() {
         onChange={(e) => setSearchQuery(e.target.value)}
       />
 
-      <div className="grid gap-4 mb-12">
-        {filteredProducts.map(p => (
+      {/* АКТИВНЫЕ ТОВАРЫ */}
+      <div className="grid gap-4 mb-6">
+        {activeProducts.map(p => (
           <div key={p.id} className="bg-zinc-900 p-4 rounded-[2rem] border border-zinc-800 flex items-center gap-4">
             <img src={p.image_url} className="w-16 h-16 rounded-2xl object-cover bg-black flex-shrink-0" />
             <div className="flex-1 min-w-0">
               <p className="font-bold text-[9px] uppercase text-zinc-500 truncate mb-1">{p.name}</p>
               <div className="flex items-center gap-2">
                 <span className="text-xl font-black">{p.price} ₽</span>
-                {p.old_price && <span className="text-zinc-600 line-through text-[10px] font-bold">{p.old_price} ₽</span>}
+                {p.old_price && <span className="text-zinc-600 line-through text-[10px]">{p.old_price} ₽</span>}
               </div>
             </div>
             <div className="flex flex-col gap-1.5">
-              <button onClick={() => editPriceManual(p)} className="bg-white text-black text-[8px] font-black px-4 py-2 rounded-xl uppercase active:scale-90 transition-all">Цена</button>
-              <button onClick={() => applyDiscount(p)} className="bg-orange-500 text-black text-[8px] font-black px-4 py-2 rounded-xl uppercase active:scale-90 shadow-lg shadow-orange-500/20">%</button>
-              {p.old_price && (
-                <button onClick={async () => { 
-                  const { error } = await supabase.from('product_market').update({ price: p.old_price, old_price: null }).eq('id', p.id); 
-                  if (error) alert(error.message); else window.location.reload();
-                }} className="text-zinc-600 text-[8px] font-black uppercase text-center mt-1 underline">Сброс</button>
-              )}
+              <button onClick={() => editPriceManual(p)} className="bg-white text-black text-[8px] font-black px-4 py-2 rounded-xl uppercase">Цена</button>
+              <button onClick={() => applyDiscount(p)} className="bg-orange-500 text-black text-[8px] font-black px-4 py-2 rounded-xl uppercase">%</button>
+              <button onClick={() => toggleArchiveProduct(p)} className="text-zinc-500 text-[7px] font-black uppercase mt-1 italic">В архив</button>
             </div>
           </div>
         ))}
       </div>
 
+      {/* АРХИВ ТОВАРОВ */}
+      <button onClick={() => setShowArchivedProducts(!showArchivedProducts)} className="w-full py-3 mb-10 text-zinc-700 font-black uppercase text-[9px] border border-zinc-900 rounded-xl">
+        {showArchivedProducts ? 'Скрыть архив товаров' : `Архив товаров (${archivedProducts.length})`}
+      </button>
+
+      {showArchivedProducts && (
+        <div className="grid gap-4 mb-10 opacity-60">
+          {archivedProducts.map(p => (
+            <div key={p.id} className="bg-zinc-900/50 p-4 rounded-[2rem] border border-zinc-800 flex items-center gap-4">
+              <img src={p.image_url} className="w-12 h-12 rounded-xl object-cover grayscale" />
+              <p className="flex-1 text-[9px] font-black uppercase text-zinc-600">{p.name}</p>
+              <button onClick={() => toggleArchiveProduct(p)} className="text-orange-500 text-[8px] font-black uppercase underline">Вернуть</button>
+              <button onClick={async () => { if(confirm("Удалить навсегда?")) { await supabase.from('product_market').delete().eq('id', p.id); fetchData(); } }} className="text-red-900 text-[8px] font-black uppercase">Удалить</button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ЗАКАЗЫ */}
       <h2 className="text-[10px] font-black uppercase text-zinc-600 mb-4 ml-2 italic tracking-widest">Заказы</h2>
       <div className="grid gap-4 mb-10">
         {orders.filter(o => o.status !== 'ЗАВЕРШЕН').map(o => (
@@ -183,8 +186,9 @@ export default function AdminPage() {
         ))}
       </div>
 
+      {/* АРХИВ ЗАКАЗОВ */}
       <button onClick={() => setShowFinishedOrders(!showFinishedOrders)} className="w-full py-5 border-2 border-dashed border-zinc-800 rounded-[2.5rem] text-zinc-700 font-black uppercase text-[10px] active:bg-zinc-900 transition-all">
-        {showFinishedOrders ? 'ЗАКРЫТЬ АРХИВ' : `АРХИВ ЗАКАЗОВ (${orders.filter(o => o.status === 'ЗАВЕРШЕН').length})`}
+        {showFinishedOrders ? 'ЗАКРЫТЬ АРХИВ ЗАКАЗОВ' : `АРХИВ ЗАКАЗОВ (${orders.filter(o => o.status === 'ЗАВЕРШЕН').length})`}
       </button>
 
       {showFinishedOrders && (

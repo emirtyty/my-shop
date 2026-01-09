@@ -32,7 +32,7 @@ export default function AdminPage() {
     p.name?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // РЕДАКТОР ЦЕНЫ
+  // ИСПРАВЛЕННЫЙ РЕДАКТОР ЦЕНЫ С ФИКСАЦИЕЙ OLD_PRICE
   const editPriceManual = async (product: any) => {
     const val = prompt(`Новая цена для ${product.name}:`, product.price);
     if (!val) return;
@@ -40,35 +40,44 @@ export default function AdminPage() {
     const newPrice = parseInt(val);
     if (isNaN(newPrice)) return alert("Введите число!");
 
+    // Важно: записываем текущую цену в old_price, а новую в price
     const { error } = await supabase
       .from('product_market')
-      .update({ price: newPrice, old_price: product.price })
+      .update({ 
+        price: newPrice, 
+        old_price: Number(product.price) 
+      })
       .eq('id', product.id);
 
     if (error) {
-      alert("Ошибка: " + error.message);
+      alert("ОШИБКА БАЗЫ: " + error.message);
     } else {
-      // ПРИНУДИТЕЛЬНОЕ ОБНОВЛЕНИЕ
       window.location.reload();
     }
   };
 
-  // СКИДКА
+  // ИСПРАВЛЕННАЯ СКИДКА
   const applyDiscount = async (product: any) => {
-    const val = prompt('Введите % скидки:');
+    const val = prompt('Введите % скидки (например 15):');
     if (!val) return;
     
     const percent = parseInt(val);
-    const basePrice = product.old_price || product.price; 
-    const finalPrice = Math.round(basePrice - (basePrice * (percent / 100)));
+    if (isNaN(percent)) return alert("Введите число!");
+
+    // Берем актуальную цену для расчета
+    const currentPrice = Number(product.price);
+    const finalPrice = Math.round(currentPrice - (currentPrice * (percent / 100)));
     
     const { error } = await supabase
       .from('product_market')
-      .update({ price: finalPrice, old_price: basePrice })
+      .update({ 
+        price: finalPrice, 
+        old_price: currentPrice 
+      })
       .eq('id', product.id);
 
     if (error) {
-      alert("Ошибка: " + error.message);
+      alert("ОШИБКА БАЗЫ: " + error.message);
     } else {
       window.location.reload();
     }
@@ -98,7 +107,7 @@ export default function AdminPage() {
     fetchData();
   };
 
-  if (loading) return <div className="min-h-screen bg-black flex items-center justify-center text-orange-500 font-black italic animate-pulse uppercase">Загрузка...</div>;
+  if (loading) return <div className="min-h-screen bg-black flex items-center justify-center text-orange-500 font-black italic animate-pulse uppercase tracking-tighter">Синхронизация...</div>;
 
   return (
     <div className="p-5 bg-black min-h-screen text-white font-sans pb-20">
@@ -135,21 +144,24 @@ export default function AdminPage() {
               <p className="font-bold text-[9px] uppercase text-zinc-500 truncate mb-1">{p.name}</p>
               <div className="flex items-center gap-2">
                 <span className="text-xl font-black">{p.price} ₽</span>
-                {p.old_price && <span className="text-zinc-600 line-through text-[10px]">{p.old_price} ₽</span>}
+                {p.old_price && <span className="text-zinc-600 line-through text-[10px] font-bold">{p.old_price} ₽</span>}
               </div>
             </div>
             <div className="flex flex-col gap-1.5">
-              <button onClick={() => editPriceManual(p)} className="bg-white text-black text-[8px] font-black px-4 py-2 rounded-xl uppercase active:scale-90">Цена</button>
+              <button onClick={() => editPriceManual(p)} className="bg-white text-black text-[8px] font-black px-4 py-2 rounded-xl uppercase active:scale-90 transition-all">Цена</button>
               <button onClick={() => applyDiscount(p)} className="bg-orange-500 text-black text-[8px] font-black px-4 py-2 rounded-xl uppercase active:scale-90 shadow-lg shadow-orange-500/20">%</button>
               {p.old_price && (
-                <button onClick={async () => { await supabase.from('product_market').update({ price: p.old_price, old_price: null }).eq('id', p.id); window.location.reload(); }} className="text-zinc-600 text-[8px] font-black uppercase text-center">Сброс</button>
+                <button onClick={async () => { 
+                  const { error } = await supabase.from('product_market').update({ price: p.old_price, old_price: null }).eq('id', p.id); 
+                  if (error) alert(error.message); else window.location.reload();
+                }} className="text-zinc-600 text-[8px] font-black uppercase text-center mt-1 underline">Сброс</button>
               )}
             </div>
           </div>
         ))}
       </div>
 
-      <h2 className="text-[10px] font-black uppercase text-zinc-600 mb-4 ml-2 italic tracking-widest">Активные заказы</h2>
+      <h2 className="text-[10px] font-black uppercase text-zinc-600 mb-4 ml-2 italic tracking-widest">Заказы</h2>
       <div className="grid gap-4 mb-10">
         {orders.filter(o => o.status !== 'ЗАВЕРШЕН').map(o => (
           <div key={o.id} className="bg-zinc-900 p-5 rounded-[2.5rem] border border-zinc-800">

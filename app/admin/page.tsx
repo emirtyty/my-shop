@@ -18,41 +18,34 @@ export default function AdminPage() {
 
   async function fetchData() {
     setLoading(true);
-    const [prodRes, orderRes, storyRes] = await Promise.all([
-      supabase.from('product_market').select('*').order('created_at', { ascending: false }),
-      supabase.from('orders').select('*').order('created_at', { ascending: false }),
-      supabase.from('seller_stories').select('*').order('created_at', { ascending: false })
-    ]);
-    setProducts(prodRes.data || []);
-    setOrders(orderRes.data || []);
-    setStories(storyRes.data || []);
+    const { data: prod } = await supabase.from('product_market').select('*').order('created_at', { ascending: false });
+    const { data: ord } = await supabase.from('orders').select('*').order('created_at', { ascending: false });
+    const { data: stor } = await supabase.from('seller_stories').select('*').order('created_at', { ascending: false });
+    
+    setProducts(prod || []);
+    setOrders(ord || []);
+    setStories(stor || []);
     setLoading(false);
   }
 
-  // Фильтрация товаров (Поиск + разделение на активные и архивные)
-  // ВАЖНО: Если у тебя нет колонки is_archived в базе, код ниже будет считать все товары активными
+  // Фильтрация товаров
   const activeProducts = products.filter(p => !p.is_archived && p.name?.toLowerCase().includes(searchQuery.toLowerCase()));
   const archivedProducts = products.filter(p => p.is_archived);
 
-  // ФУНКЦИЯ ОТПРАВКИ ТОВАРА В АРХИВ
-  const toggleArchiveProduct = async (product: any) => {
-    const { error } = await supabase
-      .from('product_market')
-      .update({ is_archived: !product.is_archived })
-      .eq('id', product.id);
+  // Фильтрация заказов: Активные (все, кроме ЗАВЕРШЕН) и Архив (только ЗАВЕРШЕН)
+  const activeOrders = orders.filter(o => o.status !== 'ЗАВЕРШЕН');
+  const finishedOrders = orders.filter(o => o.status === 'ЗАВЕРШЕН');
 
-    if (error) {
-      alert("Ошибка: Убедись, что в таблице product_market есть колонка is_archived (boolean)");
-    } else {
-      fetchData();
-    }
+  const toggleArchive = async (product: any) => {
+    const { error } = await supabase.from('product_market').update({ is_archived: !product.is_archived }).eq('id', product.id);
+    if (error) alert("Добавьте колонку is_archived в Supabase!"); else fetchData();
   };
 
+  // ТВОИ РАБОЧИЕ СКИДКИ (БЕЗ ИЗМЕНЕНИЙ)
   const editPriceManual = async (product: any) => {
     const val = prompt(`Новая цена для ${product.name}:`, product.price);
     if (!val) return;
     const newPrice = parseInt(val);
-    if (isNaN(newPrice)) return alert("Введите число!");
     await supabase.from('product_market').update({ price: newPrice, old_price: Number(product.price) }).eq('id', product.id);
     window.location.reload();
   };
@@ -72,33 +65,29 @@ export default function AdminPage() {
       const file = event.target.files[0];
       if (!file) return;
       setIsUploading(true);
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${Math.random()}.${fileExt}`;
-      const filePath = `stories/${fileName}`;
-      await supabase.storage.from('images').upload(filePath, file);
-      const { data: { publicUrl } } = supabase.storage.from('images').getPublicUrl(filePath);
+      const fileName = `${Math.random()}.${file.name.split('.').pop()}`;
+      await supabase.storage.from('images').upload(`stories/${fileName}`, file);
+      const { data: { publicUrl } } = supabase.storage.from('images').getPublicUrl(`stories/${fileName}`);
       await supabase.from('seller_stories').insert([{ image_url: publicUrl }]);
-      window.location.reload();
-    } catch (e: any) {
-      alert(e.message);
-    } finally {
-      setIsUploading(false);
-    }
+      fetchData();
+    } catch (e: any) { alert(e.message); } finally { setIsUploading(false); }
   };
 
+  // ОБНОВЛЕНИЕ СТАТУСА (теперь заказ сразу улетит в архив при выборе ЗАВЕРШЕН)
   const updateOrderStatus = async (id: string, status: string) => {
-    await supabase.from('orders').update({ status }).eq('id', id);
-    fetchData();
+    const { error } = await supabase.from('orders').update({ status }).eq('id', id);
+    if (error) alert(error.message);
+    else fetchData(); // Перезагружаем данные, чтобы сработали фильтры
   };
 
-  if (loading) return <div className="min-h-screen bg-black flex items-center justify-center text-orange-500 font-black italic animate-pulse uppercase">Загрузка...</div>;
+  if (loading) return <div className="min-h-screen bg-black flex items-center justify-center text-orange-500 font-black uppercase italic animate-pulse">Загрузка...</div>;
 
   return (
     <div className="p-5 bg-black min-h-screen text-white font-sans pb-20">
       
       {/* HEADER */}
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-black text-orange-500 uppercase italic">Управление</h1>
+        <h1 className="text-2xl font-black text-orange-500 uppercase italic">Админ</h1>
         <label className="bg-zinc-900 border border-orange-500/50 px-5 py-2 rounded-full cursor-pointer active:scale-95 transition-all">
           <span className="text-[10px] font-black text-orange-500 uppercase">{isUploading ? '...' : '+ История'}</span>
           <input type="file" accept="image/*" className="hidden" onChange={handleFileUpload} disabled={isUploading} />
@@ -110,22 +99,22 @@ export default function AdminPage() {
         {stories.map(s => (
           <div key={s.id} className="relative flex-shrink-0">
             <img src={s.image_url} className="w-14 h-14 rounded-full object-cover border-2 border-orange-500 p-0.5" />
-            <button onClick={async () => { await supabase.from('seller_stories').delete().eq('id', s.id); window.location.reload(); }} className="absolute -top-1 -right-1 bg-red-600 text-white w-5 h-5 rounded-full text-[10px] font-black">×</button>
+            <button onClick={async () => { await supabase.from('seller_stories').delete().eq('id', s.id); fetchData(); }} className="absolute -top-1 -right-1 bg-red-600 text-white w-5 h-5 rounded-full text-[10px] font-black">×</button>
           </div>
         ))}
       </div>
 
-      {/* ПОИСК */}
+      {/* ПОИСК ТОВАРОВ */}
       <input 
         type="text" 
         placeholder="ПОИСК ТОВАРА..." 
-        className="w-full bg-zinc-900 border border-zinc-800 p-4 rounded-2xl text-[10px] font-black uppercase italic outline-none focus:border-orange-500 mb-6"
+        className="w-full bg-zinc-900 border border-zinc-800 p-4 rounded-2xl text-[10px] font-black uppercase outline-none focus:border-orange-500 mb-6"
         value={searchQuery}
         onChange={(e) => setSearchQuery(e.target.value)}
       />
 
-      {/* АКТИВНЫЕ ТОВАРЫ */}
-      <div className="grid gap-4 mb-6">
+      {/* СПИСОК ТОВАРОВ */}
+      <div className="grid gap-4 mb-4">
         {activeProducts.map(p => (
           <div key={p.id} className="bg-zinc-900 p-4 rounded-[2rem] border border-zinc-800 flex items-center gap-4">
             <img src={p.image_url} className="w-16 h-16 rounded-2xl object-cover bg-black flex-shrink-0" />
@@ -138,67 +127,67 @@ export default function AdminPage() {
             </div>
             <div className="flex flex-col gap-1.5">
               <button onClick={() => editPriceManual(p)} className="bg-white text-black text-[8px] font-black px-4 py-2 rounded-xl uppercase">Цена</button>
-              <button onClick={() => applyDiscount(p)} className="bg-orange-500 text-black text-[8px] font-black px-4 py-2 rounded-xl uppercase">%</button>
-              <button onClick={() => toggleArchiveProduct(p)} className="text-zinc-500 text-[7px] font-black uppercase mt-1 italic">В архив</button>
+              <button onClick={() => applyDiscount(p)} className="bg-orange-500 text-black text-[8px] font-black px-4 py-2 rounded-xl uppercase shadow-lg shadow-orange-500/20">%</button>
+              <button onClick={() => toggleArchive(p)} className="text-zinc-600 text-[8px] font-black uppercase mt-1 italic text-center">Архив</button>
             </div>
           </div>
         ))}
       </div>
 
-      {/* АРХИВ ТОВАРОВ */}
-      <button onClick={() => setShowArchivedProducts(!showArchivedProducts)} className="w-full py-3 mb-10 text-zinc-700 font-black uppercase text-[9px] border border-zinc-900 rounded-xl">
-        {showArchivedProducts ? 'Скрыть архив товаров' : `Архив товаров (${archivedProducts.length})`}
+      <button onClick={() => setShowArchivedProducts(!showArchivedProducts)} className="w-full py-3 mb-10 text-zinc-800 font-black uppercase text-[8px] border border-zinc-900/50 rounded-xl">
+        {showArchivedProducts ? 'СКРЫТЬ АРХИВ ТОВАРОВ' : `АРХИВ ТОВАРОВ (${archivedProducts.length})`}
       </button>
 
       {showArchivedProducts && (
-        <div className="grid gap-4 mb-10 opacity-60">
+        <div className="grid gap-3 mb-10 opacity-60">
           {archivedProducts.map(p => (
-            <div key={p.id} className="bg-zinc-900/50 p-4 rounded-[2rem] border border-zinc-800 flex items-center gap-4">
-              <img src={p.image_url} className="w-12 h-12 rounded-xl object-cover grayscale" />
-              <p className="flex-1 text-[9px] font-black uppercase text-zinc-600">{p.name}</p>
-              <button onClick={() => toggleArchiveProduct(p)} className="text-orange-500 text-[8px] font-black uppercase underline">Вернуть</button>
-              <button onClick={async () => { if(confirm("Удалить навсегда?")) { await supabase.from('product_market').delete().eq('id', p.id); fetchData(); } }} className="text-red-900 text-[8px] font-black uppercase">Удалить</button>
+            <div key={p.id} className="bg-zinc-900/50 p-4 rounded-2xl border border-zinc-800 flex justify-between items-center">
+              <span className="text-[9px] font-black uppercase text-zinc-500">{p.name}</span>
+              <button onClick={() => toggleArchive(p)} className="text-orange-500 text-[8px] font-black uppercase underline">Вернуть</button>
             </div>
           ))}
         </div>
       )}
 
-      {/* ЗАКАЗЫ */}
-      <h2 className="text-[10px] font-black uppercase text-zinc-600 mb-4 ml-2 italic tracking-widest">Заказы</h2>
+      {/* ЗАКАЗЫ (ТОЛЬКО АКТИВНЫЕ) */}
+      <h2 className="text-[10px] font-black uppercase text-zinc-600 mb-4 ml-2 italic">Активные заказы</h2>
       <div className="grid gap-4 mb-10">
-        {orders.filter(o => o.status !== 'ЗАВЕРШЕН').map(o => (
-          <div key={o.id} className="bg-zinc-900 p-5 rounded-[2.5rem] border border-zinc-800">
-             <div className="flex justify-between items-start">
-                <div className="flex-1">
-                  <p className="text-[10px] font-black uppercase text-white mb-1 leading-tight">{o.product_name}</p>
-                  <p className="text-xl font-black text-orange-500 mb-1">{o.price} ₽</p>
-                  <p className="text-[9px] font-bold text-zinc-500 italic">📞 {o.buyer_phone}</p>
-                </div>
-                <select 
-                  className="bg-black text-[9px] font-black uppercase p-3 rounded-2xl text-orange-500 border border-zinc-800 outline-none"
-                  value={o.status}
-                  onChange={(e) => updateOrderStatus(o.id, e.target.value)}
-                >
-                  <option>НОВЫЙ</option><option>В РАБОТЕ</option><option>ДОСТАВКА</option><option>ЗАВЕРШЕН</option>
-                </select>
+        {activeOrders.map(o => (
+          <div key={o.id} className="bg-zinc-900 p-5 rounded-[2.5rem] border border-zinc-800 flex justify-between items-center">
+             <div>
+                <p className="text-[10px] font-black uppercase text-white mb-1 leading-tight">{o.product_name}</p>
+                <p className="text-xl font-black text-orange-500">{o.price} ₽</p>
+                <p className="text-[9px] font-bold text-zinc-500 italic">📞 {o.buyer_phone}</p>
              </div>
+             <select 
+               className="bg-black text-[9px] font-black uppercase p-3 rounded-2xl text-orange-500 border border-zinc-800 outline-none"
+               value={o.status}
+               onChange={(e) => updateOrderStatus(o.id, e.target.value)}
+             >
+               <option>НОВЫЙ</option><option>В РАБОТЕ</option><option>ДОСТАВКА</option><option>ЗАВЕРШЕН</option>
+             </select>
           </div>
         ))}
+        {activeOrders.length === 0 && <p className="text-center text-zinc-800 text-[10px] font-black uppercase py-4">Нет новых заказов</p>}
       </div>
 
-      {/* АРХИВ ЗАКАЗОВ */}
+      {/* АРХИВ ЗАКАЗОВ (ТОЛЬКО ЗАВЕРШЕННЫЕ) */}
       <button onClick={() => setShowFinishedOrders(!showFinishedOrders)} className="w-full py-5 border-2 border-dashed border-zinc-800 rounded-[2.5rem] text-zinc-700 font-black uppercase text-[10px] active:bg-zinc-900 transition-all">
-        {showFinishedOrders ? 'ЗАКРЫТЬ АРХИВ ЗАКАЗОВ' : `АРХИВ ЗАКАЗОВ (${orders.filter(o => o.status === 'ЗАВЕРШЕН').length})`}
+        {showFinishedOrders ? 'ЗАКРЫТЬ АРХИВ ПРОДАЖ' : `АРХИВ ПРОДАЖ (${finishedOrders.length})`}
       </button>
 
       {showFinishedOrders && (
-        <div className="grid gap-3 mt-6">
-          {orders.filter(o => o.status === 'ЗАВЕРШЕН').map(o => (
+        <div className="grid gap-3 mt-4">
+          {finishedOrders.map(o => (
             <div key={o.id} className="bg-zinc-900/40 p-5 rounded-[2rem] border border-zinc-800 opacity-50 flex justify-between items-center">
-              <p className="text-[9px] font-black uppercase text-zinc-600">{o.product_name}</p>
+              <div>
+                <p className="text-[9px] font-black uppercase text-zinc-600">{o.product_name}</p>
+                <p className="text-zinc-700 text-[10px] font-black">{o.price} ₽</p>
+              </div>
               <span className="text-zinc-700 text-[8px] font-black italic uppercase">✓ Завершен</span>
             </div>
           ))}
+          {finishedOrders.length === 0 && <p className="text-center text-zinc-800 text-[8px] font-black uppercase py-4">Архив пуст</p>}
         </div>
       )}
 

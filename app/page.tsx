@@ -35,7 +35,8 @@ export default function Home() {
     async function fetchData() {
       try {
         const [prodRes, storyRes] = await Promise.all([
-          supabase.from('product_market').select('*, sellers(id, shop_name)'),
+          // Явно запрашиваем old_price, чтобы скидка отображалась
+          supabase.from('product_market').select('*, old_price, sellers(id, shop_name)'),
           supabase.from('seller_stories').select('*').order('created_at', { ascending: false })
         ]);
         setProducts(prodRes.data || []);
@@ -177,7 +178,6 @@ export default function Home() {
               <div className="relative aspect-square mb-3 overflow-hidden rounded-[2.4rem] bg-zinc-50">
                 <img src={p.image_url} className="w-full h-full object-cover transition-transform group-hover:scale-110" alt="" />
                 
-                {/* БЕЙДЖ СКИДКИ */}
                 {hasDiscount && (
                   <div className="absolute top-3 left-3 bg-orange-500 text-white px-3 py-1.5 rounded-full text-[10px] font-black italic shadow-lg animate-pulse-subtle">
                     -{discountPercent}%

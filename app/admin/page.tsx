@@ -28,31 +28,29 @@ export default function AdminPage() {
     setLoading(false);
   }
 
-  // --- ЛОГИКА ФИЛЬТРАЦИИ (ИСПРАВЛЕНО) ---
+  // --- ЛОГИКА ФИЛЬТРАЦИИ (УСИЛЕННАЯ) ---
   const activeProducts = products.filter(p => !p.is_archived && p.name?.toLowerCase().includes(searchQuery.toLowerCase()));
   const archivedProducts = products.filter(p => p.is_archived);
 
-  // Теперь сравниваем статус максимально надежно
-  const activeOrders = orders.filter(o => o.status?.trim().toUpperCase() !== 'ЗАВЕРШЕН');
-  const finishedOrders = orders.filter(o => o.status?.trim().toUpperCase() === 'ЗАВЕРШЕН');
+  // Используем .includes для обхода проблем с кодировкой или пробелами
+  const activeOrders = orders.filter(o => !o.status?.toUpperCase().includes('ЗАВЕРШЕН'));
+  const finishedOrders = orders.filter(o => o.status?.toUpperCase().includes('ЗАВЕРШЕН'));
 
-  // --- Смена статуса заказа ---
   const updateOrderStatus = async (id: string, newStatus: string) => {
-    // 1. Сначала обновляем в базе
     const { error } = await supabase
       .from('orders')
       .update({ status: newStatus })
       .eq('id', id);
 
     if (error) {
-      alert("Ошибка обновления: " + error.message);
+      alert("Ошибка базы: " + error.message);
     } else {
-      // 2. Сразу тянем новые данные, чтобы фильтры сработали
-      await fetchData();
+      // Полная перезагрузка страницы для 100% обновления списков
+      window.location.reload();
     }
   };
 
-  // --- Остальные функции (без изменений, как ты просил) ---
+  // Твои рабочие функции (без изменений)
   const toggleArchive = async (product: any) => {
     await supabase.from('product_market').update({ is_archived: !product.is_archived }).eq('id', product.id);
     fetchData();
@@ -94,9 +92,9 @@ export default function AdminPage() {
       
       {/* HEADER */}
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-black text-orange-500 uppercase italic">Админ</h1>
+        <h1 className="text-2xl font-black text-orange-500 uppercase italic tracking-tighter">Админ</h1>
         <label className="bg-zinc-900 border border-orange-500/50 px-5 py-2 rounded-full cursor-pointer active:scale-95 transition-all">
-          <span className="text-[10px] font-black text-orange-500 uppercase">{isUploading ? '...' : '+ История'}</span>
+          <span className="text-[10px] font-black text-orange-500 uppercase tracking-widest">{isUploading ? '...' : '+ История'}</span>
           <input type="file" accept="image/*" className="hidden" onChange={handleFileUpload} disabled={isUploading} />
         </label>
       </div>
@@ -115,7 +113,7 @@ export default function AdminPage() {
       <input 
         type="text" 
         placeholder="ПОИСК ТОВАРА..." 
-        className="w-full bg-zinc-900 border border-zinc-800 p-4 rounded-2xl text-[10px] font-black uppercase outline-none focus:border-orange-500 mb-6"
+        className="w-full bg-zinc-900 border border-zinc-800 p-4 rounded-2xl text-[10px] font-black uppercase italic outline-none focus:border-orange-500 mb-6"
         value={searchQuery}
         onChange={(e) => setSearchQuery(e.target.value)}
       />
@@ -123,18 +121,18 @@ export default function AdminPage() {
       {/* ТОВАРЫ */}
       <div className="grid gap-4 mb-4">
         {activeProducts.map(p => (
-          <div key={p.id} className="bg-zinc-900 p-4 rounded-[2rem] border border-zinc-800 flex items-center gap-4">
+          <div key={p.id} className="bg-zinc-900 p-4 rounded-[2rem] border border-zinc-800 flex items-center gap-4 transition-all">
             <img src={p.image_url} className="w-16 h-16 rounded-2xl object-cover bg-black flex-shrink-0" />
             <div className="flex-1 min-w-0">
               <p className="font-bold text-[9px] uppercase text-zinc-500 truncate mb-1">{p.name}</p>
               <div className="flex items-center gap-2">
                 <span className="text-xl font-black">{p.price} ₽</span>
-                {p.old_price && <span className="text-zinc-600 line-through text-[10px]">{p.old_price} ₽</span>}
+                {p.old_price && <span className="text-zinc-600 line-through text-[10px] font-bold">{p.old_price} ₽</span>}
               </div>
             </div>
             <div className="flex flex-col gap-1.5">
-              <button onClick={() => editPriceManual(p)} className="bg-white text-black text-[8px] font-black px-4 py-2 rounded-xl uppercase">Цена</button>
-              <button onClick={() => applyDiscount(p)} className="bg-orange-500 text-black text-[8px] font-black px-4 py-2 rounded-xl uppercase shadow-lg shadow-orange-500/20">%</button>
+              <button onClick={() => editPriceManual(p)} className="bg-white text-black text-[8px] font-black px-4 py-2 rounded-xl uppercase active:scale-95 transition-all">Цена</button>
+              <button onClick={() => applyDiscount(p)} className="bg-orange-500 text-black text-[8px] font-black px-4 py-2 rounded-xl uppercase shadow-lg shadow-orange-500/20 active:scale-95 transition-all">%</button>
               <button onClick={() => toggleArchive(p)} className="text-zinc-600 text-[8px] font-black uppercase mt-1 italic text-center">Архив</button>
             </div>
           </div>
@@ -145,18 +143,18 @@ export default function AdminPage() {
         {showArchivedProducts ? 'СКРЫТЬ АРХИВ ТОВАРОВ' : `АРХИВ ТОВАРОВ (${archivedProducts.length})`}
       </button>
 
-      {/* АКТИВНЫЕ ЗАКАЗЫ (ЗДЕСЬ ТОЛЬКО НОВЫЕ) */}
+      {/* АКТИВНЫЕ ЗАКАЗЫ */}
       <h2 className="text-[10px] font-black uppercase text-zinc-600 mb-4 ml-2 italic tracking-widest">Активные заказы</h2>
       <div className="grid gap-4 mb-10">
         {activeOrders.map(o => (
-          <div key={o.id} className="bg-zinc-900 p-5 rounded-[2.5rem] border border-zinc-800 flex justify-between items-center transition-all">
-             <div>
+          <div key={o.id} className="bg-zinc-900 p-5 rounded-[2.5rem] border border-zinc-800 flex justify-between items-center animate-in fade-in duration-500">
+             <div className="flex-1">
                 <p className="text-[11px] font-black uppercase text-white mb-1 leading-tight">{o.product_name}</p>
-                <p className="text-xl font-black text-orange-500">{o.price} ₽</p>
+                <p className="text-xl font-black text-orange-500 mb-1">{o.price} ₽</p>
                 <p className="text-[9px] font-bold text-zinc-500 italic">📞 {o.buyer_phone}</p>
              </div>
              <select 
-               className="bg-black text-[10px] font-black uppercase p-3 rounded-2xl text-orange-500 border border-zinc-800 outline-none active:scale-95 transition-transform"
+               className="bg-black text-[10px] font-black uppercase p-3 rounded-2xl text-orange-500 border border-zinc-800 outline-none"
                value={o.status}
                onChange={(e) => updateOrderStatus(o.id, e.target.value)}
              >
@@ -168,11 +166,11 @@ export default function AdminPage() {
           </div>
         ))}
         {activeOrders.length === 0 && (
-          <p className="text-center text-zinc-800 text-[10px] font-black uppercase py-8 border border-dashed border-zinc-900 rounded-[2rem]">Активных заказов нет</p>
+          <p className="text-center text-zinc-800 text-[10px] font-black uppercase py-8 border border-dashed border-zinc-900 rounded-[2rem]">Нет активных заказов</p>
         )}
       </div>
 
-      {/* АРХИВ ПРОДАЖ (ЗДЕСЬ ЗАВЕРШЕННЫЕ) */}
+      {/* АРХИВ ПРОДАЖ */}
       <button 
         onClick={() => setShowFinishedOrders(!showFinishedOrders)} 
         className="w-full py-5 border-2 border-dashed border-zinc-800 rounded-[2.5rem] text-zinc-700 font-black uppercase text-[10px] active:bg-zinc-900 transition-all"
@@ -185,16 +183,16 @@ export default function AdminPage() {
           {finishedOrders.map(o => (
             <div key={o.id} className="bg-zinc-900/40 p-5 rounded-[2rem] border border-zinc-800 opacity-50 flex justify-between items-center">
               <div>
-                <p className="text-[9px] font-black uppercase text-zinc-600">{o.product_name}</p>
+                <p className="text-[9px] font-black uppercase text-zinc-600 leading-tight mb-1">{o.product_name}</p>
                 <p className="text-zinc-700 text-[10px] font-black">{o.price} ₽</p>
               </div>
               <div className="flex flex-col items-end gap-1">
-                 <span className="text-zinc-700 text-[8px] font-black italic uppercase">✓ ЗАВЕРШЕН</span>
+                 <span className="text-zinc-700 text-[8px] font-black italic uppercase tracking-widest">✓ ЗАВЕРШЕН</span>
                  <button 
                    onClick={() => updateOrderStatus(o.id, 'НОВЫЙ')}
-                   className="text-[7px] text-orange-500/50 font-bold uppercase underline"
+                   className="text-[7px] text-orange-500/50 font-black uppercase underline"
                  >
-                   Вернуть в работу
+                   Вернуть
                  </button>
               </div>
             </div>

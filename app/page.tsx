@@ -35,8 +35,8 @@ export default function Home() {
     async function fetchData() {
       try {
         const [prodRes, storyRes] = await Promise.all([
-          // Явно запрашиваем old_price, чтобы скидка отображалась
-          supabase.from('product_market').select('*, old_price, sellers(id, shop_name)'),
+          // ВАЖНО: запрашиваем абсолютно все поля (*), включая old_price
+          supabase.from('product_market').select('*, sellers(id, shop_name)'),
           supabase.from('seller_stories').select('*').order('created_at', { ascending: false })
         ]);
         setProducts(prodRes.data || []);
@@ -127,7 +127,6 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-[#F8F8F8] text-black pb-32">
-      {/* HEADER */}
       <header className="bg-white px-6 pt-12 pb-6 rounded-b-[3.5rem] shadow-sm mb-4 sticky top-0 z-50">
         <div className="flex gap-4 items-center mb-4">
           <div className="flex-1 bg-zinc-100 rounded-2xl flex items-center px-4 py-4 border border-zinc-200/30">
@@ -155,7 +154,6 @@ export default function Home() {
         </div>
       </header>
 
-      {/* CATEGORIES */}
       <div className="px-6 flex gap-2 overflow-x-auto no-scrollbar mb-6">
         {categories.map(cat => (
           <button key={cat} onClick={() => setActiveCategory(cat)} className={`px-7 py-2.5 rounded-full text-[10px] font-black uppercase italic transition-all whitespace-nowrap ${activeCategory === cat ? 'bg-orange-500 text-white shadow-lg' : 'bg-white text-zinc-400 border border-zinc-100'}`}>
@@ -164,13 +162,14 @@ export default function Home() {
         ))}
       </div>
 
-      {/* PRODUCT GRID */}
       <main className="px-4 grid grid-cols-2 gap-4">
         {filteredProducts.map((p, index) => {
           const count = getProductCount(p.id);
           const currentPrice = Number(p?.price || 0);
           const oldPrice = p?.old_price ? Number(p.old_price) : null;
-          const hasDiscount = oldPrice !== null && oldPrice > currentPrice;
+          
+          // Жесткое условие: скидка есть, если старая цена больше текущей и она не равна нулю
+          const hasDiscount = oldPrice !== null && oldPrice > currentPrice && oldPrice !== 0;
           const discountPercent = hasDiscount ? Math.round(((oldPrice - currentPrice) / oldPrice) * 100) : 0;
 
           return (
@@ -179,14 +178,14 @@ export default function Home() {
                 <img src={p.image_url} className="w-full h-full object-cover transition-transform group-hover:scale-110" alt="" />
                 
                 {hasDiscount && (
-                  <div className="absolute top-3 left-3 bg-orange-500 text-white px-3 py-1.5 rounded-full text-[10px] font-black italic shadow-lg animate-pulse-subtle">
+                  <div className="absolute top-3 left-3 bg-orange-500 text-white px-3 py-1.5 rounded-full text-[10px] font-black italic shadow-lg z-20">
                     -{discountPercent}%
                   </div>
                 )}
 
-                <div className="absolute bottom-3 right-3 flex flex-col items-end">
+                <div className="absolute bottom-3 right-3 flex flex-col items-end z-20">
                   {hasDiscount && (
-                    <span className="bg-white/90 backdrop-blur-sm px-2 py-0.5 rounded-full text-[8px] text-zinc-400 line-through font-bold mb-1">
+                    <span className="bg-white/95 backdrop-blur-sm px-2 py-0.5 rounded-full text-[8px] text-zinc-400 line-through font-bold mb-1 shadow-sm">
                       {oldPrice} ₽
                     </span>
                   )}
@@ -227,7 +226,7 @@ export default function Home() {
         })}
       </main>
 
-      {/* МОДАЛКА: ТРЕКИНГ ЗАКАЗА */}
+      {/* ОСТАЛЬНЫЕ КОМПОНЕНТЫ (МОДАЛКИ, СТИЛИ) */}
       {isStatusModalOpen && (
         <div className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-md flex items-end animate-fade-in" onClick={() => setIsStatusModalOpen(false)}>
           <div className="bg-white w-full rounded-t-[3.5rem] p-8 animate-slide-up shadow-2xl max-h-[80vh] overflow-y-auto no-scrollbar" onClick={e => e.stopPropagation()}>
@@ -264,7 +263,6 @@ export default function Home() {
         </div>
       )}
 
-      {/* МОДАЛКА: КОРЗИНА */}
       {isCartOpen && (
         <div className="fixed inset-0 z-[150] bg-black/60 backdrop-blur-md flex items-end animate-fade-in" onClick={() => setIsCartOpen(false)}>
           <div className="bg-white w-full rounded-t-[3.5rem] p-8 animate-slide-up shadow-2xl max-h-[85vh] overflow-y-auto no-scrollbar" onClick={e => e.stopPropagation()}>
@@ -314,12 +312,10 @@ export default function Home() {
         @keyframes fade-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes slide-up { from { transform: translateY(100%); } to { transform: translateY(0); } }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-        @keyframes pulse-subtle { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.05); opacity: 0.9; } }
         @keyframes pulse-slow { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
         .animate-fade-in { animation: fade-in 0.4s ease-out forwards; }
         .animate-slide-up { animation: slide-up 0.5s cubic-bezier(0.16, 1, 0.3, 1); }
         .animate-spin { animation: spin 0.8s linear infinite; }
-        .animate-pulse-subtle { animation: pulse-subtle 2s infinite ease-in-out; }
         .animate-pulse-slow { animation: pulse-slow 2s infinite; }
       `}</style>
     </div>

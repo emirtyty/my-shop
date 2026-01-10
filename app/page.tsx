@@ -370,23 +370,44 @@ export default function Home() {
       {/* --- ГЛАВНАЯ СТРАНИЦА --- */}
       {!currentSellerId && !isAdminRoute && (
         <>
-          <header className={`bg-white px-6 pt-12 pb-6 rounded-b-[3.5rem] shadow-sm sticky top-0 z-[100] transition-all duration-500 ${scrollY > 50 ? 'shadow-xl translate-y-[-10px]' : ''}`}>
-            <div className="flex justify-between items-center mb-6">
-              <h1 className="text-4xl font-[1000] italic uppercase tracking-tighter leading-[0.8]"></h1>
-              <button onClick={() => setIsCartOpen(true)} className={`relative z-[110] bg-black text-white p-5 rounded-[1.8rem] transition-all ${cartBumping ? 'scale-110 bg-orange-500' : ''}`}>
-                🛒 {cart.length > 0 && <span className="absolute -top-1 -right-1 bg-orange-500 w-6 h-6 rounded-full text-[10px] flex items-center justify-center border-2 border-white font-black">{cart.length}</span>}
+          <header className={`bg-white px-6 pt-10 pb-6 rounded-b-[3.5rem] shadow-sm sticky top-0 z-[100] transition-all duration-500 ${scrollY > 50 ? 'shadow-xl' : ''}`}>
+            
+            {/* ЕДИНАЯ СТРОКА: ЗАКАЗЫ + ПОИСК + КОРЗИНА */}
+            <div className="flex items-center gap-3">
+              <button onClick={() => setIsStatusModalOpen(true)} className="flex-shrink-0 bg-zinc-50 border border-zinc-100 text-[8px] font-black uppercase italic text-zinc-400 h-[58px] px-4 rounded-2xl transition-all active:scale-95">
+                ГДЕ МОЙ ЗАКАЗ?
+              </button>
+              
+              <div className="flex-1 relative">
+                <input 
+                  type="text" 
+                  placeholder="ПОИСК..." 
+                  className="w-full bg-zinc-100 h-[58px] px-6 rounded-2xl text-[10px] font-black uppercase italic outline-none border border-transparent focus:border-zinc-200 transition-all" 
+                  value={searchQuery} 
+                  onChange={e => setSearchQuery(e.target.value)} 
+                />
+              </div>
+
+              <button 
+                onClick={() => setIsCartOpen(true)} 
+                className={`flex-shrink-0 relative bg-black text-white h-[58px] w-[58px] rounded-2xl flex items-center justify-center transition-all ${cartBumping ? 'scale-110 bg-orange-500' : 'active:scale-95'}`}
+              >
+                <span className="text-xl">🛒</span>
+                {cart.length > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-orange-500 w-5 h-5 rounded-full text-[9px] flex items-center justify-center border-2 border-white font-black animate-fade-in">
+                    {cart.length}
+                  </span>
+                )}
               </button>
             </div>
-            <button onClick={() => setIsStatusModalOpen(true)} className="relative z-[110] text-[9px] font-black uppercase italic text-zinc-400 mb-6 ml-2 block tracking-[0.2em]">🔍 ГДЕ МОЙ ЗАКАЗ?</button>
-            <div className="flex gap-4 overflow-x-auto no-scrollbar mb-6">
+
+            {/* ИСТОРИИ */}
+            <div className="flex gap-4 overflow-x-auto no-scrollbar mt-6">
               {stories.map(s => (
-                <div key={s.id} onClick={() => setSelectedStory(s.image_url)} className="flex-shrink-0 w-16 h-16 rounded-full p-[2px] border-2 border-orange-500 cursor-pointer">
+                <div key={s.id} onClick={() => setSelectedStory(s.image_url)} className="flex-shrink-0 w-14 h-14 rounded-full p-[2px] border-2 border-orange-500 cursor-pointer transition-transform active:scale-90">
                   <img src={s.image_url} className="w-full h-full rounded-full object-cover" />
                 </div>
               ))}
-            </div>
-            <div className="flex gap-3">
-              <input type="text" placeholder="ПОИСК..." className="flex-1 bg-zinc-100 p-5 rounded-2xl text-[10px] font-black uppercase italic outline-none" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
             </div>
           </header>
 

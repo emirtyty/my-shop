@@ -1,6 +1,10 @@
 'use client';
 import { useEffect, useState, useMemo } from 'react';
 import { supabase } from './lib/supabase';
+import { App } from '@capacitor/app';
+
+// ЗАМЕНИТЕ НА ЮЗЕРНЕЙМ ВАШЕГО БОТА БЕЗ @
+const BOT_USERNAME = 'RaDell_bot'; 
 
 export default function Home() {
   const [products, setProducts] = useState<any[]>([]);
@@ -20,8 +24,87 @@ export default function Home() {
   const [isSearchingOrders, setIsSearchingOrders] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
 
-  // Состояние для скрытия заголовка
   const [scrollY, setScrollY] = useState(0);
+
+  // --- ЛОГИКА АДМИНКИ И ПРОДАВЦОВ ---
+  const [isAdminRoute, setIsAdminRoute] = useState(false); 
+  const [isAuthMode, setIsAuthMode] = useState<'login' | 'reg'>('login');
+  const [sellerAuth, setSellerAuth] = useState({ login: '', pass: '', name: '', cat: '' });
+  const [currentSeller, setCurrentSeller] = useState<any>(null);
+
+  const [currentSellerId, setCurrentSellerId] = useState<string | null>(null);
+  const [sellerData, setSellerData] = useState<any>(null);
+  const [sellerProducts, setSellerProducts] = useState<any[]>([]);
+  const [sellerLoading, setSellerLoading] = useState(false);
+
+  // --- ОБРАБОТЧИК КНОПКИ НАЗАД ---
+  useEffect(() => {
+    const handleBackButton = async () => {
+      await App.addListener('backButton', () => {
+        if (isCartOpen) setIsCartOpen(false);
+        else if (currentSellerId) window.location.hash = '';
+        else if (isAdminRoute) { window.location.hash = ''; setIsAdminRoute(false); }
+        else if (isStatusModalOpen) setIsStatusModalOpen(false);
+        else if (selectedStory) setSelectedStory(null);
+        else App.exitApp();
+      });
+    };
+    handleBackButton();
+    return () => { App.removeAllListeners(); };
+  }, [isCartOpen, currentSellerId, isStatusModalOpen, selectedStory, isAdminRoute]);
+
+  // --- НАВИГАЦИЯ ПО ХЭШАМ ---
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash;
+      if (hash === '#/admin') {
+        setIsAdminRoute(true);
+      } else if (hash.includes('/seller?id=')) {
+        const id = hash.split('id=')[1];
+        setCurrentSellerId(id);
+        fetchSellerData(id);
+      } else {
+        setIsAdminRoute(false);
+        setCurrentSellerId(null);
+      }
+    };
+    window.addEventListener('hashchange', handleHashChange);
+    handleHashChange();
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
+
+  async function fetchSellerData(id: string) {
+    setSellerLoading(true);
+    try {
+      const [sRes, pRes] = await Promise.all([
+        supabase.from('sellers').select('*').eq('id', id).single(),
+        supabase.from('product_market').select('*').eq('seller_id', id)
+      ]);
+      setSellerData(sRes.data);
+      setSellerProducts(pRes.data || []);
+    } catch (e) { console.error(e); } finally { setSellerLoading(false); }
+  }
+
+  // --- ЛОГИКА АВТОРИЗАЦИИ ПРОДАВЦА ---
+  const handleAuth = async () => {
+    try {
+      if (isAuthMode === 'reg') {
+        if (!sellerAuth.login || !sellerAuth.pass || !sellerAuth.name) return alert("Заполните данные!");
+        const { data, error } = await supabase.from('sellers').insert([{
+          login: sellerAuth.login,
+          password: sellerAuth.pass,
+          shop_name: sellerAuth.name,
+          category: sellerAuth.cat
+        }]).select().single();
+        if (error) throw error;
+        setCurrentSeller(data);
+      } else {
+        const { data, error } = await supabase.from('sellers').select('*').eq('login', sellerAuth.login).eq('password', sellerAuth.pass).single();
+        if (error || !data) throw new Error("Неверный логин или пароль");
+        setCurrentSeller(data);
+      }
+    } catch (e: any) { alert(e.message); }
+  };
 
   useEffect(() => {
     const saved = localStorage.getItem('cart');
@@ -29,7 +112,6 @@ export default function Home() {
     const savedPhone = localStorage.getItem('userPhone');
     if (savedPhone) setCheckPhone(savedPhone);
 
-    // Следим за скроллом
     const handleScroll = () => setScrollY(window.scrollY);
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
@@ -43,7 +125,6 @@ export default function Home() {
     async function fetchData() {
       try {
         const [prodRes, storyRes] = await Promise.all([
-          // УБРАЛ ФИЛЬТР is_archived, ЧТОБЫ ТОВАРЫ СНОВА ПОЯВИЛИСЬ
           supabase.from('product_market').select('*, sellers(id, shop_name)'),
           supabase.from('seller_stories').select('*').order('created_at', { ascending: false })
         ]);
@@ -134,143 +215,207 @@ export default function Home() {
   if (loading) return <div className="min-h-screen flex items-center justify-center font-black italic text-orange-500 uppercase animate-pulse">Загрузка...</div>;
 
   return (
-    <div className="min-h-screen bg-[#F8F8F8] text-black pb-32">
-      <header 
-        style={{ 
-          transform: `translateY(${scrollY > 50 ? '-100%' : '0'})`,
-          opacity: scrollY > 50 ? 0 : 1
-        }}
-        className="bg-white px-6 pt-12 pb-6 rounded-b-[3.5rem] shadow-sm mb-4 sticky top-0 z-50 transition-all duration-500 ease-in-out"
-      >
-        <div className="flex gap-4 items-center mb-4">
-          <div className="flex-1 bg-zinc-100 rounded-2xl flex items-center px-4 py-4 border border-zinc-200/30">
-            <input 
-              type="text" 
-              placeholder="ПОИСК..." 
-              className="bg-transparent outline-none w-full text-[11px] font-black uppercase italic"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-          </div>
-          <button onClick={() => setIsCartOpen(true)} className={`relative bg-black text-white p-4.5 rounded-[1.4rem] transition-all ${cartBumping ? 'scale-110 bg-orange-500' : ''}`}>
-              🛒 {cart.length > 0 && <span className="absolute -top-1 -right-1 bg-orange-500 w-6 h-6 rounded-full text-[10px] flex items-center justify-center border-2 border-white font-black">{cart.length}</span>}
-          </button>
-        </div>
-        
-        <button onClick={() => setIsStatusModalOpen(true)} className="text-[9px] font-black uppercase italic text-zinc-400 mb-6 ml-2 hover:text-orange-500 transition-colors">🔍 ГДЕ МОЙ ЗАКАЗ?</button>
-
-        <div className="flex gap-4 overflow-x-auto no-scrollbar pb-2">
-          {stories.map((s) => (
-            <div key={s.id} onClick={() => setSelectedStory(s.image_url)} className="flex-shrink-0 w-16 h-16 rounded-full p-[2px] border-2 border-orange-500 cursor-pointer">
-              <img src={s.image_url} className="w-full h-full rounded-full object-cover" alt="" />
-            </div>
-          ))}
-        </div>
-      </header>
-
-      <div className="px-6 flex gap-2 overflow-x-auto no-scrollbar mb-6">
-        {categories.map(cat => (
-          <button key={cat} onClick={() => setActiveCategory(cat)} className={`px-7 py-2.5 rounded-full text-[10px] font-black uppercase italic transition-all whitespace-nowrap ${activeCategory === cat ? 'bg-orange-500 text-white shadow-lg' : 'bg-white text-zinc-400 border border-zinc-100'}`}>
-            {cat}
-          </button>
-        ))}
-      </div>
-
-      <main className="px-4 grid grid-cols-2 gap-4">
-        {filteredProducts.map((p, index) => {
-          const count = getProductCount(p.id);
-          const currentPrice = Number(p?.price || 0);
-          const oldPrice = p?.old_price ? Number(p.old_price) : null;
-          const hasDiscount = oldPrice !== null && oldPrice > currentPrice && oldPrice !== 0;
-          const discountPercent = hasDiscount ? Math.round(((oldPrice - currentPrice) / oldPrice) * 100) : 0;
-
-          return (
-            <div key={p.id || index} className="bg-white rounded-[2.8rem] p-2 border border-zinc-100 shadow-sm animate-fade-in group">
-              <div className="relative aspect-square mb-3 overflow-hidden rounded-[2.4rem] bg-zinc-50">
-                <img src={p.image_url} className="w-full h-full object-cover transition-transform group-hover:scale-110" alt="" />
-                {hasDiscount && (
-                  <div className="absolute top-3 left-3 bg-orange-500 text-white px-3 py-1.5 rounded-full text-[10px] font-black italic shadow-lg z-20">
-                    -{discountPercent}%
-                  </div>
+    <div className="min-h-screen bg-[#F8F8F8] text-black pb-32 overflow-x-hidden">
+      
+      {/* --- АДМИНКА (ВХОД / РЕГИСТРАЦИЯ) --- */}
+      {isAdminRoute && (
+        <div className="fixed inset-0 z-[300] bg-white overflow-y-auto animate-fade-in">
+          {!currentSeller ? (
+            <div className="p-8 pt-20 max-w-md mx-auto">
+              <button onClick={() => { window.location.hash = ''; setIsAdminRoute(false); }} className="text-[10px] font-black italic text-zinc-300 mb-10 uppercase tracking-widest text-left">← На главную</button>
+              <h2 className="text-5xl font-black italic uppercase tracking-tighter leading-[0.9] mb-12 whitespace-pre-line">
+                {isAuthMode === 'login' ? 'ВХОД В\nПАНЕЛЬ' : 'РЕГИСТРАЦИЯ\nМАГАЗИНА'}
+              </h2>
+              <div className="space-y-3">
+                {isAuthMode === 'reg' && (
+                  <>
+                    <input type="text" placeholder="НАЗВАНИЕ МАГАЗИНА" className="w-full bg-zinc-100 p-6 rounded-2xl outline-none font-bold text-xs uppercase italic" onChange={e => setSellerAuth({...sellerAuth, name: e.target.value})}/>
+                    <input type="text" placeholder="КАТЕГОРИЯ" className="w-full bg-zinc-100 p-6 rounded-2xl outline-none font-bold text-xs uppercase italic" onChange={e => setSellerAuth({...sellerAuth, cat: e.target.value})}/>
+                  </>
                 )}
-                <div className="absolute bottom-3 right-3 flex flex-col items-end z-20">
-                  {hasDiscount && (
-                    <span className="bg-white/95 backdrop-blur-sm px-2 py-0.5 rounded-full text-[8px] text-zinc-400 line-through font-bold mb-1 shadow-sm">
-                      {oldPrice} ₽
-                    </span>
-                  )}
-                  <div className="bg-black text-white px-4 py-2 rounded-full text-[12px] font-black italic shadow-2xl border border-white/10">
-                    {currentPrice} ₽
-                  </div>
-                </div>
-              </div>
-
-              <div className="px-3 pb-3 text-center">
-                <button 
-                  onClick={() => p.seller_id && (window.location.href = `/seller/${p.seller_id}`)}
-                  className="mb-2 inline-flex items-center bg-zinc-100 hover:bg-orange-50 px-3 py-1.5 rounded-full transition-all active:scale-90"
-                >
-                  <span className="text-[8px] text-zinc-500 font-black uppercase italic tracking-widest">
-                    🏪 {p?.sellers?.shop_name || 'МАГАЗИН'}
-                  </span>
+                <input type="text" placeholder="ЛОГИН" className="w-full bg-zinc-100 p-6 rounded-2xl outline-none font-bold text-xs uppercase italic" onChange={e => setSellerAuth({...sellerAuth, login: e.target.value})}/>
+                <input type="password" placeholder="ПАРОЛЬ" className="w-full bg-zinc-100 p-6 rounded-2xl outline-none font-bold text-xs uppercase italic" onChange={e => setSellerAuth({...sellerAuth, pass: e.target.value})}/>
+                <button onClick={handleAuth} className="w-full bg-black text-white py-7 rounded-[2rem] font-black italic uppercase shadow-2xl active:scale-95 transition-all mt-4">
+                  {isAuthMode === 'login' ? 'ВОЙТИ' : 'ЗАРЕГИСТРИРОВАТЬСЯ'}
                 </button>
-                <h3 className="font-bold text-[10px] uppercase tracking-tighter mb-4 h-8 line-clamp-2 leading-none text-zinc-800">
-                  {p.name || 'Товар'}
-                </h3>
-                <div className="relative h-[46px] w-full">
-                  {count === 0 ? (
-                    <button onClick={() => addToCart(p)} className="w-full h-full bg-black text-white rounded-[1.2rem] text-[9px] font-black uppercase italic shadow-md active:scale-95 transition-all">КУПИТЬ</button>
-                  ) : (
-                    <div className="flex items-center justify-between bg-zinc-100 rounded-[1.2rem] h-full border border-zinc-200">
-                      <button onClick={() => removeFromCartOnce(p.id)} className="flex-1 h-full font-black text-lg text-zinc-400">—</button>
-                      <span className="px-2 text-[12px] font-black italic">{count}</span>
-                      <button onClick={() => addToCart(p)} className="flex-1 h-full font-black text-lg">+</button>
-                    </div>
-                  )}
+                <button onClick={() => setIsAuthMode(isAuthMode === 'login' ? 'reg' : 'login')} className="w-full text-[10px] font-black italic uppercase text-zinc-400 mt-8 tracking-widest">
+                  {isAuthMode === 'login' ? 'НЕТ АККАУНТА? СОЗДАТЬ' : 'УЖЕ ЕСТЬ АККАУНТ? ВОЙТИ'}
+                </button>
+              </div>
+            </div>
+          ) : (
+            /* ЛИЧНЫЙ КАБИНЕТ ПРОДАВЦА */
+            <div className="p-8 pt-16">
+              <header className="flex justify-between items-start mb-10">
+                <div>
+                  <h1 className="text-4xl font-black italic uppercase tracking-tighter leading-none mb-2">АДМИНКА</h1>
+                  <p className="text-orange-500 font-black text-[10px] uppercase italic tracking-widest">{currentSeller.shop_name}</p>
+                </div>
+                <button onClick={() => setCurrentSeller(null)} className="bg-zinc-100 p-4 rounded-full active:scale-90 transition-all">❌</button>
+              </header>
+
+              <div className="space-y-6">
+                <div className="bg-black text-white p-10 rounded-[3rem] shadow-2xl relative overflow-hidden">
+                   <p className="text-[10px] font-black opacity-30 uppercase mb-2 tracking-widest">УВЕДОМЛЕНИЯ О ЗАКАЗАХ</p>
+                   {currentSeller.telegram_id ? (
+                     <h3 className="text-2xl font-black italic uppercase text-green-400">ПОДКЛЮЧЕНО ✅</h3>
+                   ) : (
+                     <div>
+                       <h3 className="text-2xl font-black italic uppercase text-orange-500 mb-6">НЕ ПРИВЯЗАН ⚠️</h3>
+                       <a href={`https://t.me/${BOT_USERNAME}?start=${currentSeller.id}`} target="_blank" className="inline-block bg-white text-black px-8 py-4 rounded-full font-black text-[10px] uppercase italic active:scale-95 transition-all">
+                         ДОБАВИТЬ ТЕЛЕГРАМ
+                       </a>
+                     </div>
+                   )}
+                </div>
+                <div className="grid grid-cols-1 gap-4">
+                  <div className="bg-white border border-zinc-100 p-8 rounded-[2.5rem] font-black italic uppercase shadow-sm">📦 МОИ ТОВАРЫ</div>
+                  <div className="bg-white border border-zinc-100 p-8 rounded-[2.5rem] font-black italic uppercase shadow-sm">🧾 ЗАКАЗЫ</div>
                 </div>
               </div>
             </div>
-          );
-        })}
-      </main>
-
-      {/* Модалки и стили без изменений */}
-      {isStatusModalOpen && (
-        <div className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-md flex items-end animate-fade-in" onClick={() => setIsStatusModalOpen(false)}>
-          <div className="bg-white w-full rounded-t-[3.5rem] p-8 animate-slide-up shadow-2xl max-h-[80vh] overflow-y-auto no-scrollbar" onClick={e => e.stopPropagation()}>
-            <div className="w-12 h-1.5 bg-zinc-200 rounded-full mx-auto mb-8" />
-            <h2 className="text-2xl font-black uppercase italic tracking-tighter text-center mb-8">МОИ ЗАКАЗЫ</h2>
-            <div className="relative flex items-center mb-10">
-              <input 
-                type="tel" placeholder="ТЕЛЕФОН..." 
-                className="w-full bg-zinc-100 p-5 rounded-[2rem] text-sm font-black outline-none italic"
-                value={checkPhone} onChange={(e) => setCheckPhone(e.target.value)}
-              />
-              <button onClick={fetchMyOrders} className="absolute right-2 w-12 h-12 rounded-full bg-black flex items-center justify-center">
-                {isSearchingOrders ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <span className="text-white text-lg">🔍</span>}
-              </button>
-            </div>
-            <div className="space-y-4">
-              {userOrders.length > 0 ? userOrders.map((order, idx) => (
-                <div key={order?.id || idx} className="bg-zinc-50 border border-zinc-100 p-6 rounded-[2.5rem] flex justify-between items-center animate-fade-in">
-                  <div className="max-w-[65%]">
-                    <div className="text-[11px] font-black uppercase italic leading-tight">{order?.product_name || 'ЗАКАЗ'}</div>
-                    <div className="text-[8px] text-zinc-400 font-bold mt-2 uppercase">
-                      {order?.created_at ? new Date(order.created_at).toLocaleDateString() : 'Недавно'} {order?.id ? `• #${String(order.id).slice(0,5)}` : ''}
-                    </div>
-                  </div>
-                  <div className="bg-white px-4 py-2 rounded-full border border-zinc-200">
-                    <span className="text-[9px] font-black uppercase italic text-orange-500 animate-pulse-slow">{order?.status || 'НОВЫЙ'}</span>
-                  </div>
-                </div>
-              )) : hasSearched ? (
-                <div className="text-center py-10 opacity-30 font-black uppercase italic text-[10px]">ЗАКАЗЫ НЕ НАЙДЕНЫ</div>
-              ) : <p className="text-center py-10 opacity-20 font-black uppercase italic text-[10px]">ВВЕДИТЕ НОМЕР</p>}
-            </div>
-          </div>
+          )}
         </div>
       )}
 
+      {/* ГЛАВНЫЙ КОНТЕНТ (ВИТРИНА) */}
+      <div className={`transition-all duration-500 ${currentSellerId || isAdminRoute ? 'opacity-0 scale-95 pointer-events-none' : 'opacity-100 scale-100'}`}>
+        <header 
+          style={{ 
+            transform: `translateY(${scrollY > 50 ? '-100%' : '0'})`,
+            opacity: scrollY > 50 ? 0 : 1
+          }}
+          className="bg-white px-6 pt-12 pb-6 rounded-b-[3.5rem] shadow-sm mb-4 sticky top-0 z-50 transition-all duration-500 ease-in-out"
+        >
+          <div className="flex gap-4 items-center mb-4">
+            <div className="flex-1 bg-zinc-100 rounded-2xl flex items-center px-4 py-4 border border-zinc-200/30">
+              <input 
+                type="text" 
+                placeholder="ПОИСК..." 
+                className="bg-transparent outline-none w-full text-[11px] font-black uppercase italic"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+            <button onClick={() => setIsCartOpen(true)} className={`relative bg-black text-white p-4.5 rounded-[1.4rem] transition-all ${cartBumping ? 'scale-110 bg-orange-500' : ''}`}>
+                🛒 {cart.length > 0 && <span className="absolute -top-1 -right-1 bg-orange-500 w-6 h-6 rounded-full text-[10px] flex items-center justify-center border-2 border-white font-black">{cart.length}</span>}
+            </button>
+          </div>
+          
+          <button onClick={() => setIsStatusModalOpen(true)} className="text-[9px] font-black uppercase italic text-zinc-400 mb-6 ml-2 hover:text-orange-500 transition-colors">🔍 ГДЕ МОЙ ЗАКАЗ?</button>
+
+          <div className="flex gap-4 overflow-x-auto no-scrollbar pb-2">
+            {stories.map((s) => (
+              <div key={s.id} onClick={() => setSelectedStory(s.image_url)} className="flex-shrink-0 w-16 h-16 rounded-full p-[2px] border-2 border-orange-500 cursor-pointer">
+                <img src={s.image_url} className="w-full h-full rounded-full object-cover" alt="" />
+              </div>
+            ))}
+          </div>
+        </header>
+
+        <div className="px-6 flex gap-2 overflow-x-auto no-scrollbar mb-6">
+          {categories.map(cat => (
+            <button key={cat} onClick={() => setActiveCategory(cat)} className={`px-7 py-2.5 rounded-full text-[10px] font-black uppercase italic transition-all whitespace-nowrap ${activeCategory === cat ? 'bg-orange-500 text-white shadow-lg' : 'bg-white text-zinc-400 border border-zinc-100'}`}>
+              {cat}
+            </button>
+          ))}
+        </div>
+
+        <main className="px-4 grid grid-cols-2 gap-4">
+          {filteredProducts.map((p, index) => {
+            const count = getProductCount(p.id);
+            const currentPrice = Number(p?.price || 0);
+            const oldPrice = p?.old_price ? Number(p.old_price) : null;
+            const hasDiscount = oldPrice !== null && oldPrice > currentPrice;
+            const discountPercent = hasDiscount ? Math.round(((oldPrice - currentPrice) / oldPrice) * 100) : 0;
+
+            return (
+              <div key={p.id || index} className="bg-white rounded-[2.8rem] p-2 border border-zinc-100 shadow-sm animate-fade-in group">
+                <div className="relative aspect-square mb-3 overflow-hidden rounded-[2.4rem] bg-zinc-50">
+                  <img src={p.image_url} className="w-full h-full object-cover transition-transform group-hover:scale-110" alt="" />
+                  {hasDiscount && (
+                    <div className="absolute top-3 left-3 bg-orange-500 text-white px-3 py-1.5 rounded-full text-[10px] font-black italic shadow-lg z-20">
+                      -{discountPercent}%
+                    </div>
+                  )}
+                  <div className="absolute bottom-3 right-3 flex flex-col items-end z-20">
+                    {hasDiscount && (
+                      <span className="bg-white/95 backdrop-blur-sm px-2 py-0.5 rounded-full text-[8px] text-zinc-400 line-through font-bold mb-1 shadow-sm">
+                        {oldPrice} ₽
+                      </span>
+                    )}
+                    <div className="bg-black text-white px-4 py-2 rounded-full text-[12px] font-black italic shadow-2xl border border-white/10">
+                      {currentPrice} ₽
+                    </div>
+                  </div>
+                </div>
+
+                <div className="px-3 pb-3 text-center">
+                  <button 
+                    onClick={() => { if (p.seller_id) window.location.hash = `/seller?id=${p.seller_id}`; }}
+                    className="mb-2 inline-flex items-center bg-zinc-100 hover:bg-orange-50 px-3 py-1.5 rounded-full transition-all active:scale-90"
+                  >
+                    <span className="text-[8px] text-zinc-500 font-black uppercase italic tracking-widest">
+                      🏪 {p?.sellers?.shop_name || 'МАГАЗИН'}
+                    </span>
+                  </button>
+                  <h3 className="font-bold text-[10px] uppercase tracking-tighter mb-4 h-8 line-clamp-2 leading-none text-zinc-800">
+                    {p.name || 'Товар'}
+                  </h3>
+                  <div className="relative h-[46px] w-full">
+                    {count === 0 ? (
+                      <button onClick={() => addToCart(p)} className="w-full h-full bg-black text-white rounded-[1.2rem] text-[9px] font-black uppercase italic shadow-md active:scale-95 transition-all">КУПИТЬ</button>
+                    ) : (
+                      <div className="flex items-center justify-between bg-zinc-100 rounded-[1.2rem] h-full border border-zinc-200">
+                        <button onClick={() => removeFromCartOnce(p.id)} className="flex-1 h-full font-black text-lg text-zinc-400">—</button>
+                        <span className="px-2 text-[12px] font-black italic">{count}</span>
+                        <button onClick={() => addToCart(p)} className="flex-1 h-full font-black text-lg">+</button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </main>
+      </div>
+
+      {/* СЛОЙ МАГАЗИНА ПРОДАВЦА */}
+      <div className={`fixed inset-0 z-[100] bg-[#F8F8F8] transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] ${currentSellerId ? 'translate-x-0' : 'translate-x-full'}`}>
+        <div className="h-full overflow-y-auto no-scrollbar pb-20">
+          <header className="bg-white px-6 pt-12 pb-8 rounded-b-[3.5rem] shadow-sm mb-6 sticky top-0 z-[110]">
+            <button onClick={() => window.location.hash = ''} className="mb-6 text-[10px] font-black uppercase italic text-zinc-400 border border-zinc-200 px-6 py-2 rounded-full">← НАЗАД</button>
+            <h1 className="text-3xl font-black uppercase italic tracking-tighter leading-none">
+              {sellerLoading ? 'ЗАГРУЗКА...' : (sellerData?.shop_name || 'МАГАЗИН')}
+            </h1>
+          </header>
+          
+          {!sellerLoading && (
+            <main className="px-4 grid grid-cols-2 gap-4 animate-fade-in">
+              {sellerProducts.map((p) => {
+                 const cp = Number(p?.price || 0);
+                 const op = p?.old_price ? Number(p.old_price) : null;
+                 const hd = op !== null && op > cp;
+                 return (
+                  <div key={p.id} className="bg-white rounded-[2.8rem] p-2 border border-zinc-100 shadow-sm overflow-hidden">
+                    <div className="relative aspect-square mb-3 overflow-hidden rounded-[2.4rem] bg-zinc-50">
+                      <img src={p.image_url} className="w-full h-full object-cover" alt="" />
+                      {hd && <div className="absolute top-3 left-3 bg-orange-500 text-white px-3 py-1.5 rounded-full text-[10px] font-black italic z-20">SALE</div>}
+                      <div className="absolute bottom-3 right-3 bg-black text-white px-4 py-2 rounded-full text-[12px] font-black italic shadow-lg">{cp} ₽</div>
+                    </div>
+                    <div className="px-3 pb-4 text-center">
+                      <div className="font-bold text-[10px] uppercase leading-tight h-8 line-clamp-2 mb-2">{p.name}</div>
+                      <button onClick={() => addToCart(p)} className="w-full py-2 bg-black text-white rounded-full text-[9px] font-black uppercase italic">КУПИТЬ</button>
+                    </div>
+                  </div>
+                 )
+              })}
+            </main>
+          )}
+        </div>
+      </div>
+
+      {/* МОДАЛКИ */}
       {isCartOpen && (
         <div className="fixed inset-0 z-[150] bg-black/60 backdrop-blur-md flex items-end animate-fade-in" onClick={() => setIsCartOpen(false)}>
           <div className="bg-white w-full rounded-t-[3.5rem] p-8 animate-slide-up shadow-2xl max-h-[85vh] overflow-y-auto no-scrollbar" onClick={e => e.stopPropagation()}>
@@ -308,6 +453,42 @@ export default function Home() {
         </div>
       )}
 
+      {isStatusModalOpen && (
+        <div className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-md flex items-end animate-fade-in" onClick={() => setIsStatusModalOpen(false)}>
+          <div className="bg-white w-full rounded-t-[3.5rem] p-8 animate-slide-up shadow-2xl max-h-[80vh] overflow-y-auto no-scrollbar" onClick={e => e.stopPropagation()}>
+            <div className="w-12 h-1.5 bg-zinc-200 rounded-full mx-auto mb-8" />
+            <h2 className="text-2xl font-black uppercase italic tracking-tighter text-center mb-8">МОИ ЗАКАЗЫ</h2>
+            <div className="relative flex items-center mb-10">
+              <input 
+                type="tel" placeholder="ТЕЛЕФОН..." 
+                className="w-full bg-zinc-100 p-5 rounded-[2rem] text-sm font-black outline-none italic"
+                value={checkPhone} onChange={(e) => setCheckPhone(e.target.value)}
+              />
+              <button onClick={fetchMyOrders} className="absolute right-2 w-12 h-12 rounded-full bg-black flex items-center justify-center">
+                {isSearchingOrders ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <span className="text-white text-lg">🔍</span>}
+              </button>
+            </div>
+            <div className="space-y-4">
+              {userOrders.length > 0 ? userOrders.map((order, idx) => (
+                <div key={order?.id || idx} className="bg-zinc-50 border border-zinc-100 p-6 rounded-[2.5rem] flex justify-between items-center animate-fade-in">
+                  <div className="max-w-[65%]">
+                    <div className="text-[11px] font-black uppercase italic leading-tight">{order?.product_name || 'ЗАКАЗ'}</div>
+                    <div className="text-[8px] text-zinc-400 font-bold mt-2 uppercase">
+                      {order?.created_at ? new Date(order.created_at).toLocaleDateString() : 'Недавно'}
+                    </div>
+                  </div>
+                  <div className="bg-white px-4 py-2 rounded-full border border-zinc-200">
+                    <span className="text-[9px] font-black uppercase italic text-orange-500">{order?.status || 'НОВЫЙ'}</span>
+                  </div>
+                </div>
+              )) : hasSearched ? (
+                <div className="text-center py-10 opacity-30 font-black uppercase italic text-[10px]">ЗАКАЗЫ НЕ НАЙДЕНЫ</div>
+              ) : <p className="text-center py-10 opacity-20 font-black uppercase italic text-[10px]">ВВЕДИТЕ НОМЕР</p>}
+            </div>
+          </div>
+        </div>
+      )}
+
       {selectedStory && (
         <div className="fixed inset-0 z-[200] bg-black/95 backdrop-blur-xl flex items-center justify-center animate-fade-in" onClick={() => setSelectedStory(null)}>
           <img src={selectedStory} className="max-w-full max-h-[85vh] object-contain shadow-2xl" alt="" />
@@ -315,16 +496,14 @@ export default function Home() {
       )}
 
       <style jsx global>{`
-        body { -webkit-tap-highlight-color: transparent; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+        body { -webkit-tap-highlight-color: transparent; font-family: -apple-system, BlinkMacSystemFont, sans-serif; margin: 0; padding: 0; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         @keyframes fade-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes slide-up { from { transform: translateY(100%); } to { transform: translateY(0); } }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-        @keyframes pulse-slow { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
         .animate-fade-in { animation: fade-in 0.4s ease-out forwards; }
         .animate-slide-up { animation: slide-up 0.5s cubic-bezier(0.16, 1, 0.3, 1); }
         .animate-spin { animation: spin 0.8s linear infinite; }
-        .animate-pulse-slow { animation: pulse-slow 2s infinite; }
       `}</style>
     </div>
   );

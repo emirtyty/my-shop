@@ -24,7 +24,7 @@ export default function Home() {
   const [orderAddress, setOrderAddress] = useState('');
   const [orderNotes, setOrderNotes] = useState('');
 
-  // --- АДМИНКА ---
+  // --- СОСТОЯНИЕ АДМИНКИ ---
   const [isAdminRoute, setIsAdminRoute] = useState(false);
   const [isAuthMode, setIsAuthMode] = useState<'login' | 'reg'>('login');
   const [sellerAuth, setSellerAuth] = useState({ login: '', pass: '', name: '', cat: '' });
@@ -44,6 +44,7 @@ export default function Home() {
 
   const [isUploading, setIsUploading] = useState(false);
 
+  // Навигация и системная кнопка "Назад"
   useEffect(() => {
     const handleBackButton = async () => {
       await App.addListener('backButton', () => {
@@ -60,6 +61,7 @@ export default function Home() {
     return () => { App.removeAllListeners(); };
   }, [isCartOpen, currentSellerId, isStatusModalOpen, selectedStory, isAdminRoute, isProductModalOpen]);
 
+  // Следим за URL (хэшем)
   useEffect(() => {
     const handleHashChange = () => {
       const hash = window.location.hash;
@@ -93,10 +95,10 @@ export default function Home() {
     } catch (e) { console.error(e); } finally { setSellerLoading(false); }
   }
 
+  // --- ЛОГИКА АДМИНКИ ---
   const handleAuth = async () => {
     try {
       if (isAuthMode === 'reg') {
-        if (!sellerAuth.login || !sellerAuth.pass || !sellerAuth.name) return alert("Заполните все поля!");
         const { data, error } = await supabase.from('sellers').insert([{
           login: sellerAuth.login,
           password: sellerAuth.pass,
@@ -107,7 +109,7 @@ export default function Home() {
         setCurrentSeller(data);
       } else {
         const { data, error } = await supabase.from('sellers').select('*').eq('login', sellerAuth.login).eq('password', sellerAuth.pass).single();
-        if (error || !data) throw new Error("Неверный логин или пароль");
+        if (error || !data) throw new Error("Неверный логин/пароль");
         setCurrentSeller(data);
       }
     } catch (e: any) { alert(e.message); }
@@ -134,14 +136,13 @@ export default function Home() {
   }
 
   const completeOrder = async (orderId: string) => {
-    const { error } = await supabase.from('orders').update({ status: 'ЗАВЕРШЕН' }).eq('id', orderId);
-    if (!error) fetchSellerOrders();
+    await supabase.from('orders').update({ status: 'ЗАВЕРШЕН' }).eq('id', orderId);
+    fetchSellerOrders();
   };
 
   const handleSaveProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     const p = editingProduct;
-    if (!p.name || !p.price || !p.image_url) return alert("Заполните обязательные поля!");
     const payload = { 
       name: p.name, 
       price: Number(p.price), 
@@ -150,28 +151,11 @@ export default function Home() {
       image_url: p.image_url, 
       seller_id: currentSeller.id 
     };
-    let error;
-    if (p.id) { 
-      const { error: err } = await supabase.from('product_market').update(payload).eq('id', p.id);
-      error = err; 
-    } else { 
-      const { error: err } = await supabase.from('product_market').insert([payload]);
-      error = err; 
-    }
-    if (!error) { 
-      setIsProductModalOpen(false); 
-      fetchSellerAdminProducts();
-      fetchData();
-    }
-  };
-
-  const deleteProduct = async (id: string) => {
-    if (!confirm("Удалить этот товар?")) return;
-    const { error } = await supabase.from('product_market').delete().eq('id', id);
-    if (!error) {
-      fetchSellerAdminProducts();
-      fetchData();
-    }
+    if (p.id) await supabase.from('product_market').update(payload).eq('id', p.id);
+    else await supabase.from('product_market').insert([payload]);
+    setIsProductModalOpen(false); 
+    fetchSellerAdminProducts();
+    fetchData();
   };
 
   const handleUploadStory = async (e: any) => {
@@ -183,13 +167,13 @@ export default function Home() {
       const { data: uploadData, error: uploadError } = await supabase.storage.from('products').upload(fileName, file);
       if (uploadError) throw uploadError;
       const { data: { publicUrl } } = supabase.storage.from('products').getPublicUrl(fileName);
-      const { error: dbError } = await supabase.from('seller_stories').insert([{ seller_id: currentSeller.id, image_url: publicUrl }]);
-      if (dbError) throw dbError;
-      alert("ГОТОВО! ИСТОРИЯ ОПУБЛИКОВАНА");
+      await supabase.from('seller_stories').insert([{ seller_id: currentSeller.id, image_url: publicUrl }]);
       fetchData();
+      alert("СТОРИС ОПУБЛИКОВАНА");
     } catch (err: any) { alert(err.message); } finally { setIsUploading(false); }
   };
 
+  // --- ОБЩАЯ ЛОГИКА ---
   async function fetchData() {
     try {
       const [prodRes, storyRes] = await Promise.all([
@@ -203,27 +187,13 @@ export default function Home() {
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 15000);
-    return () => clearInterval(interval);
-  }, []);
-
-  useEffect(() => {
-    const saved = localStorage.getItem('cart');
-    if (saved) { try { setCart(JSON.parse(saved)); } catch (e) { console.error(e); } }
-    const savedPhone = localStorage.getItem('userPhone');
-    if (savedPhone) setCheckPhone(savedPhone);
     const handleScroll = () => setScrollY(window.scrollY);
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
   const addToCart = (product: any) => { 
-    if (!product) return;
-    setCart(prev => {
-        const newCart = [...prev, product];
-        localStorage.setItem('cart', JSON.stringify(newCart));
-        return newCart;
-    }); 
+    setCart(prev => [...prev, product]); 
     setCartBumping(true); 
     setTimeout(() => setCartBumping(false), 300); 
   };
@@ -234,7 +204,6 @@ export default function Home() {
       if (index === -1) return prev; 
       const newCart = [...prev]; 
       newCart.splice(index, 1); 
-      localStorage.setItem('cart', JSON.stringify(newCart));
       return newCart; 
     });
   };
@@ -243,49 +212,21 @@ export default function Home() {
 
   const checkout = async () => {
     if (cart.length === 0 || !orderAddress.trim()) return alert("УКАЖИТЕ АДРЕС!");
-    const phone = prompt("ВВЕДИТЕ ТЕЛЕФОН ДЛЯ СВЯЗИ:");
+    const phone = prompt("ТЕЛЕФОН:");
     if (!phone) return;
-    const cleanPhone = phone.trim();
-    localStorage.setItem('userPhone', cleanPhone);
-    
-    try {
-      const ordersBySeller = cart.reduce((acc: any, item: any) => { 
-        const sId = item.seller_id || 'default'; 
-        if (!acc[sId]) acc[sId] = []; 
-        acc[sId].push(item); 
-        return acc; 
-      }, {});
-
-      for (const sId in ordersBySeller) {
-        const items = ordersBySeller[sId];
-        const pName = items.map((i: any) => i.name).join(', ');
-        const totalPrice = items.reduce((sum: number, i: any) => sum + Number(i.price), 0);
-        await supabase.from('orders').insert([{ 
-          product_name: pName, 
-          price: totalPrice, 
-          buyer_phone: cleanPhone, 
-          seller_id: sId, 
-          status: 'НОВЫЙ', 
-          address: orderAddress, 
-          notes: orderNotes 
-        }]);
-      }
-      alert("✅ ЗАКАЗ ПРИНЯТ!"); 
-      setCart([]); 
-      localStorage.removeItem('cart');
-      setIsCartOpen(false);
-    } catch (e) { alert("❌ ОШИБКА ОФОРМЛЕНИЯ"); }
-  };
-
-  const checkStatus = async () => {
-    setIsSearchingOrders(true);
-    const { data } = await supabase.from('orders')
-      .select('*')
-      .or(`buyer_phone.eq.${checkPhone},id.ilike.${checkPhone}%`)
-      .order('created_at', { ascending: false });
-    setUserOrders(data || []);
-    setHasSearched(true);
-    setIsSearchingOrders(false);
+    const ordersBySeller = cart.reduce((acc: any, item: any) => { 
+      const sId = item.seller_id || 'default'; 
+      if (!acc[sId]) acc[sId] = []; 
+      acc[sId].push(item); 
+      return acc; 
+    }, {});
+    for (const sId in ordersBySeller) {
+      const items = ordersBySeller[sId];
+      const pName = items.map((i: any) => i.name).join(', ');
+      const totalPrice = items.reduce((sum: number, i: any) => sum + Number(i.price), 0);
+      await supabase.from('orders').insert([{ product_name: pName, price: totalPrice, buyer_phone: phone, seller_id: sId, status: 'НОВЫЙ', address: orderAddress, notes: orderNotes }]);
+    }
+    alert("ГОТОВО!"); setCart([]); setIsCartOpen(false);
   };
 
   const categories = useMemo(() => { 
@@ -299,292 +240,295 @@ export default function Home() {
     return ms && (activeCategory === 'Все' || catName === activeCategory); 
   }), [products, searchQuery, activeCategory]);
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center bg-black font-black italic text-orange-500 uppercase animate-pulse">RA DELL...</div>;
+  if (loading) return <div className="min-h-screen flex items-center justify-center bg-black text-orange-500 font-black italic uppercase animate-pulse">RA DELL...</div>;
 
   return (
-    <div className="min-h-screen bg-[#F8F8F8] text-black pb-32 overflow-x-hidden">
+    <div className="min-h-screen bg-[#F8F8F8] text-black pb-32 font-sans overflow-x-hidden">
       
-      {/* --- АДМИНКА --- */}
-      {isAdminRoute && (
-        <div className="fixed inset-0 z-[300] bg-[#0A0A0A] overflow-y-auto text-white">
-          {!currentSeller ? (
-            <div className="p-8 pt-24 max-w-md mx-auto">
-              <button onClick={() => { window.location.hash = ''; setIsAdminRoute(false); }} className="text-[10px] font-black italic text-zinc-600 mb-16 uppercase tracking-[0.3em]">← НАЗАД</button>
-              <h2 className="text-6xl font-black italic uppercase tracking-tighter mb-12">ADMIN</h2>
-              <div className="space-y-4">
-                {isAuthMode === 'reg' && (
-                  <>
-                    <input type="text" placeholder="НАЗВАНИЕ МАГАЗИНА" className="w-full bg-zinc-900 border border-zinc-800 p-6 rounded-2xl outline-none font-bold text-[10px] uppercase italic" onChange={e => setSellerAuth({...sellerAuth, name: e.target.value})}/>
-                    <input type="text" placeholder="КАТЕГОРИЯ" className="w-full bg-zinc-900 border border-zinc-800 p-6 rounded-2xl outline-none font-bold text-[10px] uppercase italic" onChange={e => setSellerAuth({...sellerAuth, cat: e.target.value})}/>
-                  </>
-                )}
-                <input type="text" placeholder="ЛОГИН" className="w-full bg-zinc-900 border border-zinc-800 p-6 rounded-2xl outline-none font-bold text-[10px] uppercase italic" onChange={e => setSellerAuth({...sellerAuth, login: e.target.value})}/>
-                <input type="password" placeholder="ПАРОЛЬ" className="w-full bg-zinc-900 border border-zinc-800 p-6 rounded-2xl outline-none font-bold text-[10px] uppercase italic" onChange={e => setSellerAuth({...sellerAuth, pass: e.target.value})}/>
-                <button onClick={handleAuth} className="w-full bg-white text-black py-7 rounded-[2rem] font-black italic uppercase mt-4 active:bg-orange-500 active:text-white transition-colors">{isAuthMode === 'login' ? 'ВОЙТИ' : 'СОЗДАТЬ'}</button>
-                <button onClick={() => setIsAuthMode(isAuthMode === 'login' ? 'reg' : 'login')} className="w-full text-[9px] font-black italic uppercase text-zinc-500 mt-10">{isAuthMode === 'login' ? 'РЕГИСТРАЦИЯ' : 'ЕСТЬ АККАУНТ'}</button>
-              </div>
-            </div>
-          ) : (
-            <div className="min-h-screen pb-20">
-              <header className="sticky top-0 z-[310] bg-black/80 backdrop-blur-2xl p-8 pt-16 rounded-b-[4rem] border-b border-white/5">
-                <div className="flex justify-between items-start mb-8">
-                  <div>
-                    <p className="text-orange-500 font-black text-[9px] uppercase tracking-[0.4em] mb-2">PARTNER DASHBOARD</p>
-                    <h1 className="text-4xl font-black italic uppercase tracking-tighter leading-none">{currentSeller.shop_name}</h1>
+      {/* ЦЕНТРАЛЬНЫЙ КОНТЕЙНЕР */}
+      <div className="max-w-[480px] mx-auto bg-white min-h-screen shadow-2xl relative border-x border-zinc-100">
+        
+        {/* ==========================================================
+            АДМИНКА (ВИДНА ТОЛЬКО ПО URL #/admin)
+            ========================================================== */}
+        {isAdminRoute && (
+          <div className="absolute inset-0 z-[300] bg-[#0A0A0A] text-white overflow-y-auto p-6">
+            {!currentSeller ? (
+              <div className="pt-20">
+                <button onClick={() => { window.location.hash = ''; setIsAdminRoute(false); }} className="text-[10px] font-black italic text-zinc-600 mb-10 tracking-[0.2em] uppercase">← НАЗАД В МАГАЗИН</button>
+                <h2 className="text-5xl font-black italic mb-10 tracking-tighter uppercase">ADMIN</h2>
+                <div className="space-y-4">
+                  <div className="space-y-1">
+                    <p className="text-[8px] font-black text-zinc-500 ml-4 uppercase">Ваш логин</p>
+                    <input type="text" className="w-full bg-zinc-900 p-6 rounded-2xl font-bold text-[10px] outline-none border border-zinc-800" onChange={e => setSellerAuth({...sellerAuth, login: e.target.value})}/>
                   </div>
-                  <button onClick={() => setCurrentSeller(null)} className="bg-zinc-900 text-white w-12 h-12 rounded-full flex items-center justify-center text-xs">✕</button>
+                  <div className="space-y-1">
+                    <p className="text-[8px] font-black text-zinc-500 ml-4 uppercase">Ваш пароль</p>
+                    <input type="password"  className="w-full bg-zinc-900 p-6 rounded-2xl font-bold text-[10px] outline-none border border-zinc-800" onChange={e => setSellerAuth({...sellerAuth, pass: e.target.value})}/>
+                  </div>
+                  <button onClick={handleAuth} className="w-full bg-orange-500 text-white py-6 rounded-3xl font-black italic uppercase mt-4">ВОЙТИ В КАБИНЕТ</button>
                 </div>
-                <div className="flex bg-zinc-900 p-1.5 rounded-[2rem]">
-                  <button onClick={() => setAdminTab('orders')} className={`flex-1 py-4 rounded-full text-[10px] font-black uppercase italic ${adminTab === 'orders' ? 'bg-white text-black' : 'text-zinc-500'}`}>ЗАКАЗЫ</button>
-                  <button onClick={() => setAdminTab('products')} className={`flex-1 py-4 rounded-full text-[10px] font-black uppercase italic ${adminTab === 'products' ? 'bg-white text-black' : 'text-zinc-500'}`}>ТОВАРЫ</button>
-                  <button onClick={() => setAdminTab('stories')} className={`flex-1 py-4 rounded-full text-[10px] font-black uppercase italic ${adminTab === 'stories' ? 'bg-white text-black' : 'text-zinc-500'}`}>СТОРИС</button>
+              </div>
+            ) : (
+              <div className="pb-24">
+                <div className="flex justify-between items-center py-8 border-b border-white/5 mb-6">
+                   <h1 className="text-xl font-black italic uppercase tracking-tighter">{currentSeller.shop_name}</h1>
+                   <button onClick={() => setCurrentSeller(null)} className="text-[9px] font-black opacity-30 uppercase">ВЫЙТИ</button>
                 </div>
-              </header>
-              <div className="px-6 mt-10">
+                
+                {/* ТАБЫ В АДМИНКЕ */}
+                <div className="flex bg-zinc-900 p-1 rounded-full mb-8">
+                  <button onClick={() => setAdminTab('orders')} className={`flex-1 py-3 rounded-full text-[9px] font-black italic uppercase ${adminTab === 'orders' ? 'bg-white text-black' : 'text-zinc-500'}`}>ЗАКАЗЫ</button>
+                  <button onClick={() => setAdminTab('products')} className={`flex-1 py-3 rounded-full text-[9px] font-black italic uppercase ${adminTab === 'products' ? 'bg-white text-black' : 'text-zinc-500'}`}>ТОВАРЫ</button>
+                  <button onClick={() => setAdminTab('stories')} className={`flex-1 py-3 rounded-full text-[9px] font-black italic uppercase ${adminTab === 'stories' ? 'bg-white text-black' : 'text-zinc-500'}`}>СТОРИС</button>
+                </div>
+
+                {/* КОНТЕНТ ТАБОВ */}
                 {adminTab === 'stories' && (
-                  <div className="space-y-6 animate-fade-in">
-                    <label className="block w-full border-2 border-dashed border-zinc-800 rounded-[3rem] p-16 text-center cursor-pointer active:border-orange-500 transition-all">
+                  <div className="space-y-6">
+                    <label className="block border-2 border-dashed border-zinc-800 rounded-[2.5rem] p-12 text-center cursor-pointer hover:border-orange-500 transition-all">
                       {isUploading ? <p className="animate-pulse text-orange-500 font-black italic">ЗАГРУЗКА...</p> : (
                         <>
-                          <span className="text-4xl block mb-4">📸</span>
-                          <p className="text-[10px] font-black italic text-zinc-400 uppercase">ЗАГРУЗИТЬ СТОРИС ИЗ ГАЛЕРЕИ</p>
+                          <p className="text-3xl mb-4">📸</p>
+                          <p className="text-[10px] font-black italic text-zinc-400 uppercase">ВЫБРАТЬ ФОТО ИЗ ГАЛЕРЕИ</p>
                         </>
                       )}
                       <input type="file" accept="image/*" className="hidden" onChange={handleUploadStory} disabled={isUploading} />
                     </label>
                   </div>
                 )}
+
+                {adminTab === 'products' && (
+                  <div className="space-y-4">
+                    <button onClick={() => { setEditingProduct({ name: '', price: '', image_url: '' }); setIsProductModalOpen(true); }} className="w-full bg-zinc-800 py-6 rounded-3xl font-black italic uppercase text-[10px] tracking-widest">+ НОВЫЙ ТОВАР</button>
+                    {sellerProducts.map(p => (
+                      <div key={p.id} className="flex items-center gap-4 bg-zinc-900/40 p-3 rounded-3xl border border-white/5">
+                        <img src={p.image_url} className="w-14 h-14 rounded-2xl object-cover" />
+                        <div className="flex-1 font-black italic text-[9px] uppercase tracking-tighter leading-none">{p.name}</div>
+                        <div className="text-right">
+                          <p className="text-[10px] font-black text-orange-500">{p.price} ₽</p>
+                          <button onClick={() => { setEditingProduct(p); setIsProductModalOpen(true); }} className="mt-1 text-[18px] opacity-40">✏️</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
                 {adminTab === 'orders' && (
-                  <div className="space-y-6">
-                    <div className="flex justify-between items-center px-4">
-                       <h2 className="text-[10px] font-black uppercase italic text-zinc-500">{showArchived ? 'АРХИВ' : 'НОВЫЕ'}</h2>
-                       <button onClick={() => setShowArchived(!showArchived)} className="text-[9px] font-black uppercase italic bg-orange-500/10 text-orange-500 px-4 py-2 rounded-full">{showArchived ? '← ТЕКУЩИЕ' : 'АРХИВ →'}</button>
+                  <div className="space-y-4">
+                    {sellerActiveOrders.length > 0 ? sellerActiveOrders.map(o => (
+                      <div key={o.id} className="bg-zinc-900/60 p-6 rounded-[2.2rem] border border-white/5">
+                        <div className="flex justify-between font-black italic text-[10px] mb-4 text-zinc-500 uppercase tracking-widest">
+                          <span>ЗАКАЗ #{o.id.slice(0,6)}</span>
+                          <span>{o.price} ₽</span>
+                        </div>
+                        <div className="text-[11px] font-black italic uppercase mb-4 leading-tight">{o.product_name}</div>
+                        <div className="bg-black/40 p-4 rounded-2xl mb-6 space-y-2">
+                           <p className="text-[9px] text-zinc-400 uppercase">Тел: <span className="text-white">{o.buyer_phone}</span></p>
+                           <p className="text-[9px] text-zinc-400 uppercase">Адрес: <span className="text-white">{o.address}</span></p>
+                        </div>
+                        <button onClick={() => completeOrder(o.id)} className="w-full py-4 bg-white text-black rounded-2xl font-black italic text-[10px] uppercase">ЗАВЕРШИТЬ</button>
+                      </div>
+                    )) : <p className="text-center py-20 opacity-20 font-black italic text-[10px] uppercase tracking-widest">НЕТ ЗАКАЗОВ</p>}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ==========================================================
+            ВИТРИНА МАГАЗИНА (ПОЛЬЗОВАТЕЛЬСКАЯ)
+            ========================================================== */}
+        {!currentSellerId && !isAdminRoute && (
+          <>
+            <header className="p-6 sticky top-0 z-[100] bg-white/90 backdrop-blur-md">
+              <div className="flex items-center gap-3">
+                <button onClick={() => setIsStatusModalOpen(true)} className="bg-zinc-100 text-[8px] font-black italic h-[54px] px-4 rounded-2xl uppercase text-zinc-400">СТАТУС</button>
+                <input type="text" placeholder="ПОИСК ТОВАРОВ..." className="flex-1 bg-zinc-100 h-[54px] px-5 rounded-2xl text-[10px] font-black italic outline-none uppercase" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
+                <button onClick={() => setIsCartOpen(true)} className={`relative bg-black text-white h-[54px] w-[54px] rounded-2xl flex items-center justify-center transition-all ${cartBumping ? 'scale-110' : ''}`}>
+                   <span className="text-xl">🛒</span>
+                   {cart.length > 0 && <span className="absolute -top-1 -right-1 bg-orange-500 w-5 h-5 rounded-full text-[9px] flex items-center justify-center font-black border-2 border-white">{cart.length}</span>}
+                </button>
+              </div>
+              
+              {/* СТОРИС */}
+              <div className="flex gap-4 overflow-x-auto no-scrollbar mt-6 py-1">
+                {stories.map(s => (
+                  <div key={s.id} onClick={() => setSelectedStory(s.image_url)} className="flex-shrink-0 w-14 h-14 rounded-full p-0.5 border-2 border-orange-500 active:scale-90 transition-transform">
+                    <img src={s.image_url} className="w-full h-full rounded-full object-cover" />
+                  </div>
+                ))}
+              </div>
+            </header>
+
+            <div className="px-6 flex gap-2 overflow-x-auto no-scrollbar mb-4">
+              {categories.map(cat => (
+                <button key={cat} onClick={() => setActiveCategory(cat)} className={`px-5 py-2 rounded-full text-[9px] font-black italic uppercase whitespace-nowrap transition-all ${activeCategory === cat ? 'bg-orange-500 text-white shadow-lg' : 'bg-zinc-100 text-zinc-400'}`}>{cat}</button>
+              ))}
+            </div>
+
+            <main className="p-4 grid grid-cols-2 gap-3">
+              {filteredProducts.map(p => {
+                const count = getProductCount(p.id);
+                return (
+                  <div key={p.id} className="bg-white rounded-[2rem] p-2 border border-zinc-100 shadow-sm flex flex-col">
+                    <div className="relative aspect-square rounded-[1.6rem] overflow-hidden mb-3">
+                      <img src={p.image_url} className="w-full h-full object-cover" />
+                      <div className="absolute bottom-2 right-2 bg-black/80 backdrop-blur text-white px-3 py-1.5 rounded-full text-[10px] font-black italic">{p.price} ₽</div>
                     </div>
-                    {(showArchived ? sellerArchivedOrders : sellerActiveOrders).map(order => (
-                      <div key={order.id} className="bg-zinc-900/60 border border-white/5 p-7 rounded-[2.5rem] mb-4">
-                        <div className="flex justify-between items-start mb-6">
-                          <span className="text-[10px] font-black text-zinc-600 italic">#{order.id.slice(0,6)}</span>
-                          <p className="text-[12px] font-black text-white italic">{order.price} ₽</p>
-                        </div>
-                        <h3 className="text-sm font-black uppercase italic leading-tight mb-6">{order.product_name}</h3>
-                        <div className="bg-black/40 rounded-2xl p-4 space-y-3 mb-6">
-                          <p className="text-[10px] text-zinc-300">TEL: {order.buyer_phone}</p>
-                          <p className="text-[10px] text-zinc-300">ADD: {order.address}</p>
-                          {order.notes && <p className="text-[9px] text-zinc-500 italic">Заметка: {order.notes}</p>}
-                        </div>
-                        {!showArchived && (
-                          <button onClick={() => completeOrder(order.id)} className="w-full py-4 bg-white text-black rounded-2xl text-[10px] font-black uppercase italic">ЗАВЕРШИТЬ</button>
+                    <div className="px-1 flex flex-col flex-1">
+                      <button onClick={() => { window.location.hash = `#/seller?id=${p.seller_id}`; }} className="text-[8px] font-black italic text-zinc-300 uppercase mb-2 text-center block tracking-widest truncate">🏪 {p?.sellers?.shop_name}</button>
+                      <h3 className="text-[9px] font-black italic h-7 line-clamp-2 leading-tight mb-3 text-center uppercase tracking-tighter">{p.name}</h3>
+                      <div className="mt-auto h-[38px]">
+                        {count === 0 ? (
+                          <button onClick={() => addToCart(p)} className="w-full h-full bg-black text-white rounded-xl text-[8px] font-black italic uppercase">В КОРЗИНУ</button>
+                        ) : (
+                          <div className="flex items-center bg-zinc-100 rounded-xl overflow-hidden h-full border border-zinc-200">
+                            <button onClick={() => removeFromCartOnce(p.id)} className="flex-1 font-black text-zinc-400">-</button>
+                            <span className="text-[10px] font-black px-2">{count}</span>
+                            <button onClick={() => addToCart(p)} className="flex-1 font-black">+</button>
+                          </div>
                         )}
                       </div>
-                    ))}
+                    </div>
                   </div>
-                )}
-                {adminTab === 'products' && (
-                  <div className="space-y-6">
-                    <button onClick={() => { setEditingProduct({ name: '', price: '', old_price: '', category: '', image_url: '' }); setIsProductModalOpen(true); }} className="w-full bg-zinc-900 border border-white/10 py-8 rounded-[2.5rem] font-black italic uppercase">+ ДОБАВИТЬ ТОВАР</button>
-                    {sellerProducts.map(p => (
-                      <div key={p.id} className="bg-zinc-900/40 p-4 rounded-[2.5rem] flex items-center gap-5 border border-white/5">
-                        <img src={p.image_url} className="w-20 h-20 rounded-[1.8rem] object-cover" />
-                        <div className="flex-1">
-                          <h3 className="text-[10px] font-black uppercase italic text-zinc-100">{p.name}</h3>
-                          <p className="text-sm font-black text-orange-500 italic">{p.price} ₽</p>
-                        </div>
-                        <div className="flex gap-2">
-                          <button onClick={() => { setEditingProduct(p); setIsProductModalOpen(true); }} className="w-10 h-10 bg-zinc-800 rounded-full flex items-center justify-center text-xs">✏️</button>
-                          <button onClick={() => deleteProduct(p.id)} className="w-10 h-10 bg-zinc-800 rounded-full flex items-center justify-center text-xs text-red-500">🗑️</button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
+                );
+              })}
+            </main>
+          </>
+        )}
 
-      {/* --- МОДАЛКА ТОВАРА (АДМИН) --- */}
-      {isProductModalOpen && (
-        <div className="fixed inset-0 z-[400] bg-black/95 backdrop-blur-xl flex items-end" onClick={() => setIsProductModalOpen(false)}>
-          <div className="bg-zinc-900 w-full rounded-t-[4rem] p-10 max-h-[92vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <h2 className="text-3xl font-black italic uppercase text-center mb-10 text-white">ТОВАР</h2>
-            <form onSubmit={handleSaveProduct} className="space-y-5">
-              <input type="text" placeholder="НАЗВАНИЕ" className="w-full bg-black/50 border border-white/5 p-6 rounded-2xl text-[11px] font-bold uppercase text-white outline-none" value={editingProduct.name} onChange={e => setEditingProduct({...editingProduct, name: e.target.value})} />
-              <div className="flex gap-4">
-                <input type="number" placeholder="ЦЕНА" className="w-full bg-black/50 border border-white/5 p-6 rounded-2xl text-[11px] font-bold uppercase text-white outline-none" value={editingProduct.price} onChange={e => setEditingProduct({...editingProduct, price: e.target.value})} />
-                <input type="number" placeholder="СТАРАЯ ЦЕНА" className="w-full bg-black/50 border border-white/5 p-6 rounded-2xl text-[11px] font-bold uppercase text-white outline-none" value={editingProduct.old_price} onChange={e => setEditingProduct({...editingProduct, old_price: e.target.value})} />
-              </div>
-              <input type="text" placeholder="URL КАРТИНКИ" className="w-full bg-black/50 border border-white/5 p-6 rounded-2xl text-[11px] font-bold uppercase text-white outline-none" value={editingProduct.image_url} onChange={e => setEditingProduct({...editingProduct, image_url: e.target.value})} />
-              <button type="submit" className="w-full bg-white text-black py-7 rounded-[2.5rem] font-black uppercase italic mt-6">СОХРАНИТЬ</button>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* --- ГЛАВНАЯ --- */}
-      {!currentSellerId && !isAdminRoute && (
-        <>
-          <header className={`bg-white px-6 pt-12 pb-6 sticky top-0 z-[100] transition-all duration-500 ${scrollY > 30 ? 'shadow-xl rounded-b-[3.5rem]' : ''}`}>
-            <div className="flex items-center gap-3">
-              <button onClick={() => setIsStatusModalOpen(true)} className="flex-shrink-0 bg-zinc-50 border border-zinc-100 text-[8px] font-black uppercase italic text-zinc-400 h-[58px] px-5 rounded-2xl transition-all active:scale-95">ГДЕ МОЙ ЗАКАЗ?</button>
-              <div className="flex-1 relative">
-                <input type="text" placeholder="ПОИСК..." className="w-full bg-zinc-100 h-[58px] px-6 rounded-2xl text-[10px] font-black uppercase italic outline-none border border-transparent focus:border-zinc-200 transition-all" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
-              </div>
-              <button onClick={() => setIsCartOpen(true)} className={`flex-shrink-0 relative bg-black text-white h-[58px] w-[58px] rounded-2xl flex items-center justify-center transition-all ${cartBumping ? 'scale-110 bg-orange-500' : 'active:scale-95'}`}>
-                <span className="text-xl">🛒</span>
-                {cart.length > 0 && <span className="absolute -top-1 -right-1 bg-orange-500 w-5 h-5 rounded-full text-[9px] flex items-center justify-center border-2 border-white font-black animate-fade-in">{cart.length}</span>}
-              </button>
-            </div>
-            
-            {/* ИСТОРИИ */}
-            <div className="flex gap-4 overflow-x-auto no-scrollbar mt-8 py-2">
-              {stories.map(s => (
-                <div key={s.id} onClick={() => setSelectedStory(s.image_url)} className="flex-shrink-0 w-16 h-16 rounded-full p-[2px] border-2 border-orange-500 bg-white active:scale-90 transition-transform">
-                  <img src={s.image_url} className="w-full h-full rounded-full object-cover" />
+        {/* --- ЭКРАН ОТДЕЛЬНОГО ПРОДАВЦА --- */}
+        {currentSellerId && sellerData && (
+          <div className="absolute inset-0 z-[200] bg-white overflow-y-auto p-6">
+            <header className="pt-10 mb-8 border-b border-zinc-50 pb-8 text-center">
+              <button onClick={() => { window.location.hash = ''; setCurrentSellerId(null); }} className="text-[10px] font-black italic text-zinc-400 mb-6 uppercase tracking-[0.2em] block mx-auto">← НА ГЛАВНУЮ</button>
+              <h1 className="text-4xl font-black italic uppercase tracking-tighter leading-none mb-2">{sellerData.shop_name}</h1>
+              <p className="text-[10px] font-black text-orange-500 uppercase italic tracking-widest">{sellerData.category}</p>
+            </header>
+            <div className="grid grid-cols-2 gap-3 pb-20">
+              {sellerProducts.map(p => (
+                <div key={p.id} className="bg-white rounded-[2rem] p-3 border border-zinc-100 shadow-sm">
+                  <img src={p.image_url} className="w-full aspect-square object-cover rounded-[1.6rem] mb-4" />
+                  <h3 className="text-[9px] font-black italic mb-4 text-center uppercase leading-tight h-7 line-clamp-2">{p.name}</h3>
+                  <button onClick={() => addToCart(p)} className="w-full py-4 bg-black text-white rounded-2xl text-[9px] font-black italic uppercase tracking-widest">{p.price} ₽</button>
                 </div>
               ))}
             </div>
-          </header>
-
-          <div className="px-6 flex gap-2 overflow-x-auto no-scrollbar my-8">
-            {categories.map(cat => (
-              <button key={cat} onClick={() => setActiveCategory(cat)} className={`px-7 py-2.5 rounded-full text-[10px] font-black uppercase italic transition-all whitespace-nowrap ${activeCategory === cat ? 'bg-orange-500 text-white shadow-lg shadow-orange-500/20' : 'bg-white text-zinc-400 border border-zinc-100'}`}>
-                {cat}
-              </button>
-            ))}
           </div>
+        )}
 
-          <main className="px-4 grid grid-cols-2 gap-4">
-            {filteredProducts.map(p => {
-              const count = getProductCount(p.id);
-              return (
-                <div key={p.id} className="bg-white rounded-[2.8rem] p-2 border border-zinc-100 shadow-sm">
-                  <div className="relative aspect-square mb-3 overflow-hidden rounded-[2.4rem]">
-                    <img src={p.image_url} className="w-full h-full object-cover" />
-                    <div className="absolute bottom-3 right-3 bg-black text-white px-4 py-2 rounded-full text-[12px] font-black italic">{p.price} ₽</div>
-                  </div>
-                  <div className="px-3 pb-3 text-center">
-                    <button onClick={() => { window.location.hash = `#/seller?id=${p.seller_id}`; }} className="mb-2 block w-full">
-                      <span className="text-[8px] text-zinc-400 font-black uppercase italic tracking-widest">🏪 {p?.sellers?.shop_name || 'МАГАЗИН'}</span>
-                    </button>
-                    <h3 className="font-bold text-[10px] uppercase tracking-tighter mb-4 h-8 line-clamp-2 leading-none text-zinc-800">{p.name}</h3>
-                    <div className="relative h-[46px] w-full">
-                      {count === 0 ? (
-                        <button onClick={() => addToCart(p)} className="w-full h-full bg-black text-white rounded-[1.2rem] text-[9px] font-black uppercase italic shadow-md active:scale-95 transition-all">КУПИТЬ</button>
-                      ) : (
-                        <div className="flex items-center justify-between bg-zinc-100 rounded-[1.2rem] h-full border border-zinc-200">
-                          <button onClick={() => removeFromCartOnce(p.id)} className="flex-1 h-full font-black text-lg text-zinc-400 active:scale-90 transition-all">—</button>
-                          <span className="px-2 text-[12px] font-black italic">{count}</span>
-                          <button onClick={() => addToCart(p)} className="flex-1 h-full font-black text-lg active:scale-90 transition-all">+</button>
+        {/* --- КОРЗИНА --- */}
+        {isCartOpen && (
+          <div className="absolute inset-0 z-[500] bg-black/40 backdrop-blur-sm flex items-end animate-fade-in" onClick={() => setIsCartOpen(false)}>
+            <div className="bg-white w-full rounded-t-[2.5rem] p-8 max-h-[85vh] overflow-y-auto shadow-2xl" onClick={e => e.stopPropagation()}>
+              <h2 className="text-xl font-black italic uppercase text-center mb-8 tracking-widest">ВАША КОРЗИНА</h2>
+              {cart.length > 0 ? (
+                <div className="space-y-4">
+                  {Array.from(new Set(cart.map(i => i.id))).map(id => {
+                    const item = cart.find(c => c.id === id);
+                    const qty = getProductCount(id);
+                    return (
+                      <div key={id} className="flex items-center justify-between bg-zinc-50 p-4 rounded-[1.8rem]">
+                        <div className="flex items-center gap-3">
+                          <img src={item.image_url} className="w-10 h-10 rounded-xl object-cover" />
+                          <div className="font-black italic text-[9px] uppercase leading-tight w-24 truncate">{item.name}</div>
                         </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </main>
-        </>
-      )}
-
-      {/* --- ВИТРИНА МАГАЗИНА --- */}
-      {currentSellerId && sellerData && (
-        <div className="fixed inset-0 z-[200] bg-[#F8F8F8] overflow-y-auto animate-fade-in">
-          <header className="p-8 pt-16 bg-white rounded-b-[4.5rem] shadow-sm mb-10">
-            <button onClick={() => { window.location.hash = ''; setCurrentSellerId(null); }} className="text-[10px] font-black text-zinc-400 uppercase italic mb-10">← НАЗАД</button>
-            <h1 className="text-5xl font-black italic uppercase tracking-tighter leading-none">{sellerData.shop_name}</h1>
-          </header>
-          <div className="px-4 grid grid-cols-2 gap-4 pb-20">
-            {sellerProducts.map(p => (
-              <div key={p.id} className="bg-white rounded-[2.8rem] p-3 border border-zinc-100 shadow-sm">
-                <img src={p.image_url} className="w-full aspect-square object-cover rounded-[2.4rem] mb-4" />
-                <h3 className="text-[10px] font-bold uppercase mb-4 h-8 line-clamp-2 text-center leading-none">{p.name}</h3>
-                <button onClick={() => addToCart(p)} className="w-full py-4 bg-black text-white rounded-2xl text-[9px] font-black italic uppercase">{p.price} ₽ — КУПИТЬ</button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* --- КОРЗИНА --- */}
-      {isCartOpen && (
-        <div className="fixed inset-0 z-[500] bg-black/60 backdrop-blur-md flex items-end animate-fade-in" onClick={() => setIsCartOpen(false)}>
-          <div className="bg-white w-full rounded-t-[3.5rem] p-8 max-h-[90vh] overflow-y-auto no-scrollbar" onClick={e => e.stopPropagation()}>
-            <div className="w-12 h-1.5 bg-zinc-200 rounded-full mx-auto mb-6" />
-            <h2 className="text-2xl font-black uppercase italic mb-8 text-center tracking-tighter">КОРЗИНА</h2>
-            {cart.length > 0 ? (
-              <div className="space-y-4">
-                {Array.from(new Set(cart.map(i => i.id))).map(id => {
-                  const item = cart.find(c => c.id === id);
-                  const qty = getProductCount(id);
-                  if (!item) return null;
-                  return (
-                    <div key={id} className="flex items-center justify-between bg-zinc-50 p-4 rounded-3xl border border-zinc-100">
-                      <div className="flex items-center gap-3">
-                        <img src={item.image_url} className="w-12 h-12 rounded-xl object-cover" />
-                        <div className="flex flex-col">
-                          <span className="font-bold text-[10px] uppercase line-clamp-1 leading-tight">{item.name}</span>
-                          <span className="text-[9px] text-orange-500 font-black italic">{item.price * qty} ₽</span>
+                        <div className="flex items-center bg-white rounded-xl border border-zinc-200 px-2">
+                           <button onClick={() => removeFromCartOnce(id)} className="p-2 font-black text-zinc-300">-</button>
+                           <span className="text-[10px] font-black px-2">{qty}</span>
+                           <button onClick={() => addToCart(item)} className="p-2 font-black">+</button>
                         </div>
                       </div>
-                      <div className="flex items-center bg-white rounded-xl border border-zinc-200 overflow-hidden shadow-sm">
-                        <button onClick={() => removeFromCartOnce(id)} className="px-3 py-1 font-black text-zinc-400">—</button>
-                        <span className="text-[10px] font-black w-6 text-center">{qty}</span>
-                        <button onClick={() => addToCart(item)} className="px-3 py-1 font-black">+</button>
-                      </div>
-                    </div>
-                  );
-                })}
-                <div className="pt-6 space-y-3">
-                  <input type="text" placeholder="АДРЕС ДОСТАВКИ..." className="w-full bg-zinc-100 p-5 rounded-[1.8rem] text-[10px] font-black uppercase italic outline-none border border-transparent focus:border-zinc-300" value={orderAddress} onChange={(e) => setOrderAddress(e.target.value)} />
-                  <textarea placeholder="ПРИМЕЧАНИЯ..." className="w-full bg-zinc-100 p-5 rounded-[1.8rem] text-[10px] font-black uppercase italic outline-none h-24 resize-none" value={orderNotes} onChange={(e) => setOrderNotes(e.target.value)} />
+                    );
+                  })}
+                  <div className="pt-4 space-y-3">
+                     <p className="text-[8px] font-black text-zinc-400 ml-4 uppercase">Адрес доставки</p>
+                     <input type="text" className="w-full bg-zinc-100 p-5 rounded-2xl text-[10px] font-black italic outline-none border-none uppercase" value={orderAddress} onChange={e => setOrderAddress(e.target.value)} />
+                  </div>
+                  <button onClick={checkout} className="w-full bg-orange-500 text-white py-6 rounded-3xl font-black italic uppercase mt-4 shadow-lg tracking-widest">ОФОРМИТЬ ({cart.reduce((s,i) => s + Number(i.price), 0)} ₽)</button>
                 </div>
-                <button onClick={checkout} className="w-full bg-orange-500 text-white py-6 rounded-[2.2rem] font-black uppercase italic shadow-xl shadow-orange-500/30 mt-6 active:scale-95 transition-all">
-                    ОФОРМИТЬ ({cart.reduce((s, i) => s + Number(i.price || 0), 0)} ₽)
-                </button>
-              </div>
-            ) : <p className="text-center py-10 opacity-20 font-black uppercase italic text-[10px]">ПУСТО</p>}
+              ) : <p className="text-center py-10 opacity-20 font-black italic text-[9px] uppercase">КОРЗИНА ПУСТА</p>}
+            </div>
           </div>
+        )}
+
+        {/* --- МОДАЛКА ТОВАРА В АДМИНКЕ (С ПОДПИСЯМИ ПОЛЕЙ) --- */}
+        {isProductModalOpen && (
+          <div className="fixed inset-0 z-[1000] bg-black/95 flex items-center justify-center p-6" onClick={() => setIsProductModalOpen(false)}>
+            <div className="bg-zinc-900 w-full max-w-[400px] rounded-[3rem] p-10 border border-white/5 shadow-2xl" onClick={e => e.stopPropagation()}>
+              <h3 className="text-orange-500 font-black italic uppercase text-center mb-10 tracking-widest">РЕДАКТИРОВАНИЕ</h3>
+              <form onSubmit={handleSaveProduct} className="space-y-5">
+                <div className="space-y-1">
+                  <p className="text-[8px] font-black italic text-zinc-500 uppercase ml-4">Название товара</p>
+                  <input type="text" className="w-full bg-black/40 border border-white/5 p-5 rounded-2xl text-[11px] font-bold text-white outline-none" value={editingProduct.name} onChange={e => setEditingProduct({...editingProduct, name: e.target.value})} required />
+                </div>
+                <div className="flex gap-4">
+                  <div className="flex-1 space-y-1">
+                    <p className="text-[8px] font-black italic text-zinc-500 uppercase ml-4">Цена (₽)</p>
+                    <input type="number" className="w-full bg-black/40 border border-white/5 p-5 rounded-2xl text-[11px] font-bold text-white outline-none" value={editingProduct.price} onChange={e => setEditingProduct({...editingProduct, price: e.target.value})} required />
+                  </div>
+                  <div className="flex-1 space-y-1">
+                    <p className="text-[8px] font-black italic text-zinc-500 uppercase ml-4">Старая цена</p>
+                    <input type="number" className="w-full bg-black/40 border border-white/5 p-5 rounded-2xl text-[11px] font-bold text-white outline-none" value={editingProduct.old_price} onChange={e => setEditingProduct({...editingProduct, old_price: e.target.value})} />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                   <p className="text-[8px] font-black italic text-zinc-500 uppercase ml-4">Ссылка на фото (URL)</p>
+                   <input type="text" className="w-full bg-black/40 border border-white/5 p-5 rounded-2xl text-[11px] font-bold text-white outline-none" value={editingProduct.image_url} onChange={e => setEditingProduct({...editingProduct, image_url: e.target.value})} required />
+                </div>
+                <div className="flex gap-3 pt-4">
+                  <button type="button" onClick={() => setIsProductModalOpen(false)} className="flex-1 py-5 bg-zinc-800 rounded-2xl text-[10px] font-black italic uppercase">ОТМЕНА</button>
+                  <button type="submit" className="flex-[2] py-5 bg-orange-500 text-white rounded-2xl text-[10px] font-black italic uppercase shadow-lg">СОХРАНИТЬ</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+      </div>
+
+      {/* --- ПРОСМОТР СТОРИС --- */}
+      {selectedStory && (
+        <div className="fixed inset-0 z-[2000] bg-black flex items-center justify-center animate-fade-in" onClick={() => setSelectedStory(null)}>
+           <img src={selectedStory} className="max-w-full max-h-full object-contain" />
+           <button className="absolute top-10 right-6 text-white text-3xl font-light">✕</button>
         </div>
       )}
 
       {/* --- СТАТУС ЗАКАЗА --- */}
       {isStatusModalOpen && (
         <div className="fixed inset-0 z-[1000] bg-black/60 backdrop-blur-md flex items-end animate-fade-in" onClick={() => setIsStatusModalOpen(false)}>
-           <div className="bg-white w-full rounded-t-[4rem] p-10 max-h-[85vh] overflow-y-auto no-scrollbar" onClick={e => e.stopPropagation()}>
-              <h2 className="text-3xl font-black italic uppercase mb-8 text-center tracking-tighter">СТАТУС ЗАКАЗА</h2>
+           <div className="bg-white w-full max-w-[480px] mx-auto rounded-t-[3rem] p-10 max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+              <h2 className="text-2xl font-black italic uppercase mb-8 text-center tracking-tighter">СТАТУС ЗАКАЗА</h2>
               <div className="flex gap-2 mb-8">
-                 <input type="text" placeholder="ТЕЛЕФОН / ID" className="flex-1 bg-zinc-100 p-6 rounded-[2rem] text-[10px] font-black italic uppercase outline-none" value={checkPhone} onChange={e => setCheckPhone(e.target.value)} />
-                 <button onClick={checkStatus} className="bg-orange-500 text-white px-8 rounded-[2rem] font-black uppercase italic text-[10px] transition-all active:scale-95">{isSearchingOrders ? '...' : 'ПОИСК'}</button>
+                 <input type="text" placeholder="НОМЕР ТЕЛЕФОНА..." className="flex-1 bg-zinc-100 p-6 rounded-2xl text-[10px] font-black italic outline-none uppercase" value={checkPhone} onChange={e => setCheckPhone(e.target.value)} />
+                 <button onClick={async () => {
+                    setIsSearchingOrders(true);
+                    const { data } = await supabase.from('orders').select('*').eq('buyer_phone', checkPhone).order('created_at', { ascending: false });
+                    setUserOrders(data || []);
+                    setHasSearched(true);
+                    setIsSearchingOrders(false);
+                 }} className="bg-orange-500 text-white px-8 rounded-2xl font-black uppercase italic text-[10px]">{isSearchingOrders ? '...' : 'ОК'}</button>
               </div>
               <div className="space-y-4">
                  {userOrders.map(o => (
-                   <div key={o.id} className="bg-zinc-50 p-6 rounded-[2.5rem] flex justify-between items-center border border-zinc-100">
+                   <div key={o.id} className="bg-zinc-50 p-6 rounded-[2rem] flex justify-between items-center border border-zinc-100">
                       <div>
-                        <p className="text-[10px] font-black text-zinc-400 mb-1 italic">ID: {o.id.slice(0,8)}</p>
-                        <p className={`font-black uppercase italic text-xs ${o.status === 'ЗАВЕРШЕН' ? 'text-zinc-400' : 'text-orange-500'}`}>{o.status}</p>
+                        <p className="text-[9px] font-black text-zinc-400 mb-1">ID: {o.id.slice(0,8)}</p>
+                        <p className={`font-black uppercase italic text-[10px] ${o.status === 'ЗАВЕРШЕН' ? 'text-zinc-300' : 'text-orange-500'}`}>{o.status}</p>
                       </div>
                       <p className="font-black italic text-sm">{o.price} ₽</p>
                    </div>
                  ))}
-                 {hasSearched && userOrders.length === 0 && <p className="text-center opacity-20 font-black text-[10px] uppercase italic py-10">Ничего не найдено</p>}
               </div>
-           </div>
-        </div>
-      )}
-
-      {/* --- ПРОСМОТР СТОРИС --- */}
-      {selectedStory && (
-        <div className="fixed inset-0 z-[2000] bg-black flex items-center justify-center animate-fade-in" onClick={() => setSelectedStory(null)}>
-           <div className="relative w-full h-full flex items-center justify-center">
-              <img src={selectedStory} className="max-w-full max-h-full object-contain" />
-              <button className="absolute top-12 right-6 text-white text-4xl font-light p-4">✕</button>
            </div>
         </div>
       )}
 
       <style jsx global>{`
-        body { -webkit-tap-highlight-color: transparent; margin: 0; padding: 0; }
+        body { -webkit-tap-highlight-color: transparent; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
         .animate-fade-in { animation: fade-in 0.3s ease-out forwards; }

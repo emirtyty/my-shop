@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { 
   FiPackage, FiClock, FiTrash2, FiLogOut, FiPlus, 
-  FiX, FiCamera, FiEdit3, FiCheckCircle, FiArchive, FiTruck
+  FiX, FiCamera, FiEdit3, FiCheckCircle, FiArchive
 } from 'react-icons/fi';
 
 const supabase = createClient(
@@ -27,17 +27,21 @@ export default function AdminPage() {
 
   async function loadData() {
     setLoading(true);
-    const [pRes, oRes] = await Promise.all([
-      supabase.from('product_market').select('*').order('created_at', { ascending: false }),
-      supabase.from('orders').select('*').order('created_at', { ascending: false })
-    ]);
-    if (pRes.data) setProducts(pRes.data);
-    if (oRes.data) setOrders(oRes.data);
+    try {
+      const [pRes, oRes] = await Promise.all([
+        supabase.from('product_market').select('*').order('created_at', { ascending: false }),
+        supabase.from('orders').select('*').order('created_at', { ascending: false })
+      ]);
+      if (pRes.data) setProducts(pRes.data);
+      if (oRes.data) setOrders(oRes.data);
+    } catch (err) {
+      console.error("Load error:", err);
+    }
     setLoading(false);
   }
 
-  // Изменение статуса заказа
-  async function updateOrderStatus(orderId: string, newStatus: string) {
+  // Смена статуса заказа
+  async function updateOrderStatus(orderId: any, newStatus: string) {
     const { error } = await supabase
       .from('orders')
       .update({ status: newStatus })
@@ -76,15 +80,16 @@ export default function AdminPage() {
     loadData();
   }
 
-  const activeOrders = orders.filter(o => o.status !== 'completed');
-  const archivedOrders = orders.filter(o => o.status === 'completed');
+  // Фильтрация заказов по вкладкам
+  const activeOrders = orders.filter(o => o.status !== 'completed' && o.status !== 'archive');
+  const archivedOrders = orders.filter(o => o.status === 'completed' || o.status === 'archive');
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-white p-4 md:p-8 font-sans selection:bg-orange-500/30">
+    <div className="min-h-screen bg-[#0a0a0a] text-white p-4 md:p-8 font-sans">
       <div className="max-w-6xl mx-auto">
         
         <div className="flex justify-between items-center mb-12">
-          <h1 className="text-4xl font-black italic text-orange-500 uppercase tracking-tighter leading-none">Dark Admin</h1>
+          <h1 className="text-4xl font-black italic text-orange-500 uppercase tracking-tighter">Dark Admin</h1>
           <button className="bg-white/5 p-4 rounded-2xl hover:text-red-500 transition-all"><FiLogOut size={20}/></button>
         </div>
 
@@ -102,10 +107,10 @@ export default function AdminPage() {
         </div>
 
         {loading ? (
-          <div className="py-20 text-center animate-pulse font-black uppercase text-white/10">Загрузка данных...</div>
+          <div className="py-20 text-center animate-pulse font-black uppercase text-white/10 tracking-widest">Синхронизация данных...</div>
         ) : (
           <>
-            {/* Витрина */}
+            {/* Вкладка: Товары */}
             {tab === 'products' && (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <button onClick={() => setShowAddModal(true)} className="h-[250px] border-2 border-dashed border-white/10 rounded-[2.5rem] flex flex-col items-center justify-center gap-3 hover:border-orange-500/50 transition-all group">
@@ -132,45 +137,44 @@ export default function AdminPage() {
               </div>
             )}
 
-            {/* Заказы и Архив */}
+            {/* Вкладка: Заказы / Архив */}
             {(tab === 'orders' || tab === 'archive') && (
               <div className="space-y-4">
                 {(tab === 'orders' ? activeOrders : archivedOrders).map(o => (
-                  <div key={o.id} className="bg-white/5 border border-white/10 p-6 rounded-[2rem] flex flex-col md:flex-row justify-between gap-6">
+                  <div key={o.id} className="bg-white/5 border border-white/10 p-6 rounded-[2rem] flex flex-col md:flex-row justify-between gap-6 hover:border-white/20 transition-all">
                     <div className="flex gap-5 items-center">
                       <div className={`w-12 h-12 rounded-xl flex items-center justify-center border ${o.status === 'completed' ? 'bg-green-500/10 text-green-500 border-green-500/20' : 'bg-orange-500/10 text-orange-500 border-orange-500/20'}`}>
                         {o.status === 'completed' ? <FiCheckCircle size={20} /> : <FiClock size={20} />}
                       </div>
                       <div>
-                        <div className="text-[9px] font-black text-white/30 uppercase mb-1 tracking-widest">Заказ #{o.id.slice(0, 8)}</div>
-                        <div className="text-lg font-black uppercase tracking-tight">{o.items_summary || 'Заказ цветов'}</div>
+                        <div className="text-[9px] font-black text-white/30 uppercase mb-1 tracking-widest">Заказ #{String(o.id).slice(0, 8)}</div>
+                        <div className="text-lg font-black uppercase tracking-tight">{o.items_summary || 'Premium Flowers'}</div>
                         <div className="text-orange-500 font-bold text-xl tracking-tighter">{o.total_price} ₽</div>
                       </div>
                     </div>
 
                     <div className="flex items-center gap-3">
-                      {/* Смена статуса */}
                       <select 
-                        value={o.status} 
+                        value={o.status || 'pending'} 
                         onChange={(e) => updateOrderStatus(o.id, e.target.value)}
-                        className="bg-white/5 border border-white/10 text-white text-[10px] font-black uppercase px-4 py-3 rounded-xl outline-none focus:border-orange-500 transition-all cursor-pointer"
+                        className="bg-white/5 border border-white/10 text-white text-[10px] font-black uppercase px-4 py-3 rounded-xl outline-none focus:border-orange-500 transition-all cursor-pointer appearance-none"
                       >
                         <option value="pending" className="bg-[#111]">В обработке</option>
-                        <option value="shipped" className="bg-[#111]">Доставлен</option>
+                        <option value="shipped" className="bg-[#111]">Отправлен</option>
                         <option value="completed" className="bg-[#111]">Завершен (в архив)</option>
                       </select>
                     </div>
                   </div>
                 ))}
                 {(tab === 'orders' ? activeOrders : archivedOrders).length === 0 && (
-                  <div className="py-20 text-center border-2 border-dashed border-white/5 rounded-[3rem] text-white/10 font-black uppercase text-[10px] tracking-widest">Здесь пока ничего нет</div>
+                  <div className="py-20 text-center border-2 border-dashed border-white/5 rounded-[3rem] text-white/10 font-black uppercase text-[10px] tracking-widest italic">Пусто</div>
                 )}
               </div>
             )}
           </>
         )}
 
-        {/* Модалки (Редактирование и Добавление) остаются прежними для удобства работы с телефона */}
+        {/* Модалки */}
         {editingProduct && (
           <div className="fixed inset-0 bg-black/90 backdrop-blur-md z-[70] flex items-center justify-center p-4">
             <div className="bg-[#111] border border-white/10 w-full max-w-sm rounded-[2.5rem] p-8 shadow-2xl">
@@ -207,7 +211,7 @@ export default function AdminPage() {
                   <input type="number" placeholder="ЦЕНА" required className="w-full bg-white/5 border border-white/10 p-5 rounded-2xl outline-none font-bold" value={newProduct.price || ''} onChange={e => setNewProduct({...newProduct, price: Number(e.target.value)})} />
                   <input type="number" placeholder="СКИДКА %" className="w-full bg-white/5 border border-white/10 p-5 rounded-2xl outline-none font-bold text-orange-500" value={newProduct.discount || ''} onChange={e => setNewProduct({...newProduct, discount: Number(e.target.value)})} />
                 </div>
-                <button disabled={isUploading || !newProduct.image_url} type="submit" className="w-full bg-orange-500 disabled:opacity-20 text-white font-black uppercase py-5 rounded-2xl">Опубликовать</button>
+                <button disabled={isUploading || !newProduct.image_url} type="submit" className="w-full bg-orange-500 disabled:opacity-20 text-white font-black uppercase py-5 rounded-2xl shadow-lg">Опубликовать</button>
               </form>
             </div>
           </div>

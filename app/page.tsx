@@ -184,7 +184,9 @@ export default function Home() {
     if (!error) {
       setNewStoryUrl('');
       alert("ИСТОРИЯ ДОБАВЛЕНА");
-      fetchData(); // Перезагружаем все данные
+      fetchData(); // Перезагружаем все данные для главной
+    } else {
+      alert("ОШИБКА ПРИ ДОБАВЛЕНИИ");
     }
   };
 
@@ -365,10 +367,22 @@ export default function Home() {
                 )}
                 {adminTab === 'stories' && (
                   <div className="space-y-6">
-                    <div className="bg-zinc-900 p-6 rounded-[2.5rem] border border-white/10">
-                      <h3 className="text-[10px] font-black uppercase italic mb-4">ДОБАВИТЬ ИСТОРИЮ</h3>
-                      <input type="text" placeholder="URL КАРТИНКИ" className="w-full bg-black p-5 rounded-2xl text-[10px] font-bold outline-none mb-4" value={newStoryUrl} onChange={e => setNewStoryUrl(e.target.value)} />
-                      <button onClick={handleAddStory} className="w-full bg-white text-black py-4 rounded-2xl font-black uppercase italic">ОПУБЛИКОВАТЬ</button>
+                    <div className="bg-zinc-900 p-8 rounded-[3rem] border border-white/10">
+                      <h3 className="text-[12px] font-black uppercase italic mb-6 text-orange-500 tracking-widest">НОВАЯ ИСТОРИЯ</h3>
+                      <p className="text-[9px] text-zinc-500 uppercase font-bold mb-4 leading-relaxed">Вставьте прямую ссылку на изображение, чтобы оно появилось в кружочках на главной странице.</p>
+                      <input 
+                        type="text" 
+                        placeholder="ССЫЛКА НА КАРТИНКУ (URL)" 
+                        className="w-full bg-black border border-zinc-800 p-6 rounded-2xl text-[11px] font-bold outline-none mb-6 text-white focus:border-orange-500 transition-all" 
+                        value={newStoryUrl} 
+                        onChange={e => setNewStoryUrl(e.target.value)} 
+                      />
+                      <button 
+                        onClick={handleAddStory} 
+                        className="w-full bg-orange-500 text-white py-6 rounded-2xl font-black uppercase italic shadow-lg shadow-orange-500/20 active:scale-95 transition-all"
+                      >
+                        ОПУБЛИКОВАТЬ НА ГЛАВНУЮ
+                      </button>
                     </div>
                   </div>
                 )}

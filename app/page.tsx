@@ -372,7 +372,6 @@ export default function Home() {
         <>
           <header className={`bg-white px-6 pt-10 pb-6 rounded-b-[3.5rem] shadow-sm sticky top-0 z-[100] transition-all duration-500 ${scrollY > 50 ? 'shadow-xl' : ''}`}>
             
-            {/* ЕДИНАЯ СТРОКА: ЗАКАЗЫ + ПОИСК + КОРЗИНА */}
             <div className="flex items-center gap-3">
               <button onClick={() => setIsStatusModalOpen(true)} className="flex-shrink-0 bg-zinc-50 border border-zinc-100 text-[8px] font-black uppercase italic text-zinc-400 h-[58px] px-4 rounded-2xl transition-all active:scale-95">
                 ГДЕ МОЙ ЗАКАЗ?
@@ -400,16 +399,20 @@ export default function Home() {
                 )}
               </button>
             </div>
+          </header>
 
-            {/* ИСТОРИИ */}
-            <div className="flex gap-4 overflow-x-auto no-scrollbar mt-6">
-              {stories.map(s => (
-                <div key={s.id} onClick={() => setSelectedStory(s.image_url)} className="flex-shrink-0 w-14 h-14 rounded-full p-[2px] border-2 border-orange-500 cursor-pointer transition-transform active:scale-90">
+          {/* ИСТОРИИ (ВЫНЕСЕНЫ ИЗ HEADER) */}
+          <div className="px-6 mt-6">
+            <div className="flex gap-4 overflow-x-auto no-scrollbar py-2">
+              {stories.length > 0 ? stories.map(s => (
+                <div key={s.id} onClick={() => setSelectedStory(s.image_url)} className="flex-shrink-0 w-16 h-16 rounded-full p-[2.5px] border-2 border-orange-500 cursor-pointer transition-transform active:scale-90 bg-white">
                   <img src={s.image_url} className="w-full h-full rounded-full object-cover" />
                 </div>
-              ))}
+              )) : (
+                <div className="h-16 w-full flex items-center justify-center opacity-10 text-[10px] font-black italic uppercase">Нет историй</div>
+              )}
             </div>
-          </header>
+          </div>
 
           <div className="px-6 flex gap-2 overflow-x-auto no-scrollbar my-8">
             {categories.map(cat => (

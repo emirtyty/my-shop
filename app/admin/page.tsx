@@ -82,8 +82,14 @@ export default function AdminPage() {
 
   // --- ФУНКЦИИ ЗАКАЗОВ ---
   async function updateOrderStatus(orderId: any, newStatus: string) {
+    // Оптимистичное обновление для мгновенного отклика интерфейса
+    setOrders(prev => prev.map(o => o.id === orderId ? {...o, status: newStatus} : o));
+    
     const { error } = await supabase.from('orders').update({ status: newStatus }).eq('id', orderId);
-    if (!error) loadData();
+    if (error) {
+        console.error("Status update error:", error);
+        loadData(); // Откат при ошибке
+    }
   }
 
   // --- ЗАГРУЗКА ФОТО ---
@@ -100,6 +106,7 @@ export default function AdminPage() {
     setIsUploading(false);
   }
 
+  // Исправленная фильтрация
   const activeOrders = orders.filter(o => !o.status || (o.status !== 'completed' && o.status !== 'archive'));
   const archivedOrders = orders.filter(o => o.status === 'completed' || o.status === 'archive');
 
@@ -221,6 +228,7 @@ export default function AdminPage() {
                     </div>
                   </div>
                 ))}
+                {archivedOrders.length === 0 && <div className="text-center py-20 text-white/10 font-black uppercase tracking-widest italic">Архив пуст</div>}
               </div>
             )}
           </>

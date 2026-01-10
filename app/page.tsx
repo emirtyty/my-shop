@@ -42,8 +42,8 @@ export default function Home() {
   const [sellerProducts, setSellerProducts] = useState<any[]>([]);
   const [sellerLoading, setSellerLoading] = useState(false);
 
-  // Для добавления истории
-  const [newStoryUrl, setNewStoryUrl] = useState('');
+  // Для загрузки истории
+  const [isUploading, setIsUploading] = useState(false);
 
   useEffect(() => {
     const handleBackButton = async () => {
@@ -174,19 +174,37 @@ export default function Home() {
     }
   };
 
-  // Метод для добавления истории из админки
-  const handleAddStory = async () => {
-    if (!newStoryUrl) return;
-    const { error } = await supabase.from('seller_stories').insert([{
-      seller_id: currentSeller.id,
-      image_url: newStoryUrl
-    }]);
-    if (!error) {
-      setNewStoryUrl('');
-      alert("ИСТОРИЯ ДОБАВЛЕНА");
-      fetchData(); // Перезагружаем все данные для главной
-    } else {
-      alert("ОШИБКА ПРИ ДОБАВЛЕНИИ");
+  // --- ЗАГРУЗКА ИСТОРИИ (ФАЙЛ) ---
+  const handleUploadStory = async (e: any) => {
+    const file = e.target.files?.[0];
+    if (!file || !currentSeller) return;
+
+    setIsUploading(true);
+    try {
+      const fileName = `${Date.now()}_${file.name}`;
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('products')
+        .upload(fileName, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('products')
+        .getPublicUrl(fileName);
+
+      const { error: dbError } = await supabase.from('seller_stories').insert([{
+        seller_id: currentSeller.id,
+        image_url: publicUrl
+      }]);
+
+      if (dbError) throw dbError;
+      
+      alert("ИСТОРИЯ ЗАГРУЖЕНА!");
+      fetchData();
+    } catch (err: any) {
+      alert("ОШИБКА: " + err.message);
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -367,22 +385,21 @@ export default function Home() {
                 )}
                 {adminTab === 'stories' && (
                   <div className="space-y-6">
-                    <div className="bg-zinc-900 p-8 rounded-[3rem] border border-white/10">
-                      <h3 className="text-[12px] font-black uppercase italic mb-6 text-orange-500 tracking-widest">НОВАЯ ИСТОРИЯ</h3>
-                      <p className="text-[9px] text-zinc-500 uppercase font-bold mb-4 leading-relaxed">Вставьте прямую ссылку на изображение, чтобы оно появилось в кружочках на главной странице.</p>
-                      <input 
-                        type="text" 
-                        placeholder="ССЫЛКА НА КАРТИНКУ (URL)" 
-                        className="w-full bg-black border border-zinc-800 p-6 rounded-2xl text-[11px] font-bold outline-none mb-6 text-white focus:border-orange-500 transition-all" 
-                        value={newStoryUrl} 
-                        onChange={e => setNewStoryUrl(e.target.value)} 
-                      />
-                      <button 
-                        onClick={handleAddStory} 
-                        className="w-full bg-orange-500 text-white py-6 rounded-2xl font-black uppercase italic shadow-lg shadow-orange-500/20 active:scale-95 transition-all"
-                      >
-                        ОПУБЛИКОВАТЬ НА ГЛАВНУЮ
-                      </button>
+                    <div className="bg-zinc-900 p-8 rounded-[3rem] border border-white/10 text-center">
+                      <h3 className="text-[12px] font-black uppercase italic mb-6 text-orange-500 tracking-widest">ЗАГРУЗИТЬ СТОРИС</h3>
+                      <label className="block w-full cursor-pointer">
+                        <div className={`border-2 border-dashed border-zinc-800 rounded-[2rem] p-12 transition-all ${isUploading ? 'opacity-50' : 'hover:border-orange-500'}`}>
+                          {isUploading ? (
+                            <p className="text-orange-500 font-black animate-pulse">ЗАГРУЗКА...</p>
+                          ) : (
+                            <>
+                              <span className="text-4xl mb-4 block">📸</span>
+                              <p className="text-[10px] font-black uppercase italic text-zinc-400">ВЫБРАТЬ ФОТО С ТЕЛЕФОНА</p>
+                            </>
+                          )}
+                        </div>
+                        <input type="file" accept="image/*" className="hidden" onChange={handleUploadStory} disabled={isUploading} />
+                      </label>
                     </div>
                   </div>
                 )}
@@ -428,7 +445,6 @@ export default function Home() {
             </div>
           </header>
 
-          {/* БЛОК ИСТОРИЙ */}
           <div className="px-6 mt-6 overflow-hidden">
             <div className="flex gap-4 overflow-x-auto no-scrollbar py-2">
               {stories.length > 0 ? stories.map(s => (
@@ -482,26 +498,7 @@ export default function Home() {
         </>
       )}
 
-      {/* --- ВИТРИНА ПРОДАВЦА --- */}
-      {currentSellerId && sellerData && (
-        <div className="min-h-screen bg-[#F8F8F8] animate-fade-in relative z-[200]">
-           <header className="p-8 pt-16 bg-white rounded-b-[4.5rem] shadow-sm mb-10">
-             <button onClick={() => { window.location.hash = ''; setCurrentSellerId(null); }} className="text-[10px] font-black text-zinc-400 uppercase italic mb-10">← НАЗАД</button>
-             <h1 className="text-5xl font-black italic uppercase tracking-tighter leading-none">{sellerData.shop_name}</h1>
-           </header>
-           <div className="px-4 grid grid-cols-2 gap-4">
-             {sellerProducts.map(p => (
-               <div key={p.id} className="bg-white rounded-[2.8rem] p-3 border border-zinc-100 shadow-sm">
-                  <img src={p.image_url} className="w-full aspect-square object-cover rounded-[2.4rem] mb-4" />
-                  <h3 className="text-[10px] font-bold uppercase mb-4 h-8 line-clamp-2 text-center">{p.name}</h3>
-                  <button onClick={() => addToCart(p)} className="w-full py-4 bg-black text-white rounded-2xl text-[9px] font-black italic uppercase">В КОРЗИНУ</button>
-               </div>
-             ))}
-           </div>
-        </div>
-      )}
-
-      {/* --- КОРЗИНА --- */}
+      {/* --- КОРЗИНА И ОСТАЛЬНОЕ --- */}
       {isCartOpen && (
         <div className="fixed inset-0 z-[500] bg-black/60 backdrop-blur-md flex items-end animate-fade-in" onClick={() => setIsCartOpen(false)}>
           <div className="bg-white w-full rounded-t-[3.5rem] p-8 max-h-[90vh] overflow-y-auto no-scrollbar" onClick={e => e.stopPropagation()}>
@@ -543,29 +540,6 @@ export default function Home() {
         </div>
       )}
 
-      {/* --- ГДЕ МОЙ ЗАКАЗ --- */}
-      {isStatusModalOpen && (
-        <div className="fixed inset-0 z-[1000] bg-black/60 backdrop-blur-md flex items-end animate-fade-in" onClick={() => setIsStatusModalOpen(false)}>
-           <div className="bg-white w-full rounded-t-[4rem] p-10" onClick={e => e.stopPropagation()}>
-              <h2 className="text-3xl font-black italic uppercase mb-8 text-center tracking-tighter">СТАТУС ЗАКАЗА</h2>
-              <div className="flex gap-2 mb-8">
-                 <input type="text" placeholder="ТЕЛЕФОН / ID" className="flex-1 bg-zinc-100 p-6 rounded-[2rem] text-[10px] font-black italic uppercase outline-none" value={checkPhone} onChange={e => setCheckPhone(e.target.value)} />
-                 <button onClick={checkStatus} className="bg-orange-500 text-white px-8 rounded-[2rem] font-black uppercase italic text-[10px] transition-all active:scale-95">ПОИСК</button>
-              </div>
-              <div className="space-y-4 max-h-60 overflow-y-auto no-scrollbar">
-                 {userOrders.map(o => (
-                   <div key={o.id} className="bg-zinc-50 p-6 rounded-[2.5rem] flex justify-between items-center border border-zinc-100">
-                      <div><p className="text-[10px] font-black text-zinc-400 mb-1 italic">ID: {o.id.slice(0,8)}</p><p className="font-black uppercase italic">{o.status}</p></div>
-                      <p className="text-orange-500 font-black italic">{o.price} ₽</p>
-                   </div>
-                 ))}
-                 {hasSearched && userOrders.length === 0 && <p className="text-center opacity-20 font-black text-[10px] uppercase italic">Ничего не найдено</p>}
-              </div>
-           </div>
-        </div>
-      )}
-
-      {/* --- ИСТОРИИ (Story Modal) --- */}
       {selectedStory && (
         <div className="fixed inset-0 z-[2000] bg-black flex items-center justify-center" onClick={() => setSelectedStory(null)}>
            <div className="relative w-full h-full">

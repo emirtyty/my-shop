@@ -42,7 +42,6 @@ export default function Home() {
   const [sellerProducts, setSellerProducts] = useState<any[]>([]);
   const [sellerLoading, setSellerLoading] = useState(false);
 
-  // Для загрузки истории
   const [isUploading, setIsUploading] = useState(false);
 
   useEffect(() => {
@@ -50,7 +49,7 @@ export default function Home() {
       await App.addListener('backButton', () => {
         if (isCartOpen) setIsCartOpen(false);
         else if (isProductModalOpen) setIsProductModalOpen(false);
-        else if (currentSellerId) window.location.hash = '';
+        else if (currentSellerId) { window.location.hash = ''; setCurrentSellerId(null); }
         else if (isAdminRoute) { window.location.hash = ''; setIsAdminRoute(false); }
         else if (isStatusModalOpen) setIsStatusModalOpen(false);
         else if (selectedStory) setSelectedStory(null);
@@ -66,9 +65,11 @@ export default function Home() {
       const hash = window.location.hash;
       if (hash === '#/admin') {
         setIsAdminRoute(true);
+        setCurrentSellerId(null);
       } else if (hash.includes('/seller?id=')) {
         const id = hash.split('id=')[1];
         setCurrentSellerId(id);
+        setIsAdminRoute(false);
         fetchSellerData(id);
       } else {
         setIsAdminRoute(false);
@@ -95,7 +96,7 @@ export default function Home() {
   const handleAuth = async () => {
     try {
       if (isAuthMode === 'reg') {
-        if (!sellerAuth.login || !sellerAuth.pass || !sellerAuth.name) return alert("Заполните данные!");
+        if (!sellerAuth.login || !sellerAuth.pass || !sellerAuth.name) return alert("Заполните все поля!");
         const { data, error } = await supabase.from('sellers').insert([{
           login: sellerAuth.login,
           password: sellerAuth.pass,
@@ -140,7 +141,7 @@ export default function Home() {
   const handleSaveProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     const p = editingProduct;
-    if (!p.name || !p.price || !p.image_url) return alert("Заполните поля!");
+    if (!p.name || !p.price || !p.image_url) return alert("Заполните обязательные поля!");
     const payload = { 
       name: p.name, 
       price: Number(p.price), 
@@ -160,63 +161,34 @@ export default function Home() {
     if (!error) { 
       setIsProductModalOpen(false); 
       fetchSellerAdminProducts();
-      const { data } = await supabase.from('product_market').select('*, sellers(id, shop_name)');
-      if (data) setProducts(data);
+      fetchData();
     }
   };
 
   const deleteProduct = async (id: string) => {
     if (!confirm("Удалить этот товар?")) return;
     const { error } = await supabase.from('product_market').delete().eq('id', id);
-    if (!error) { 
+    if (!error) {
       fetchSellerAdminProducts();
-      setProducts(prev => prev.filter(p => p.id !== id));
+      fetchData();
     }
   };
 
-  // --- ЗАГРУЗКА ИСТОРИИ (ФАЙЛ) ---
   const handleUploadStory = async (e: any) => {
     const file = e.target.files?.[0];
     if (!file || !currentSeller) return;
-
     setIsUploading(true);
     try {
-      const fileName = `${Date.now()}_${file.name}`;
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('products')
-        .upload(fileName, file);
-
+      const fileName = `story_${Date.now()}_${file.name}`;
+      const { data: uploadData, error: uploadError } = await supabase.storage.from('products').upload(fileName, file);
       if (uploadError) throw uploadError;
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('products')
-        .getPublicUrl(fileName);
-
-      const { error: dbError } = await supabase.from('seller_stories').insert([{
-        seller_id: currentSeller.id,
-        image_url: publicUrl
-      }]);
-
+      const { data: { publicUrl } } = supabase.storage.from('products').getPublicUrl(fileName);
+      const { error: dbError } = await supabase.from('seller_stories').insert([{ seller_id: currentSeller.id, image_url: publicUrl }]);
       if (dbError) throw dbError;
-      
-      alert("ИСТОРИЯ ЗАГРУЖЕНА!");
+      alert("ГОТОВО! ИСТОРИЯ ОПУБЛИКОВАНА");
       fetchData();
-    } catch (err: any) {
-      alert("ОШИБКА: " + err.message);
-    } finally {
-      setIsUploading(false);
-    }
+    } catch (err: any) { alert(err.message); } finally { setIsUploading(false); }
   };
-
-  useEffect(() => {
-    const saved = localStorage.getItem('cart');
-    if (saved) { try { setCart(JSON.parse(saved)); } catch (e) { console.error(e); } }
-    const savedPhone = localStorage.getItem('userPhone');
-    if (savedPhone) setCheckPhone(savedPhone);
-    const handleScroll = () => setScrollY(window.scrollY);
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
 
   async function fetchData() {
     try {
@@ -231,11 +203,27 @@ export default function Home() {
 
   useEffect(() => {
     fetchData();
+    const interval = setInterval(fetchData, 15000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    const saved = localStorage.getItem('cart');
+    if (saved) { try { setCart(JSON.parse(saved)); } catch (e) { console.error(e); } }
+    const savedPhone = localStorage.getItem('userPhone');
+    if (savedPhone) setCheckPhone(savedPhone);
+    const handleScroll = () => setScrollY(window.scrollY);
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
   const addToCart = (product: any) => { 
     if (!product) return;
-    setCart(prev => [...prev, product]); 
+    setCart(prev => {
+        const newCart = [...prev, product];
+        localStorage.setItem('cart', JSON.stringify(newCart));
+        return newCart;
+    }); 
     setCartBumping(true); 
     setTimeout(() => setCartBumping(false), 300); 
   };
@@ -246,6 +234,7 @@ export default function Home() {
       if (index === -1) return prev; 
       const newCart = [...prev]; 
       newCart.splice(index, 1); 
+      localStorage.setItem('cart', JSON.stringify(newCart));
       return newCart; 
     });
   };
@@ -254,29 +243,46 @@ export default function Home() {
 
   const checkout = async () => {
     if (cart.length === 0 || !orderAddress.trim()) return alert("УКАЖИТЕ АДРЕС!");
-    const phone = prompt("Введите номер телефона:");
+    const phone = prompt("ВВЕДИТЕ ТЕЛЕФОН ДЛЯ СВЯЗИ:");
     if (!phone) return;
     const cleanPhone = phone.trim();
-    const ordersBySeller = cart.reduce((acc: any, item: any) => { 
-      const sId = item.seller_id || 'default'; 
-      if (!acc[sId]) acc[sId] = []; 
-      acc[sId].push(item); 
-      return acc; 
-    }, {});
+    localStorage.setItem('userPhone', cleanPhone);
+    
     try {
+      const ordersBySeller = cart.reduce((acc: any, item: any) => { 
+        const sId = item.seller_id || 'default'; 
+        if (!acc[sId]) acc[sId] = []; 
+        acc[sId].push(item); 
+        return acc; 
+      }, {});
+
       for (const sId in ordersBySeller) {
         const items = ordersBySeller[sId];
         const pName = items.map((i: any) => i.name).join(', ');
         const totalPrice = items.reduce((sum: number, i: any) => sum + Number(i.price), 0);
-        await supabase.from('orders').insert([{ product_name: pName, price: totalPrice, buyer_phone: cleanPhone, seller_id: sId, status: 'НОВЫЙ', address: orderAddress, notes: orderNotes }]);
+        await supabase.from('orders').insert([{ 
+          product_name: pName, 
+          price: totalPrice, 
+          buyer_phone: cleanPhone, 
+          seller_id: sId, 
+          status: 'НОВЫЙ', 
+          address: orderAddress, 
+          notes: orderNotes 
+        }]);
       }
-      alert("✅ ПРИНЯТО"); setCart([]); setIsCartOpen(false);
-    } catch (e) { alert("❌ ОШИБКА"); }
+      alert("✅ ЗАКАЗ ПРИНЯТ!"); 
+      setCart([]); 
+      localStorage.removeItem('cart');
+      setIsCartOpen(false);
+    } catch (e) { alert("❌ ОШИБКА ОФОРМЛЕНИЯ"); }
   };
 
   const checkStatus = async () => {
     setIsSearchingOrders(true);
-    const { data } = await supabase.from('orders').select('*').or(`buyer_phone.eq.${checkPhone},id.ilike.${checkPhone}%`).order('created_at', { ascending: false });
+    const { data } = await supabase.from('orders')
+      .select('*')
+      .or(`buyer_phone.eq.${checkPhone},id.ilike.${checkPhone}%`)
+      .order('created_at', { ascending: false });
     setUserOrders(data || []);
     setHasSearched(true);
     setIsSearchingOrders(false);
@@ -300,11 +306,11 @@ export default function Home() {
       
       {/* --- АДМИНКА --- */}
       {isAdminRoute && (
-        <div className="fixed inset-0 z-[300] bg-[#0A0A0A] overflow-y-auto animate-fade-in text-white">
+        <div className="fixed inset-0 z-[300] bg-[#0A0A0A] overflow-y-auto text-white">
           {!currentSeller ? (
-            <div className="p-8 pt-24 max-w-md mx-auto min-h-screen flex flex-col">
-              <button onClick={() => { window.location.hash = ''; setIsAdminRoute(false); }} className="text-[10px] font-black italic text-zinc-600 mb-16 uppercase tracking-[0.3em] text-left">← НАЗАД</button>
-              <h2 className="text-6xl font-black italic uppercase tracking-tighter leading-[0.8] mb-12">ADMIN</h2>
+            <div className="p-8 pt-24 max-w-md mx-auto">
+              <button onClick={() => { window.location.hash = ''; setIsAdminRoute(false); }} className="text-[10px] font-black italic text-zinc-600 mb-16 uppercase tracking-[0.3em]">← НАЗАД</button>
+              <h2 className="text-6xl font-black italic uppercase tracking-tighter mb-12">ADMIN</h2>
               <div className="space-y-4">
                 {isAuthMode === 'reg' && (
                   <>
@@ -314,12 +320,8 @@ export default function Home() {
                 )}
                 <input type="text" placeholder="ЛОГИН" className="w-full bg-zinc-900 border border-zinc-800 p-6 rounded-2xl outline-none font-bold text-[10px] uppercase italic" onChange={e => setSellerAuth({...sellerAuth, login: e.target.value})}/>
                 <input type="password" placeholder="ПАРОЛЬ" className="w-full bg-zinc-900 border border-zinc-800 p-6 rounded-2xl outline-none font-bold text-[10px] uppercase italic" onChange={e => setSellerAuth({...sellerAuth, pass: e.target.value})}/>
-                <button onClick={handleAuth} className="w-full bg-white text-black py-7 rounded-[2rem] font-black italic uppercase transition-all mt-4 hover:bg-orange-500 hover:text-white">
-                  {isAuthMode === 'login' ? 'ВОЙТИ' : 'СОЗДАТЬ'}
-                </button>
-                <button onClick={() => setIsAuthMode(isAuthMode === 'login' ? 'reg' : 'login')} className="w-full text-[9px] font-black italic uppercase text-zinc-500 mt-10">
-                  {isAuthMode === 'login' ? 'РЕГИСТРАЦИЯ' : 'ЕСТЬ АККАУНТ'}
-                </button>
+                <button onClick={handleAuth} className="w-full bg-white text-black py-7 rounded-[2rem] font-black italic uppercase mt-4 active:bg-orange-500 active:text-white transition-colors">{isAuthMode === 'login' ? 'ВОЙТИ' : 'СОЗДАТЬ'}</button>
+                <button onClick={() => setIsAuthMode(isAuthMode === 'login' ? 'reg' : 'login')} className="w-full text-[9px] font-black italic uppercase text-zinc-500 mt-10">{isAuthMode === 'login' ? 'РЕГИСТРАЦИЯ' : 'ЕСТЬ АККАУНТ'}</button>
               </div>
             </div>
           ) : (
@@ -339,6 +341,19 @@ export default function Home() {
                 </div>
               </header>
               <div className="px-6 mt-10">
+                {adminTab === 'stories' && (
+                  <div className="space-y-6 animate-fade-in">
+                    <label className="block w-full border-2 border-dashed border-zinc-800 rounded-[3rem] p-16 text-center cursor-pointer active:border-orange-500 transition-all">
+                      {isUploading ? <p className="animate-pulse text-orange-500 font-black italic">ЗАГРУЗКА...</p> : (
+                        <>
+                          <span className="text-4xl block mb-4">📸</span>
+                          <p className="text-[10px] font-black italic text-zinc-400 uppercase">ЗАГРУЗИТЬ СТОРИС ИЗ ГАЛЕРЕИ</p>
+                        </>
+                      )}
+                      <input type="file" accept="image/*" className="hidden" onChange={handleUploadStory} disabled={isUploading} />
+                    </label>
+                  </div>
+                )}
                 {adminTab === 'orders' && (
                   <div className="space-y-6">
                     <div className="flex justify-between items-center px-4">
@@ -355,6 +370,7 @@ export default function Home() {
                         <div className="bg-black/40 rounded-2xl p-4 space-y-3 mb-6">
                           <p className="text-[10px] text-zinc-300">TEL: {order.buyer_phone}</p>
                           <p className="text-[10px] text-zinc-300">ADD: {order.address}</p>
+                          {order.notes && <p className="text-[9px] text-zinc-500 italic">Заметка: {order.notes}</p>}
                         </div>
                         {!showArchived && (
                           <button onClick={() => completeOrder(order.id)} className="w-full py-4 bg-white text-black rounded-2xl text-[10px] font-black uppercase italic">ЗАВЕРШИТЬ</button>
@@ -364,10 +380,8 @@ export default function Home() {
                   </div>
                 )}
                 {adminTab === 'products' && (
-                  <div className="space-y-8">
-                    <button onClick={() => { setEditingProduct({ name: '', price: '', old_price: '', category: '', image_url: '' }); setIsProductModalOpen(true); }} className="w-full bg-zinc-900 text-white border border-white/10 py-8 rounded-[2.5rem] font-black italic uppercase flex items-center justify-center gap-4">
-                      + НОВЫЙ ТОВАР
-                    </button>
+                  <div className="space-y-6">
+                    <button onClick={() => { setEditingProduct({ name: '', price: '', old_price: '', category: '', image_url: '' }); setIsProductModalOpen(true); }} className="w-full bg-zinc-900 border border-white/10 py-8 rounded-[2.5rem] font-black italic uppercase">+ ДОБАВИТЬ ТОВАР</button>
                     {sellerProducts.map(p => (
                       <div key={p.id} className="bg-zinc-900/40 p-4 rounded-[2.5rem] flex items-center gap-5 border border-white/5">
                         <img src={p.image_url} className="w-20 h-20 rounded-[1.8rem] object-cover" />
@@ -377,30 +391,10 @@ export default function Home() {
                         </div>
                         <div className="flex gap-2">
                           <button onClick={() => { setEditingProduct(p); setIsProductModalOpen(true); }} className="w-10 h-10 bg-zinc-800 rounded-full flex items-center justify-center text-xs">✏️</button>
-                          <button onClick={() => deleteProduct(p.id)} className="w-10 h-10 bg-zinc-800 rounded-full flex items-center justify-center text-xs">🗑️</button>
+                          <button onClick={() => deleteProduct(p.id)} className="w-10 h-10 bg-zinc-800 rounded-full flex items-center justify-center text-xs text-red-500">🗑️</button>
                         </div>
                       </div>
                     ))}
-                  </div>
-                )}
-                {adminTab === 'stories' && (
-                  <div className="space-y-6">
-                    <div className="bg-zinc-900 p-8 rounded-[3rem] border border-white/10 text-center">
-                      <h3 className="text-[12px] font-black uppercase italic mb-6 text-orange-500 tracking-widest">ЗАГРУЗИТЬ СТОРИС</h3>
-                      <label className="block w-full cursor-pointer">
-                        <div className={`border-2 border-dashed border-zinc-800 rounded-[2rem] p-12 transition-all ${isUploading ? 'opacity-50' : 'hover:border-orange-500'}`}>
-                          {isUploading ? (
-                            <p className="text-orange-500 font-black animate-pulse">ЗАГРУЗКА...</p>
-                          ) : (
-                            <>
-                              <span className="text-4xl mb-4 block">📸</span>
-                              <p className="text-[10px] font-black uppercase italic text-zinc-400">ВЫБРАТЬ ФОТО С ТЕЛЕФОНА</p>
-                            </>
-                          )}
-                        </div>
-                        <input type="file" accept="image/*" className="hidden" onChange={handleUploadStory} disabled={isUploading} />
-                      </label>
-                    </div>
                   </div>
                 )}
               </div>
@@ -409,9 +403,9 @@ export default function Home() {
         </div>
       )}
 
-      {/* МОДАЛКА ТОВАРА (ДЛЯ АДМИНКИ) */}
+      {/* --- МОДАЛКА ТОВАРА (АДМИН) --- */}
       {isProductModalOpen && (
-        <div className="fixed inset-0 z-[400] bg-black/90 backdrop-blur-xl flex items-end" onClick={() => setIsProductModalOpen(false)}>
+        <div className="fixed inset-0 z-[400] bg-black/95 backdrop-blur-xl flex items-end" onClick={() => setIsProductModalOpen(false)}>
           <div className="bg-zinc-900 w-full rounded-t-[4rem] p-10 max-h-[92vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <h2 className="text-3xl font-black italic uppercase text-center mb-10 text-white">ТОВАР</h2>
             <form onSubmit={handleSaveProduct} className="space-y-5">
@@ -421,20 +415,18 @@ export default function Home() {
                 <input type="number" placeholder="СТАРАЯ ЦЕНА" className="w-full bg-black/50 border border-white/5 p-6 rounded-2xl text-[11px] font-bold uppercase text-white outline-none" value={editingProduct.old_price} onChange={e => setEditingProduct({...editingProduct, old_price: e.target.value})} />
               </div>
               <input type="text" placeholder="URL КАРТИНКИ" className="w-full bg-black/50 border border-white/5 p-6 rounded-2xl text-[11px] font-bold uppercase text-white outline-none" value={editingProduct.image_url} onChange={e => setEditingProduct({...editingProduct, image_url: e.target.value})} />
-              <button type="submit" className="w-full bg-white text-black py-7 rounded-[2.5rem] font-black uppercase italic mt-6 transition-all active:scale-95">СОХРАНИТЬ</button>
+              <button type="submit" className="w-full bg-white text-black py-7 rounded-[2.5rem] font-black uppercase italic mt-6">СОХРАНИТЬ</button>
             </form>
           </div>
         </div>
       )}
 
-      {/* --- ГЛАВНАЯ СТРАНИЦА --- */}
+      {/* --- ГЛАВНАЯ --- */}
       {!currentSellerId && !isAdminRoute && (
         <>
-          <header className={`bg-white px-6 pt-10 pb-6 rounded-b-[3.5rem] shadow-sm sticky top-0 z-[100] transition-all duration-500 ${scrollY > 50 ? 'shadow-xl' : ''}`}>
+          <header className={`bg-white px-6 pt-12 pb-6 sticky top-0 z-[100] transition-all duration-500 ${scrollY > 30 ? 'shadow-xl rounded-b-[3.5rem]' : ''}`}>
             <div className="flex items-center gap-3">
-              <button onClick={() => setIsStatusModalOpen(true)} className="flex-shrink-0 bg-zinc-50 border border-zinc-100 text-[8px] font-black uppercase italic text-zinc-400 h-[58px] px-4 rounded-2xl transition-all active:scale-95">
-                ГДЕ МОЙ ЗАКАЗ?
-              </button>
+              <button onClick={() => setIsStatusModalOpen(true)} className="flex-shrink-0 bg-zinc-50 border border-zinc-100 text-[8px] font-black uppercase italic text-zinc-400 h-[58px] px-5 rounded-2xl transition-all active:scale-95">ГДЕ МОЙ ЗАКАЗ?</button>
               <div className="flex-1 relative">
                 <input type="text" placeholder="ПОИСК..." className="w-full bg-zinc-100 h-[58px] px-6 rounded-2xl text-[10px] font-black uppercase italic outline-none border border-transparent focus:border-zinc-200 transition-all" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
               </div>
@@ -443,23 +435,20 @@ export default function Home() {
                 {cart.length > 0 && <span className="absolute -top-1 -right-1 bg-orange-500 w-5 h-5 rounded-full text-[9px] flex items-center justify-center border-2 border-white font-black animate-fade-in">{cart.length}</span>}
               </button>
             </div>
-          </header>
-
-          <div className="px-6 mt-6 overflow-hidden">
-            <div className="flex gap-4 overflow-x-auto no-scrollbar py-2">
-              {stories.length > 0 ? stories.map(s => (
-                <div key={s.id} onClick={() => setSelectedStory(s.image_url)} className="flex-shrink-0 w-16 h-16 rounded-full p-[2.5px] border-2 border-orange-500 cursor-pointer transition-transform active:scale-90 bg-white">
+            
+            {/* ИСТОРИИ */}
+            <div className="flex gap-4 overflow-x-auto no-scrollbar mt-8 py-2">
+              {stories.map(s => (
+                <div key={s.id} onClick={() => setSelectedStory(s.image_url)} className="flex-shrink-0 w-16 h-16 rounded-full p-[2px] border-2 border-orange-500 bg-white active:scale-90 transition-transform">
                   <img src={s.image_url} className="w-full h-full rounded-full object-cover" />
                 </div>
-              )) : (
-                <div className="h-16 w-full flex items-center justify-center opacity-10 text-[10px] font-black italic uppercase">Нет историй</div>
-              )}
+              ))}
             </div>
-          </div>
+          </header>
 
           <div className="px-6 flex gap-2 overflow-x-auto no-scrollbar my-8">
             {categories.map(cat => (
-              <button key={cat} onClick={() => setActiveCategory(cat)} className={`px-7 py-2.5 rounded-full text-[10px] font-black uppercase italic transition-all whitespace-nowrap ${activeCategory === cat ? 'bg-orange-500 text-white shadow-lg' : 'bg-white text-zinc-400 border border-zinc-100'}`}>
+              <button key={cat} onClick={() => setActiveCategory(cat)} className={`px-7 py-2.5 rounded-full text-[10px] font-black uppercase italic transition-all whitespace-nowrap ${activeCategory === cat ? 'bg-orange-500 text-white shadow-lg shadow-orange-500/20' : 'bg-white text-zinc-400 border border-zinc-100'}`}>
                 {cat}
               </button>
             ))}
@@ -469,14 +458,14 @@ export default function Home() {
             {filteredProducts.map(p => {
               const count = getProductCount(p.id);
               return (
-                <div key={p.id} className="bg-white rounded-[2.8rem] p-2 border border-zinc-100 shadow-sm group">
+                <div key={p.id} className="bg-white rounded-[2.8rem] p-2 border border-zinc-100 shadow-sm">
                   <div className="relative aspect-square mb-3 overflow-hidden rounded-[2.4rem]">
-                    <img src={p.image_url} className="w-full h-full object-cover transition-transform group-hover:scale-110" />
+                    <img src={p.image_url} className="w-full h-full object-cover" />
                     <div className="absolute bottom-3 right-3 bg-black text-white px-4 py-2 rounded-full text-[12px] font-black italic">{p.price} ₽</div>
                   </div>
                   <div className="px-3 pb-3 text-center">
-                    <button onClick={() => { if (p.seller_id) window.location.hash = `#/seller?id=${p.seller_id}`; }} className="mb-2 inline-flex items-center bg-zinc-100 px-3 py-1.5 rounded-full transition-all active:scale-90">
-                      <span className="text-[8px] text-zinc-500 font-black uppercase italic tracking-widest">🏪 {p?.sellers?.shop_name || 'МАГАЗИН'}</span>
+                    <button onClick={() => { window.location.hash = `#/seller?id=${p.seller_id}`; }} className="mb-2 block w-full">
+                      <span className="text-[8px] text-zinc-400 font-black uppercase italic tracking-widest">🏪 {p?.sellers?.shop_name || 'МАГАЗИН'}</span>
                     </button>
                     <h3 className="font-bold text-[10px] uppercase tracking-tighter mb-4 h-8 line-clamp-2 leading-none text-zinc-800">{p.name}</h3>
                     <div className="relative h-[46px] w-full">
@@ -498,7 +487,26 @@ export default function Home() {
         </>
       )}
 
-      {/* --- КОРЗИНА И ОСТАЛЬНОЕ --- */}
+      {/* --- ВИТРИНА МАГАЗИНА --- */}
+      {currentSellerId && sellerData && (
+        <div className="fixed inset-0 z-[200] bg-[#F8F8F8] overflow-y-auto animate-fade-in">
+          <header className="p-8 pt-16 bg-white rounded-b-[4.5rem] shadow-sm mb-10">
+            <button onClick={() => { window.location.hash = ''; setCurrentSellerId(null); }} className="text-[10px] font-black text-zinc-400 uppercase italic mb-10">← НАЗАД</button>
+            <h1 className="text-5xl font-black italic uppercase tracking-tighter leading-none">{sellerData.shop_name}</h1>
+          </header>
+          <div className="px-4 grid grid-cols-2 gap-4 pb-20">
+            {sellerProducts.map(p => (
+              <div key={p.id} className="bg-white rounded-[2.8rem] p-3 border border-zinc-100 shadow-sm">
+                <img src={p.image_url} className="w-full aspect-square object-cover rounded-[2.4rem] mb-4" />
+                <h3 className="text-[10px] font-bold uppercase mb-4 h-8 line-clamp-2 text-center leading-none">{p.name}</h3>
+                <button onClick={() => addToCart(p)} className="w-full py-4 bg-black text-white rounded-2xl text-[9px] font-black italic uppercase">{p.price} ₽ — КУПИТЬ</button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* --- КОРЗИНА --- */}
       {isCartOpen && (
         <div className="fixed inset-0 z-[500] bg-black/60 backdrop-blur-md flex items-end animate-fade-in" onClick={() => setIsCartOpen(false)}>
           <div className="bg-white w-full rounded-t-[3.5rem] p-8 max-h-[90vh] overflow-y-auto no-scrollbar" onClick={e => e.stopPropagation()}>
@@ -515,7 +523,7 @@ export default function Home() {
                       <div className="flex items-center gap-3">
                         <img src={item.image_url} className="w-12 h-12 rounded-xl object-cover" />
                         <div className="flex flex-col">
-                          <span className="font-bold text-[10px] uppercase line-clamp-1">{item.name}</span>
+                          <span className="font-bold text-[10px] uppercase line-clamp-1 leading-tight">{item.name}</span>
                           <span className="text-[9px] text-orange-500 font-black italic">{item.price * qty} ₽</span>
                         </div>
                       </div>
@@ -540,11 +548,37 @@ export default function Home() {
         </div>
       )}
 
+      {/* --- СТАТУС ЗАКАЗА --- */}
+      {isStatusModalOpen && (
+        <div className="fixed inset-0 z-[1000] bg-black/60 backdrop-blur-md flex items-end animate-fade-in" onClick={() => setIsStatusModalOpen(false)}>
+           <div className="bg-white w-full rounded-t-[4rem] p-10 max-h-[85vh] overflow-y-auto no-scrollbar" onClick={e => e.stopPropagation()}>
+              <h2 className="text-3xl font-black italic uppercase mb-8 text-center tracking-tighter">СТАТУС ЗАКАЗА</h2>
+              <div className="flex gap-2 mb-8">
+                 <input type="text" placeholder="ТЕЛЕФОН / ID" className="flex-1 bg-zinc-100 p-6 rounded-[2rem] text-[10px] font-black italic uppercase outline-none" value={checkPhone} onChange={e => setCheckPhone(e.target.value)} />
+                 <button onClick={checkStatus} className="bg-orange-500 text-white px-8 rounded-[2rem] font-black uppercase italic text-[10px] transition-all active:scale-95">{isSearchingOrders ? '...' : 'ПОИСК'}</button>
+              </div>
+              <div className="space-y-4">
+                 {userOrders.map(o => (
+                   <div key={o.id} className="bg-zinc-50 p-6 rounded-[2.5rem] flex justify-between items-center border border-zinc-100">
+                      <div>
+                        <p className="text-[10px] font-black text-zinc-400 mb-1 italic">ID: {o.id.slice(0,8)}</p>
+                        <p className={`font-black uppercase italic text-xs ${o.status === 'ЗАВЕРШЕН' ? 'text-zinc-400' : 'text-orange-500'}`}>{o.status}</p>
+                      </div>
+                      <p className="font-black italic text-sm">{o.price} ₽</p>
+                   </div>
+                 ))}
+                 {hasSearched && userOrders.length === 0 && <p className="text-center opacity-20 font-black text-[10px] uppercase italic py-10">Ничего не найдено</p>}
+              </div>
+           </div>
+        </div>
+      )}
+
+      {/* --- ПРОСМОТР СТОРИС --- */}
       {selectedStory && (
-        <div className="fixed inset-0 z-[2000] bg-black flex items-center justify-center" onClick={() => setSelectedStory(null)}>
-           <div className="relative w-full h-full">
-              <img src={selectedStory} className="w-full h-full object-contain" />
-              <button className="absolute top-12 right-6 text-white text-4xl font-light">✕</button>
+        <div className="fixed inset-0 z-[2000] bg-black flex items-center justify-center animate-fade-in" onClick={() => setSelectedStory(null)}>
+           <div className="relative w-full h-full flex items-center justify-center">
+              <img src={selectedStory} className="max-w-full max-h-full object-contain" />
+              <button className="absolute top-12 right-6 text-white text-4xl font-light p-4">✕</button>
            </div>
         </div>
       )}

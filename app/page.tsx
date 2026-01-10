@@ -3,8 +3,6 @@ import { useEffect, useState, useMemo } from 'react';
 import { supabase } from './lib/supabase';
 import { App } from '@capacitor/app';
 
-const BOT_USERNAME = 'RaDell_bot';
-
 export default function Home() {
   const [products, setProducts] = useState<any[]>([]);
   const [stories, setStories] = useState<any[]>([]);
@@ -23,8 +21,6 @@ export default function Home() {
   const [hasSearched, setHasSearched] = useState(false);
 
   const [scrollY, setScrollY] = useState(0);
-
-  // Оформление
   const [orderAddress, setOrderAddress] = useState('');
   const [orderNotes, setOrderNotes] = useState('');
 
@@ -239,6 +235,14 @@ export default function Home() {
       }
       alert("✅ ПРИНЯТО"); setCart([]); setIsCartOpen(false);
     } catch (e) { alert("❌ ОШИБКА"); }
+  };
+
+  const checkStatus = async () => {
+    setIsSearchingOrders(true);
+    const { data } = await supabase.from('orders').select('*').or(`buyer_phone.eq.${checkPhone},id.ilike.${checkPhone}%`).order('created_at', { ascending: false });
+    setUserOrders(data || []);
+    setHasSearched(true);
+    setIsSearchingOrders(false);
   };
 
   const categories = useMemo(() => { 
@@ -459,7 +463,7 @@ export default function Home() {
                   </div>
                 </div>
                 <div className="px-3 pb-3 text-center">
-                  <button onClick={() => { if (p.seller_id) window.location.hash = `/seller?id=${p.seller_id}`; }} className="mb-2 inline-flex items-center bg-zinc-100 px-3 py-1.5 rounded-full transition-all active:scale-90">
+                  <button onClick={() => { if (p.seller_id) window.location.hash = `#/seller?id=${p.seller_id}`; }} className="mb-2 inline-flex items-center bg-zinc-100 px-3 py-1.5 rounded-full transition-all active:scale-90">
                     <span className="text-[8px] text-zinc-500 font-black uppercase italic tracking-widest">🏪 {p?.sellers?.shop_name || 'МАГАЗИН'}</span>
                   </button>
                   <h3 className="font-bold text-[10px] uppercase tracking-tighter mb-4 h-8 line-clamp-2 leading-none text-zinc-800">{p.name || 'Товар'}</h3>
@@ -523,16 +527,36 @@ export default function Home() {
         </div>
       )}
 
-      {/* --- СТИЛИ --- */}
+      {/* МОДАЛКА ГДЕ МОЙ ЗАКАЗ */}
+      {isStatusModalOpen && (
+        <div className="fixed inset-0 z-[1000] bg-black/60 backdrop-blur-md flex items-end" onClick={() => setIsStatusModalOpen(false)}>
+           <div className="bg-white w-full rounded-t-[4rem] p-10" onClick={e => e.stopPropagation()}>
+              <h2 className="text-3xl font-black italic uppercase mb-8 text-center tracking-tighter">СТАТУС ЗАКАЗА</h2>
+              <div className="flex gap-2 mb-8">
+                 <input type="text" placeholder="ТЕЛЕФОН / ID" className="flex-1 bg-zinc-100 p-6 rounded-[2rem] text-[10px] font-black italic uppercase outline-none" value={checkPhone} onChange={e => setCheckPhone(e.target.value)} />
+                 <button onClick={checkStatus} className="bg-orange-500 text-white px-8 rounded-[2rem] font-black uppercase italic text-[10px]">ПОИСК</button>
+              </div>
+              <div className="space-y-4 max-h-60 overflow-y-auto no-scrollbar">
+                 {userOrders.map(o => (
+                   <div key={o.id} className="bg-zinc-50 p-6 rounded-[2.5rem] flex justify-between items-center border border-zinc-100">
+                      <div><p className="text-[10px] font-black text-zinc-400 mb-1 italic">ID: {o.id.slice(0,8)}</p><p className="font-black uppercase italic">{o.status}</p></div>
+                      <p className="text-orange-500 font-black italic">{o.price} ₽</p>
+                   </div>
+                 ))}
+                 {hasSearched && userOrders.length === 0 && <p className="text-center opacity-20 font-black text-[10px] uppercase italic">Ничего не найдено</p>}
+              </div>
+           </div>
+        </div>
+      )}
+
+      {/* СТИЛИ */}
       <style jsx global>{`
         body { -webkit-tap-highlight-color: transparent; font-family: -apple-system, BlinkMacSystemFont, sans-serif; margin: 0; padding: 0; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         @keyframes fade-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes slide-up { from { transform: translateY(100%); } to { transform: translateY(0); } }
-        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         .animate-fade-in { animation: fade-in 0.4s ease-out forwards; }
         .animate-slide-up { animation: slide-up 0.5s cubic-bezier(0.16, 1, 0.3, 1); }
-        .animate-spin { animation: spin 0.8s linear infinite; }
       `}</style>
     </div>
   );

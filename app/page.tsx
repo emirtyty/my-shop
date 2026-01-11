@@ -226,7 +226,7 @@ export default function Home() {
       const { data, error } = await supabase
         .from('orders')
         .select('*')
-        .eq('customer_phone', checkPhone)
+        .eq('buyer_phone', checkPhone)
         .order('created_at', { ascending: false });
       
       if (error) throw error;

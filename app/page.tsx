@@ -1,7 +1,6 @@
 'use client';
 import { useEffect, useState, useMemo } from 'react';
 import { supabase } from './lib/supabase';
-import { App } from '@capacitor/app';
 
 export default function Home() {
   const [products, setProducts] = useState<any[]>([]);
@@ -18,7 +17,6 @@ export default function Home() {
   const [checkPhone, setCheckPhone] = useState('');
   const [userOrders, setUserOrders] = useState<any[]>([]);
   const [isSearchingOrders, setIsSearchingOrders] = useState(false);
-
   const [orderAddress, setOrderAddress] = useState('');
 
   // --- АДМИНКА ---
@@ -86,38 +84,43 @@ export default function Home() {
     if (data) setSellerProducts(data);
   }
 
-  // --- ИСПРАВЛЕННОЕ СОХРАНЕНИЕ ЦЕНЫ И ДАННЫХ ---
+  // --- ТОТАЛЬНОЕ ИСПРАВЛЕНИЕ РЕДАКТИРОВАНИЯ ---
   const handleSaveProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingProduct || !currentSeller) return;
 
-    // Принудительно превращаем цену в число, чтобы Supabase не ругался
+    const finalPrice = Number(editingProduct.price);
+    const finalOldPrice = editingProduct.old_price ? Number(editingProduct.old_price) : null;
+
     const payload = { 
       name: editingProduct.name, 
-      price: parseFloat(editingProduct.price) || 0, 
-      old_price: editingProduct.old_price ? parseFloat(editingProduct.old_price) : null, 
+      price: finalPrice, 
+      old_price: finalOldPrice, 
       image_url: editingProduct.image_url, 
       seller_id: currentSeller.id 
     };
 
     try {
       if (editingProduct.id) {
-        // Обновляем существующий
         const { error } = await supabase.from('product_market').update(payload).eq('id', editingProduct.id);
         if (error) throw error;
       } else {
-        // Создаем новый
         const { error } = await supabase.from('product_market').insert([payload]);
         if (error) throw error;
       }
 
-      // СРАЗУ ОБНОВЛЯЕМ ВСЕ СПИСКИ
-      await Promise.all([fetchSellerAdminProducts(), fetchData()]);
-      
-      setIsProductModalOpen(false); 
+      // Закрываем и сбрасываем всё
+      setIsProductModalOpen(false);
       setEditingProduct(null);
+
+      // Ждем долю секунды и обновляем всё
+      setTimeout(() => {
+        fetchSellerAdminProducts();
+        fetchData();
+      }, 200);
+
     } catch (err: any) {
-      alert("Ошибка сохранения: " + err.message);
+      alert("ОШИБКА: " + err.message);
     }
   };
 
@@ -171,7 +174,7 @@ export default function Home() {
 
   const checkout = async () => {
     if (cart.length === 0 || !orderAddress.trim()) return alert("УКАЖИТЕ АДРЕС!");
-    const phone = prompt("ТЕЛЕФОН ДЛЯ СВЯЗИ:");
+    const phone = prompt("ТЕЛЕФОН:");
     if (!phone) return;
     const ordersBySeller = cart.reduce((acc: any, item: any) => { 
       const sId = item.seller_id || 'default'; 
@@ -237,7 +240,7 @@ export default function Home() {
                       <div key={p.id} className="flex items-center gap-4 bg-zinc-900/40 p-3 rounded-3xl border border-white/5">
                         <img src={p.image_url} className="w-14 h-14 rounded-2xl object-cover" />
                         <div className="flex-1 font-black italic text-[9px] uppercase tracking-tighter leading-none">{p.name} <br/><span className="text-orange-500">{p.price} ₽</span></div>
-                        <button onClick={() => { setEditingProduct(p); setIsProductModalOpen(true); }} className="p-3 text-lg opacity-40">✏️</button>
+                        <button onClick={() => { setEditingProduct({...p}); setIsProductModalOpen(true); }} className="p-3 text-lg opacity-40">✏️</button>
                       </div>
                     ))}
                   </div>
@@ -267,7 +270,7 @@ export default function Home() {
           </div>
         )}
 
-        {/* ГЛАВНАЯ */}
+        {/* ГЛАВНАЯ СТРАНИЦА */}
         {!currentSellerId && !isAdminRoute && (
           <>
             <header className="p-6 sticky top-0 z-[100] bg-white/90 backdrop-blur-md">
@@ -325,61 +328,58 @@ export default function Home() {
           </>
         )}
 
-        {/* КОРЗИНА */}
-        {isCartOpen && (
-          <div className="absolute inset-0 z-[500] bg-black/40 backdrop-blur-sm flex items-end animate-fade-in" onClick={() => setIsCartOpen(false)}>
-            <div className="bg-white w-full rounded-t-[2.5rem] p-8 max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-              <h2 className="text-xl font-black italic uppercase text-center mb-8 tracking-widest">КОРЗИНА</h2>
-              {cart.length > 0 ? (
-                <div className="space-y-4">
-                  {Array.from(new Set(cart.map(i => i.id))).map(id => {
-                    const item = cart.find(c => c.id === id);
-                    const qty = getProductCount(id);
-                    return (
-                      <div key={id} className="flex items-center justify-between bg-zinc-50 p-4 rounded-[1.8rem]">
-                        <div className="flex items-center gap-3">
-                          <img src={item.image_url} className="w-10 h-10 rounded-xl object-cover" />
-                          <div className="font-black italic text-[9px] uppercase w-24 truncate">{item.name}</div>
-                        </div>
-                        <div className="flex items-center bg-white rounded-xl border border-zinc-200 px-2">
-                           <button onClick={() => removeFromCartOnce(id)} className="p-2 font-black text-zinc-300">-</button>
-                           <span className="text-[10px] font-black px-2">{qty}</span>
-                           <button onClick={() => addToCart(item)} className="p-2 font-black">+</button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                  <input type="text" placeholder="АДРЕС ДОСТАВКИ" className="w-full bg-zinc-100 p-5 rounded-2xl text-[10px] font-black italic outline-none border-none uppercase" value={orderAddress} onChange={e => setOrderAddress(e.target.value)} />
-                  <button onClick={checkout} className="w-full bg-orange-500 text-white py-6 rounded-3xl font-black italic uppercase mt-4 shadow-lg tracking-widest">КУПИТЬ ({cart.reduce((s,i) => s + Number(i.price), 0)} ₽)</button>
-                </div>
-              ) : <p className="text-center py-10 opacity-20 font-black italic text-[9px] uppercase">ПУСТО</p>}
-            </div>
-          </div>
-        )}
-
-        {/* МОДАЛКА РЕДАКТИРОВАНИЯ */}
-        {isProductModalOpen && editingProduct && (
+        {/* МОДАЛКА РЕДАКТИРОВАНИЯ (С ФИКСАМИ) */}
+        {isProductModalOpen && (
           <div className="fixed inset-0 z-[1000] bg-black/95 flex items-center justify-center p-6" onClick={() => setIsProductModalOpen(false)}>
-            <div className="bg-zinc-900 w-full max-w-[400px] rounded-[3rem] p-10 border border-white/5 shadow-2xl" onClick={e => e.stopPropagation()}>
-              <h3 className="text-orange-500 font-black italic uppercase text-center mb-10 tracking-widest">ТОВАР</h3>
+            <div 
+              key={editingProduct?.id || 'new'} 
+              className="bg-zinc-900 w-full max-w-[400px] rounded-[3rem] p-10 border border-white/5 shadow-2xl" 
+              onClick={e => e.stopPropagation()}
+            >
+              <h3 className="text-orange-500 font-black italic uppercase text-center mb-10 tracking-widest">
+                {editingProduct?.id ? 'РЕДАКТИРОВАТЬ' : 'НОВЫЙ ТОВАР'}
+              </h3>
               <form onSubmit={handleSaveProduct} className="space-y-5">
                 <div className="space-y-1">
                   <p className="text-[8px] font-black italic text-zinc-500 uppercase ml-4">Название</p>
-                  <input type="text" className="w-full bg-black/40 border border-white/5 p-5 rounded-2xl text-[11px] font-bold text-white outline-none" value={editingProduct.name} onChange={e => setEditingProduct({...editingProduct, name: e.target.value})} required />
+                  <input 
+                    type="text" 
+                    className="w-full bg-black/40 border border-white/5 p-5 rounded-2xl text-[11px] font-bold text-white outline-none" 
+                    value={editingProduct?.name || ''} 
+                    onChange={e => setEditingProduct({...editingProduct, name: e.target.value})} 
+                    required 
+                  />
                 </div>
                 <div className="flex gap-4">
                   <div className="flex-1 space-y-1">
                     <p className="text-[8px] font-black italic text-zinc-500 uppercase ml-4">Цена</p>
-                    <input type="number" step="any" className="w-full bg-black/40 border border-white/5 p-5 rounded-2xl text-[11px] font-bold text-white outline-none" value={editingProduct.price} onChange={e => setEditingProduct({...editingProduct, price: e.target.value})} required />
+                    <input 
+                      type="number" 
+                      className="w-full bg-black/40 border border-white/5 p-5 rounded-2xl text-[11px] font-bold text-white outline-none" 
+                      value={editingProduct?.price || ''} 
+                      onChange={e => setEditingProduct({...editingProduct, price: e.target.value})} 
+                      required 
+                    />
                   </div>
                   <div className="flex-1 space-y-1">
                     <p className="text-[8px] font-black italic text-zinc-500 uppercase ml-4">Старая</p>
-                    <input type="number" step="any" className="w-full bg-black/40 border border-white/5 p-5 rounded-2xl text-[11px] font-bold text-white outline-none" value={editingProduct.old_price || ''} onChange={e => setEditingProduct({...editingProduct, old_price: e.target.value})} />
+                    <input 
+                      type="number" 
+                      className="w-full bg-black/40 border border-white/5 p-5 rounded-2xl text-[11px] font-bold text-white outline-none" 
+                      value={editingProduct?.old_price || ''} 
+                      onChange={e => setEditingProduct({...editingProduct, old_price: e.target.value})} 
+                    />
                   </div>
                 </div>
                 <div className="space-y-1">
                    <p className="text-[8px] font-black italic text-zinc-500 uppercase ml-4">URL Фото</p>
-                   <input type="text" className="w-full bg-black/40 border border-white/5 p-5 rounded-2xl text-[11px] font-bold text-white outline-none" value={editingProduct.image_url} onChange={e => setEditingProduct({...editingProduct, image_url: e.target.value})} required />
+                   <input 
+                     type="text" 
+                     className="w-full bg-black/40 border border-white/5 p-5 rounded-2xl text-[11px] font-bold text-white outline-none" 
+                     value={editingProduct?.image_url || ''} 
+                     onChange={e => setEditingProduct({...editingProduct, image_url: e.target.value})} 
+                     required 
+                   />
                 </div>
                 <div className="flex gap-3 pt-4">
                   <button type="button" onClick={() => setIsProductModalOpen(false)} className="flex-1 py-5 bg-zinc-800 rounded-2xl text-[10px] font-black italic uppercase">ОТМЕНА</button>
@@ -391,49 +391,9 @@ export default function Home() {
         )}
 
       </div>
-
-      {/* ПРОСМОТР СТОРИС */}
-      {selectedStory && (
-        <div className="fixed inset-0 z-[2000] bg-black flex items-center justify-center animate-fade-in" onClick={() => setSelectedStory(null)}>
-           <img src={selectedStory} className="max-w-full max-h-full object-contain" />
-           <button className="absolute top-10 right-6 text-white text-3xl font-light">✕</button>
-        </div>
-      )}
-
-      {/* ПРОВЕРКА ЗАКАЗА */}
-      {isStatusModalOpen && (
-        <div className="fixed inset-0 z-[1000] bg-black/60 backdrop-blur-md flex items-end animate-fade-in" onClick={() => setIsStatusModalOpen(false)}>
-           <div className="bg-white w-full max-w-[480px] mx-auto rounded-t-[3rem] p-10 max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-              <h2 className="text-2xl font-black italic uppercase mb-8 text-center tracking-tighter">СТАТУС ЗАКАЗА</h2>
-              <div className="flex gap-2 mb-8">
-                 <input type="text" placeholder="ТЕЛЕФОН..." className="flex-1 bg-zinc-100 p-6 rounded-2xl text-[10px] font-black italic outline-none uppercase" value={checkPhone} onChange={e => setCheckPhone(e.target.value)} />
-                 <button onClick={async () => {
-                    setIsSearchingOrders(true);
-                    const { data } = await supabase.from('orders').select('*').eq('buyer_phone', checkPhone).order('created_at', { ascending: false });
-                    setUserOrders(data || []);
-                    setIsSearchingOrders(false);
-                 }} className="bg-orange-500 text-white px-8 rounded-2xl font-black uppercase italic text-[10px]">{isSearchingOrders ? '...' : 'ОК'}</button>
-              </div>
-              <div className="space-y-4">
-                 {userOrders.map(o => (
-                   <div key={o.id} className="bg-zinc-50 p-6 rounded-[2rem] flex justify-between items-center border border-zinc-100">
-                      <div>
-                        <p className="text-[9px] font-black text-zinc-400 mb-1">ID: {o.id.slice(0,8)}</p>
-                        <p className={`font-black uppercase italic text-[10px] ${o.status === 'ЗАВЕРШЕН' ? 'text-zinc-300' : 'text-orange-500'}`}>{o.status}</p>
-                      </div>
-                      <p className="font-black italic text-sm">{o.price} ₽</p>
-                   </div>
-                 ))}
-              </div>
-           </div>
-        </div>
-      )}
-
       <style jsx global>{`
         body { -webkit-tap-highlight-color: transparent; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
-        @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
-        .animate-fade-in { animation: fade-in 0.3s ease-out forwards; }
       `}</style>
     </div>
   );

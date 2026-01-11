@@ -34,17 +34,22 @@ export default function Home() {
   const [sellerProducts, setSellerProducts] = useState<any[]>([]);
   const [isUploading, setIsUploading] = useState(false);
 
-  // Навигация по хешу
+  // Навигация по хешу (админка или магазин)
   useEffect(() => {
     const handleHashChange = () => {
       const hash = window.location.hash;
-      if (hash === '#/admin') { setIsAdminRoute(true); setCurrentSellerId(null); }
-      else if (hash.includes('/seller?id=')) {
+      if (hash === '#/admin') { 
+        setIsAdminRoute(true); 
+        setCurrentSellerId(null); 
+      } else if (hash.includes('/seller?id=')) {
         const id = hash.split('id=')[1];
         setCurrentSellerId(id);
         setIsAdminRoute(false);
         fetchSellerData(id);
-      } else { setIsAdminRoute(false); setCurrentSellerId(null); }
+      } else { 
+        setIsAdminRoute(false); 
+        setCurrentSellerId(null); 
+      }
     };
     window.addEventListener('hashchange', handleHashChange);
     handleHashChange();
@@ -71,7 +76,10 @@ export default function Home() {
   };
 
   useEffect(() => {
-    if (currentSeller) { fetchSellerOrders(); fetchSellerAdminProducts(); }
+    if (currentSeller) { 
+      fetchSellerOrders(); 
+      fetchSellerAdminProducts(); 
+    }
   }, [currentSeller]);
 
   async function fetchSellerOrders() {
@@ -84,30 +92,41 @@ export default function Home() {
     if (data) setSellerProducts(data);
   }
 
-  // ФИКС РЕДАКТИРОВАНИЯ
+  // --- ИСПРАВЛЕННАЯ ФУНКЦИЯ СОХРАНЕНИЯ (ЦЕНА) ---
   const handleSaveProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingProduct || !currentSeller) return;
 
+    // Конвертируем в числа перед отправкой
+    const numPrice = parseFloat(editingProduct.price);
+    const numOldPrice = editingProduct.old_price ? parseFloat(editingProduct.old_price) : null;
+
     const payload = { 
       name: editingProduct.name, 
-      price: Number(editingProduct.price), 
-      old_price: editingProduct.old_price ? Number(editingProduct.old_price) : null, 
+      price: numPrice, 
+      old_price: numOldPrice, 
       image_url: editingProduct.image_url, 
       seller_id: currentSeller.id 
     };
 
     try {
       if (editingProduct.id) {
-        await supabase.from('product_market').update(payload).eq('id', editingProduct.id);
+        const { error } = await supabase.from('product_market').update(payload).eq('id', editingProduct.id);
+        if (error) throw error;
       } else {
-        await supabase.from('product_market').insert([payload]);
+        const { error } = await supabase.from('product_market').insert([payload]);
+        if (error) throw error;
       }
+      
       setIsProductModalOpen(false);
       setEditingProduct(null);
-      fetchSellerAdminProducts();
-      fetchData();
-    } catch (err: any) { alert(err.message); }
+      
+      // Обновляем списки
+      await fetchSellerAdminProducts();
+      await fetchData();
+    } catch (err: any) { 
+      alert("Ошибка сохранения: " + err.message); 
+    }
   };
 
   const completeOrder = async (orderId: string) => {
@@ -147,6 +166,7 @@ export default function Home() {
     setCartBumping(true); 
     setTimeout(() => setCartBumping(false), 300); 
   };
+  
   const removeFromCartOnce = (productId: string) => { 
     setCart(prev => { 
       const index = prev.findLastIndex(item => item.id === productId); 
@@ -156,6 +176,7 @@ export default function Home() {
       return newCart; 
     });
   };
+  
   const getProductCount = (id: string) => cart.filter(item => item.id === id).length;
 
   const checkout = async () => {
@@ -172,9 +193,18 @@ export default function Home() {
       const items = ordersBySeller[sId];
       const pName = items.map((i: any) => i.name).join(', ');
       const totalPrice = items.reduce((sum: number, i: any) => sum + Number(i.price), 0);
-      await supabase.from('orders').insert([{ product_name: pName, price: totalPrice, buyer_phone: phone, seller_id: sId, status: 'НОВЫЙ', address: orderAddress }]);
+      await supabase.from('orders').insert([{ 
+        product_name: pName, 
+        price: totalPrice, 
+        buyer_phone: phone, 
+        seller_id: sId, 
+        status: 'НОВЫЙ', 
+        address: orderAddress 
+      }]);
     }
-    alert("ЗАКАЗ ПРИНЯТ"); setCart([]); setIsCartOpen(false);
+    alert("ЗАКАЗ ПРИНЯТ"); 
+    setCart([]); 
+    setIsCartOpen(false);
   };
 
   const categories = useMemo(() => { 
@@ -194,7 +224,7 @@ export default function Home() {
     <div className="min-h-screen bg-[#F8F8F8] text-black pb-32 font-sans overflow-x-hidden">
       <div className="max-w-[480px] mx-auto bg-white min-h-screen shadow-2xl relative border-x border-zinc-100">
         
-        {/* АДМИНКА */}
+        {/* --- АДМИНКА --- */}
         {isAdminRoute && (
           <div className="absolute inset-0 z-[300] bg-[#0A0A0A] text-white overflow-y-auto p-6">
             {!currentSeller ? (
@@ -256,7 +286,7 @@ export default function Home() {
           </div>
         )}
 
-        {/* ГЛАВНАЯ СТРАНИЦА */}
+        {/* --- ГЛАВНАЯ ВИРИНА --- */}
         {!currentSellerId && !isAdminRoute && (
           <>
             <header className="p-6 sticky top-0 z-[100] bg-white/90 backdrop-blur-md">
@@ -270,7 +300,7 @@ export default function Home() {
               </div>
               <div className="flex gap-4 overflow-x-auto no-scrollbar mt-6 py-1">
                 {stories.map(s => (
-                  <div key={s.id} onClick={() => setSelectedStory(s.image_url)} className="flex-shrink-0 w-14 h-14 rounded-full p-0.5 border-2 border-orange-500 active:scale-90 transition-transform">
+                  <div key={s.id} onClick={() => setSelectedStory(s.image_url)} className="flex-shrink-0 w-14 h-14 rounded-full p-0.5 border-2 border-orange-500 active:scale-90 transition-transform cursor-pointer">
                     <img src={s.image_url} className="w-full h-full rounded-full object-cover" />
                   </div>
                 ))}
@@ -314,7 +344,7 @@ export default function Home() {
           </>
         )}
 
-        {/* ВИТРИНА МАГАЗИНА */}
+        {/* --- ВИТРИНА КОНКРЕТНОГО ПРОДАВЦА --- */}
         {currentSellerId && sellerData && (
           <div className="absolute inset-0 z-[200] bg-white overflow-y-auto p-6">
             <header className="pt-10 mb-8 border-b border-zinc-50 pb-8 text-center">
@@ -334,7 +364,7 @@ export default function Home() {
           </div>
         )}
 
-        {/* КОРЗИНА */}
+        {/* --- КОРЗИНА --- */}
         {isCartOpen && (
           <div className="absolute inset-0 z-[500] bg-black/40 backdrop-blur-sm flex items-end animate-fade-in" onClick={() => setIsCartOpen(false)}>
             <div className="bg-white w-full rounded-t-[2.5rem] p-8 max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
@@ -358,7 +388,10 @@ export default function Home() {
                       </div>
                     );
                   })}
-                  <input type="text" placeholder="АДРЕС ДОСТАВКИ" className="w-full bg-zinc-100 p-5 rounded-2xl text-[10px] font-black italic outline-none border-none uppercase" value={orderAddress} onChange={e => setOrderAddress(e.target.value)} />
+                  <div className="pt-4 border-t border-zinc-100">
+                    <p className="text-[8px] font-black italic text-zinc-400 uppercase mb-2 ml-4">Адрес доставки</p>
+                    <input type="text" className="w-full bg-zinc-100 p-5 rounded-2xl text-[10px] font-black italic outline-none border-none uppercase" value={orderAddress} onChange={e => setOrderAddress(e.target.value)} />
+                  </div>
                   <button onClick={checkout} className="w-full bg-orange-500 text-white py-6 rounded-3xl font-black italic uppercase mt-4 shadow-lg tracking-widest">КУПИТЬ ({cart.reduce((s,i) => s + Number(i.price), 0)} ₽)</button>
                 </div>
               ) : <p className="text-center py-10 opacity-20 font-black italic text-[9px] uppercase">ПУСТО</p>}
@@ -366,7 +399,7 @@ export default function Home() {
           </div>
         )}
 
-        {/* МОДАЛКА РЕДАКТИРОВАНИЯ */}
+        {/* --- МОДАЛКА РЕДАКТИРОВАНИЯ --- */}
         {isProductModalOpen && (
           <div className="fixed inset-0 z-[1000] bg-black/95 flex items-center justify-center p-6" onClick={() => setIsProductModalOpen(false)}>
             <div className="bg-zinc-900 w-full max-w-[400px] rounded-[3rem] p-10 border border-white/5 shadow-2xl" onClick={e => e.stopPropagation()}>
@@ -374,13 +407,13 @@ export default function Home() {
               <form onSubmit={handleSaveProduct} className="space-y-5">
                 <input type="text" className="w-full bg-black/40 border border-white/5 p-5 rounded-2xl text-[11px] font-bold text-white outline-none" placeholder="Название" value={editingProduct?.name || ''} onChange={e => setEditingProduct({...editingProduct, name: e.target.value})} required />
                 <div className="flex gap-4">
-                  <input type="number" className="w-full bg-black/40 border border-white/5 p-5 rounded-2xl text-[11px] font-bold text-white outline-none" placeholder="Цена" value={editingProduct?.price || ''} onChange={e => setEditingProduct({...editingProduct, price: e.target.value})} required />
-                  <input type="number" className="w-full bg-black/40 border border-white/5 p-5 rounded-2xl text-[11px] font-bold text-white outline-none" placeholder="Старая цена" value={editingProduct?.old_price || ''} onChange={e => setEditingProduct({...editingProduct, old_price: e.target.value})} />
+                  <input type="number" step="any" className="w-full bg-black/40 border border-white/5 p-5 rounded-2xl text-[11px] font-bold text-white outline-none" placeholder="Цена" value={editingProduct?.price || ''} onChange={e => setEditingProduct({...editingProduct, price: e.target.value})} required />
+                  <input type="number" step="any" className="w-full bg-black/40 border border-white/5 p-5 rounded-2xl text-[11px] font-bold text-white outline-none" placeholder="Старая цена" value={editingProduct?.old_price || ''} onChange={e => setEditingProduct({...editingProduct, old_price: e.target.value})} />
                 </div>
                 <input type="text" className="w-full bg-black/40 border border-white/5 p-5 rounded-2xl text-[11px] font-bold text-white outline-none" placeholder="URL Фото" value={editingProduct?.image_url || ''} onChange={e => setEditingProduct({...editingProduct, image_url: e.target.value})} required />
                 <div className="flex gap-3 pt-4">
                   <button type="button" onClick={() => setIsProductModalOpen(false)} className="flex-1 py-5 bg-zinc-800 rounded-2xl text-[10px] font-black italic uppercase">ОТМЕНА</button>
-                  <button type="submit" className="flex-[2] py-5 bg-orange-500 text-white rounded-2xl text-[10px] font-black italic uppercase">СОХРАНИТЬ</button>
+                  <button type="submit" className="flex-[2] py-5 bg-orange-500 text-white rounded-2xl text-[10px] font-black italic uppercase shadow-lg">СОХРАНИТЬ</button>
                 </div>
               </form>
             </div>
@@ -389,7 +422,7 @@ export default function Home() {
 
       </div>
 
-      {/* ПРОСМОТР СТОРИС */}
+      {/* --- СТОРИС И СТАТУС (ФИНАЛЬНЫЕ БЛОКИ) --- */}
       {selectedStory && (
         <div className="fixed inset-0 z-[2000] bg-black flex items-center justify-center animate-fade-in" onClick={() => setSelectedStory(null)}>
            <img src={selectedStory} className="max-w-full max-h-full object-contain" />
@@ -397,7 +430,6 @@ export default function Home() {
         </div>
       )}
 
-      {/* ПРОВЕРКА ЗАКАЗА */}
       {isStatusModalOpen && (
         <div className="fixed inset-0 z-[1000] bg-black/60 backdrop-blur-md flex items-end animate-fade-in" onClick={() => setIsStatusModalOpen(false)}>
            <div className="bg-white w-full max-w-[480px] mx-auto rounded-t-[3rem] p-10 max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
@@ -421,16 +453,18 @@ export default function Home() {
                       <p className="font-black italic text-sm">{o.price} ₽</p>
                    </div>
                  ))}
+                 {userOrders.length === 0 && !isSearchingOrders && checkPhone && <p className="text-center py-4 text-[10px] font-black opacity-20 uppercase">Ничего не найдено</p>}
               </div>
            </div>
         </div>
       )}
 
       <style jsx global>{`
-        body { -webkit-tap-highlight-color: transparent; }
+        body { -webkit-tap-highlight-color: transparent; background: #eee; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
         .animate-fade-in { animation: fade-in 0.3s ease-out forwards; }
+        input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
       `}</style>
     </div>
   );

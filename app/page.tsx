@@ -34,7 +34,7 @@ export default function Home() {
   const [sellerProducts, setSellerProducts] = useState<any[]>([]);
   const [isUploading, setIsUploading] = useState(false);
 
-  // Навигация по хешу (админка или магазин)
+  // Навигация по хешу
   useEffect(() => {
     const handleHashChange = () => {
       const hash = window.location.hash;
@@ -92,40 +92,44 @@ export default function Home() {
     if (data) setSellerProducts(data);
   }
 
-  // --- ИСПРАВЛЕННАЯ ФУНКЦИЯ СОХРАНЕНИЯ (ЦЕНА) ---
+  // --- ЖЕСТКИЙ ФИКС ЦЕНЫ ДЛЯ SUPABASE ---
   const handleSaveProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingProduct || !currentSeller) return;
 
-    // Конвертируем в числа перед отправкой
-    const numPrice = parseFloat(editingProduct.price);
-    const numOldPrice = editingProduct.old_price ? parseFloat(editingProduct.old_price) : null;
+    // Принудительно очищаем и конвертируем значения
+    const cleanPrice = Number(String(editingProduct.price).replace(/[^0-9.]/g, ''));
+    const cleanOldPrice = editingProduct.old_price ? Number(String(editingProduct.old_price).replace(/[^0-9.]/g, '')) : null;
 
     const payload = { 
-      name: editingProduct.name, 
-      price: numPrice, 
-      old_price: numOldPrice, 
-      image_url: editingProduct.image_url, 
+      name: editingProduct.name.trim(), 
+      price: cleanPrice, 
+      old_price: cleanOldPrice, 
+      image_url: editingProduct.image_url.trim(), 
       seller_id: currentSeller.id 
     };
 
     try {
+      let result;
       if (editingProduct.id) {
-        const { error } = await supabase.from('product_market').update(payload).eq('id', editingProduct.id);
-        if (error) throw error;
+        result = await supabase.from('product_market').update(payload).eq('id', editingProduct.id);
       } else {
-        const { error } = await supabase.from('product_market').insert([payload]);
-        if (error) throw error;
+        result = await supabase.from('product_market').insert([payload]);
       }
-      
+
+      if (result.error) throw result.error;
+
+      alert("СОХРАНЕНО УСПЕШНО");
       setIsProductModalOpen(false);
       setEditingProduct(null);
       
-      // Обновляем списки
+      // Глубокое обновление всех состояний
       await fetchSellerAdminProducts();
       await fetchData();
+      
     } catch (err: any) { 
-      alert("Ошибка сохранения: " + err.message); 
+      console.error("Supabase Error:", err);
+      alert("ОШИБКА БАЗЫ ДАННЫХ: " + err.message); 
     }
   };
 
@@ -286,7 +290,7 @@ export default function Home() {
           </div>
         )}
 
-        {/* --- ГЛАВНАЯ ВИРИНА --- */}
+        {/* --- ГЛАВНАЯ ВИТРИНА --- */}
         {!currentSellerId && !isAdminRoute && (
           <>
             <header className="p-6 sticky top-0 z-[100] bg-white/90 backdrop-blur-md">
@@ -309,7 +313,7 @@ export default function Home() {
 
             <div className="px-6 flex gap-2 overflow-x-auto no-scrollbar mb-4">
               {categories.map(cat => (
-                <button key={cat} onClick={() => setActiveCategory(cat)} className={`px-5 py-2 rounded-full text-[9px] font-black italic uppercase whitespace-nowrap transition-all ${activeCategory === cat ? 'bg-orange-500 text-white' : 'bg-zinc-100 text-zinc-400'}`}>{cat}</button>
+                <button key={cat} onClick={() => setActiveCategory(cat)} className={`px-5 py-2 rounded-full text-[9px] font-black italic uppercase whitespace-nowrap transition-all ${activeCategory === cat ? 'bg-orange-500 text-white shadow-md' : 'bg-zinc-100 text-zinc-400'}`}>{cat}</button>
               ))}
             </div>
 
@@ -407,8 +411,8 @@ export default function Home() {
               <form onSubmit={handleSaveProduct} className="space-y-5">
                 <input type="text" className="w-full bg-black/40 border border-white/5 p-5 rounded-2xl text-[11px] font-bold text-white outline-none" placeholder="Название" value={editingProduct?.name || ''} onChange={e => setEditingProduct({...editingProduct, name: e.target.value})} required />
                 <div className="flex gap-4">
-                  <input type="number" step="any" className="w-full bg-black/40 border border-white/5 p-5 rounded-2xl text-[11px] font-bold text-white outline-none" placeholder="Цена" value={editingProduct?.price || ''} onChange={e => setEditingProduct({...editingProduct, price: e.target.value})} required />
-                  <input type="number" step="any" className="w-full bg-black/40 border border-white/5 p-5 rounded-2xl text-[11px] font-bold text-white outline-none" placeholder="Старая цена" value={editingProduct?.old_price || ''} onChange={e => setEditingProduct({...editingProduct, old_price: e.target.value})} />
+                  <input type="text" className="w-full bg-black/40 border border-white/5 p-5 rounded-2xl text-[11px] font-bold text-white outline-none" placeholder="Цена" value={editingProduct?.price || ''} onChange={e => setEditingProduct({...editingProduct, price: e.target.value})} required />
+                  <input type="text" className="w-full bg-black/40 border border-white/5 p-5 rounded-2xl text-[11px] font-bold text-white outline-none" placeholder="Старая цена" value={editingProduct?.old_price || ''} onChange={e => setEditingProduct({...editingProduct, old_price: e.target.value})} />
                 </div>
                 <input type="text" className="w-full bg-black/40 border border-white/5 p-5 rounded-2xl text-[11px] font-bold text-white outline-none" placeholder="URL Фото" value={editingProduct?.image_url || ''} onChange={e => setEditingProduct({...editingProduct, image_url: e.target.value})} required />
                 <div className="flex gap-3 pt-4">
@@ -422,7 +426,7 @@ export default function Home() {
 
       </div>
 
-      {/* --- СТОРИС И СТАТУС (ФИНАЛЬНЫЕ БЛОКИ) --- */}
+      {/* --- СТОРИС И СТАТУС --- */}
       {selectedStory && (
         <div className="fixed inset-0 z-[2000] bg-black flex items-center justify-center animate-fade-in" onClick={() => setSelectedStory(null)}>
            <img src={selectedStory} className="max-w-full max-h-full object-contain" />

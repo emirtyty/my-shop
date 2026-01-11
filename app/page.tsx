@@ -22,6 +22,9 @@ export default function Home() {
   const [isSearchingOrders, setIsSearchingOrders] = useState(false);
   const [orderAddress, setOrderAddress] = useState('');
 
+  // --- ВИТРИНА ПРОДАВЦА ---
+  const [viewingSeller, setViewingSeller] = useState<any>(null);
+
   // --- СОСТОЯНИЯ АДМИНКИ ---
   const [isAdminRoute, setIsAdminRoute] = useState(false);
   const [sellerAuth, setSellerAuth] = useState({ login: '', pass: '' });
@@ -49,7 +52,7 @@ export default function Home() {
     setLoading(true);
     try {
       const [prodRes, storyRes] = await Promise.all([
-        supabase.from('product_market').select('*'),
+        supabase.from('product_market').select('*, sellers(shop_name, id)'),
         supabase.from('seller_stories').select('*').order('created_at', { ascending: false })
       ]);
       if (prodRes.error) throw prodRes.error;
@@ -128,7 +131,7 @@ export default function Home() {
     if (!error) {
       setIsProductModalOpen(false);
       fetchSellerAdminProducts();
-      fetchData(); // Обновляем витрину
+      fetchData(); 
     } else {
       alert("Ошибка обновления: " + error.message);
     }
@@ -158,7 +161,7 @@ export default function Home() {
 
     const orderData = {
       seller_id: cart[0].seller_id,
-      buyer_phone: checkPhone, // ИСПОЛЬЗУЕМ buyer_phone
+      buyer_phone: checkPhone,
       address: orderAddress,
       total_price: totalPrice,
       status: 'НОВЫЙ',
@@ -177,19 +180,16 @@ export default function Home() {
     }
   };
 
-  // Поиск заказа по номеру телефона
   const handleCheckOrder = async () => {
     if (!checkPhone) return;
     setIsSearchingOrders(true);
     const { data, error } = await supabase
       .from('orders')
       .select('*')
-      .eq('buyer_phone', checkPhone) // ТУТ БЫЛА ОШИБКА, ИСПРАВЛЕНО
+      .eq('buyer_phone', checkPhone)
       .order('created_at', { ascending: false });
     
-    if (error) {
-      console.error("Search error:", error.message);
-    }
+    if (error) console.error("Search error:", error.message);
     setUserOrders(data || []);
     setIsSearchingOrders(false);
   };
@@ -207,7 +207,7 @@ export default function Home() {
 
   if (loading) return (
     <div className="h-screen bg-black flex flex-col items-center justify-center text-orange-500 font-black italic">
-      <div className="text-5xl animate-pulse tracking-tighter mb-4">RA DELL</div>
+      <div className="text-5xl animate-pulse tracking-tighter mb-4 uppercase">RA DELL</div>
       <div className="w-48 h-1 bg-zinc-900 rounded-full overflow-hidden">
         <div className="h-full bg-orange-500 animate-loading-bar"></div>
       </div>
@@ -217,7 +217,7 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-[#F8F8F8] text-black pb-20 font-sans">
       
-      {/* СЛОЙ АДМИНКИ (ПОЯВЛЯЕТСЯ ПО ХЕШУ #/admin) */}
+      {/* СЛОЙ АДМИНКИ */}
       {isAdminRoute && (
         <div className="fixed inset-0 z-[1000] bg-[#0A0A0A] text-white overflow-y-auto p-4 md:p-10 custom-scroll">
           {!currentSeller ? (
@@ -310,16 +310,6 @@ export default function Home() {
                     </div>
                   </div>
                 ))}
-                
-                {adminTab === 'архив' && sellerActiveOrders.filter(o => o.status === 'ЗАВЕРШЕН').map(o => (
-                  <div key={o.id} className="bg-[#111] p-6 rounded-[2.5rem] border border-white/5 opacity-50 flex justify-between items-center">
-                    <div>
-                      <p className="font-black italic uppercase text-xs">{o.buyer_phone}</p>
-                      <p className="text-[9px] text-zinc-600 uppercase font-bold">{o.total_price} ₽ — {new Date(o.created_at).toLocaleDateString()}</p>
-                    </div>
-                    <span className="text-[8px] font-black uppercase border border-zinc-800 px-4 py-2 rounded-full">Архив</span>
-                  </div>
-                ))}
               </div>
             </div>
           )}
@@ -395,12 +385,20 @@ export default function Home() {
             const count = cart.filter(item => item.id === p.id).length;
             return (
               <div key={p.id} className="group bg-white rounded-[3rem] p-3 border border-zinc-100 shadow-sm hover:shadow-2xl transition-all duration-500">
-                <div className="relative aspect-[4/5] rounded-[2.5rem] overflow-hidden mb-5">
+                <div className="relative aspect-[4/5] rounded-[2.5rem] overflow-hidden mb-3">
                   <img src={p.image_url} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" alt={p.name} />
                   <div className="absolute bottom-4 right-4 bg-black/90 backdrop-blur-xl text-white px-5 py-2.5 rounded-full text-[12px] font-black italic tracking-tighter shadow-2xl">
                     {p.price} ₽
                   </div>
                 </div>
+
+                {/* ВИТРИНА ПРОДАВЦА */}
+                <button 
+                  onClick={() => setViewingSeller(p.sellers)}
+                  className="block w-full text-center text-[8px] font-black uppercase text-orange-500 mb-2 tracking-widest hover:underline"
+                >
+                  {p.sellers?.shop_name || 'Магазин'}
+                </button>
                 
                 <h3 className="text-[11px] font-black italic h-10 line-clamp-2 leading-tight mb-5 uppercase text-center px-4 text-zinc-800 tracking-tighter">
                   {p.name}
@@ -426,6 +424,42 @@ export default function Home() {
         </main>
       </div>
 
+      {/* МОДАЛКА ВИТРИНЫ ПРОДАВЦА */}
+      {viewingSeller && (
+        <div className="fixed inset-0 z-[1200] bg-white overflow-y-auto animate-slide-up">
+          <header className="p-6 sticky top-0 bg-white/90 backdrop-blur-xl border-b flex justify-between items-center z-10">
+            <div>
+              <p className="text-[9px] font-black text-zinc-300 uppercase tracking-[0.3em] mb-1">Витрина</p>
+              <h2 className="text-2xl font-black italic uppercase text-orange-500 tracking-tighter">{viewingSeller.shop_name}</h2>
+            </div>
+            <button onClick={() => setViewingSeller(null)} className="bg-zinc-100 w-14 h-14 rounded-full font-black text-3xl flex items-center justify-center active:scale-90 transition-all">×</button>
+          </header>
+          <div className="p-5 grid grid-cols-2 gap-5 pb-20">
+            {products.filter(p => p.seller_id === viewingSeller.id).map(p => {
+               const count = cart.filter(i => i.id === p.id).length;
+               return (
+                <div key={p.id} className="bg-white rounded-[2.5rem] p-3 border border-zinc-100 shadow-sm">
+                  <div className="relative aspect-square rounded-[2rem] overflow-hidden mb-4">
+                    <img src={p.image_url} className="w-full h-full object-cover" />
+                    <div className="absolute bottom-3 right-3 bg-black text-white px-4 py-2 rounded-full text-[11px] font-black italic">{p.price} ₽</div>
+                  </div>
+                  <h3 className="text-[10px] font-black italic h-8 line-clamp-2 leading-tight mb-4 uppercase text-center text-zinc-800">{p.name}</h3>
+                  {count === 0 ? (
+                    <button onClick={() => addToCart(p)} className="w-full py-4 bg-black text-white rounded-2xl text-[9px] font-black uppercase italic shadow-lg">В КОРЗИНУ</button>
+                  ) : (
+                    <div className="flex items-center bg-zinc-100 rounded-2xl overflow-hidden h-11">
+                      <button onClick={() => removeFromCartOnce(p.id)} className="flex-1 font-black text-lg">-</button>
+                      <span className="text-[11px] font-black px-3">{count}</span>
+                      <button onClick={() => addToCart(p)} className="flex-1 font-black text-lg">+</button>
+                    </div>
+                  )}
+                </div>
+               )
+            })}
+          </div>
+        </div>
+      )}
+
       {/* МОДАЛКА СТАТУСА ЗАКАЗА */}
       {isStatusModalOpen && (
         <div 
@@ -433,7 +467,7 @@ export default function Home() {
           onClick={() => setIsStatusModalOpen(false)}
         >
           <div 
-            className="bg-white w-full max-w-[420px] rounded-[4rem] p-10 md:p-14 shadow-2xl relative overflow-hidden"
+            className="bg-white w-full max-w-[420px] rounded-[4rem] p-10 md:p-14 shadow-2xl relative"
             onClick={e => e.stopPropagation()}
           >
             <div className="text-center mb-10">
@@ -445,13 +479,13 @@ export default function Home() {
               <input 
                 type="text" 
                 placeholder="ТЕЛЕФОН" 
-                className="flex-1 bg-zinc-100 p-6 rounded-[2rem] font-black outline-none text-[13px] placeholder:text-zinc-300 border-none"
+                className="flex-1 bg-zinc-100 p-6 rounded-[2rem] font-black outline-none text-[13px] border-none"
                 value={checkPhone}
                 onChange={e => setCheckPhone(e.target.value)}
               />
               <button 
                 onClick={handleCheckOrder}
-                className="bg-black text-white px-8 rounded-[2rem] font-black italic uppercase text-[10px] active:scale-90 transition-all hover:bg-orange-500"
+                className="bg-black text-white px-8 rounded-[2rem] font-black italic uppercase text-[10px] hover:bg-orange-500 transition-colors"
               >
                 Ок
               </button>
@@ -461,51 +495,41 @@ export default function Home() {
               {isSearchingOrders ? (
                 <div className="py-20 flex flex-col items-center">
                   <div className="w-10 h-10 border-4 border-zinc-100 border-t-orange-500 rounded-full animate-spin mb-4"></div>
-                  <p className="text-[10px] font-black uppercase text-zinc-300 animate-pulse italic">Searching...</p>
                 </div>
               ) : userOrders.length > 0 ? (
                 userOrders.map((order: any) => (
                   <div key={order.id} className="bg-zinc-50 p-8 rounded-[3rem] border border-zinc-100 group">
                     <div className="flex justify-between items-center mb-4">
                       <span className="text-[9px] font-black uppercase text-zinc-300 tracking-widest">Заказ #{String(order.id)}</span>
-                      <span className="bg-black text-white text-[9px] px-4 py-1.5 rounded-full font-black uppercase tracking-tighter shadow-lg group-hover:bg-orange-500 transition-colors">
+                      <span className="bg-black text-white text-[9px] px-4 py-1.5 rounded-full font-black uppercase shadow-lg group-hover:bg-orange-500 transition-colors">
                         {order.status}
                       </span>
                     </div>
                     <p className="font-black italic text-4xl uppercase tracking-tighter text-zinc-900">{order.total_price} ₽</p>
-                    <p className="text-[9px] font-bold text-zinc-400 mt-3 uppercase tracking-wider">
-                      {new Date(order.created_at).toLocaleDateString()} в {new Date(order.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                    </p>
                   </div>
                 ))
               ) : checkPhone && (
-                <div className="text-center py-20 bg-zinc-50 rounded-[3rem] border-2 border-dashed border-zinc-100">
-                   <p className="text-[11px] font-black text-zinc-300 uppercase italic">Заказов не найдено</p>
-                </div>
+                <p className="text-center text-[11px] font-black text-zinc-300 uppercase italic py-20">Заказов не найдено</p>
               )}
             </div>
           </div>
         </div>
       )}
 
-      {/* БОКОВАЯ КОРЗИНА */}
+      {/* КОРЗИНА (ВЫЕЗЖАЕТ СНИЗУ) */}
       {isCartOpen && (
         <div 
-          className="fixed inset-0 z-[1500] bg-black/60 backdrop-blur-md flex justify-end animate-fade-in"
+          className="fixed inset-0 z-[1500] bg-black/60 backdrop-blur-md flex items-end justify-center animate-fade-in"
           onClick={() => setIsCartOpen(false)}
         >
           <div 
-            className="w-full max-w-[460px] bg-white h-full shadow-2xl flex flex-col p-8 md:p-12 animate-slide-left"
+            className="w-full max-w-[500px] bg-white h-[85vh] rounded-t-[4rem] shadow-2xl flex flex-col p-8 md:p-12 animate-slide-up"
             onClick={e => e.stopPropagation()}
           >
-            <div className="flex justify-between items-center mb-12">
-              <h2 className="text-5xl font-black italic uppercase tracking-tighter">Check</h2>
-              <button 
-                onClick={() => setIsCartOpen(false)}
-                className="w-14 h-14 bg-zinc-100 rounded-full flex items-center justify-center font-black text-2xl active:scale-90 transition-all hover:bg-black hover:text-white"
-              >
-                ×
-              </button>
+            <div className="w-12 h-1.5 bg-zinc-200 rounded-full mx-auto mb-8" />
+            <div className="flex justify-between items-center mb-10">
+              <h2 className="text-5xl font-black italic uppercase tracking-tighter">Корзина</h2>
+              <button onClick={() => setIsCartOpen(false)} className="text-4xl font-light">×</button>
             </div>
 
             <div className="flex-1 overflow-y-auto custom-scroll space-y-8 pr-2">
@@ -515,23 +539,28 @@ export default function Home() {
                   <p className="font-black italic uppercase text-2xl tracking-widest">Basket Empty</p>
                 </div>
               ) : (
-                cart.map((item, idx) => (
-                  <div key={idx} className="flex items-center gap-6 group border-b border-zinc-50 pb-8">
-                    <div className="w-20 h-20 rounded-[1.8rem] overflow-hidden shadow-lg">
-                      <img src={item.image_url} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                Array.from(new Set(cart.map(i => i.id))).map(id => {
+                  const item = cart.find(i => i.id === id);
+                  const count = cart.filter(i => i.id === id).length;
+                  return (
+                    <div key={id} className="flex items-center gap-6 group border-b border-zinc-50 pb-8">
+                      <div className="w-20 h-20 rounded-[1.8rem] overflow-hidden shadow-lg">
+                        <img src={item.image_url} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="font-black italic uppercase text-[11px] leading-tight mb-1 text-zinc-800 tracking-tighter">{item.name}</h4>
+                        <p className="font-black italic text-orange-500 text-xl tracking-tighter">{item.price} ₽</p>
+                      </div>
+                      
+                      {/* УПРАВЛЕНИЕ КОЛИЧЕСТВОМ В КОРЗИНЕ */}
+                      <div className="flex items-center bg-zinc-100 rounded-[1.5rem] overflow-hidden h-12 w-28 border border-zinc-200/50">
+                        <button onClick={() => removeFromCartOnce(item.id)} className="flex-1 font-black text-xl hover:bg-zinc-200 transition-colors">-</button>
+                        <span className="text-[13px] font-black px-2">{count}</span>
+                        <button onClick={() => addToCart(item)} className="flex-1 font-black text-xl hover:bg-zinc-200 transition-colors">+</button>
+                      </div>
                     </div>
-                    <div className="flex-1">
-                      <h4 className="font-black italic uppercase text-[11px] leading-tight mb-1 text-zinc-800 tracking-tighter">{item.name}</h4>
-                      <p className="font-black italic text-orange-500 text-xl tracking-tighter">{item.price} ₽</p>
-                    </div>
-                    <button 
-                      onClick={() => removeFromCartOnce(item.id)}
-                      className="w-10 h-10 bg-zinc-50 rounded-xl flex items-center justify-center text-zinc-300 hover:bg-red-50 hover:text-red-500 transition-all font-bold"
-                    >
-                      ×
-                    </button>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
 
@@ -541,27 +570,27 @@ export default function Home() {
                     <input 
                       type="text" 
                       placeholder="ВАШ ТЕЛЕФОН" 
-                      className="w-full bg-zinc-100 p-6 rounded-[2rem] font-black outline-none uppercase text-[12px] border-2 border-transparent focus:border-black/5 transition-all"
+                      className="w-full bg-zinc-100 p-6 rounded-[2rem] font-black outline-none uppercase text-[12px] focus:bg-zinc-200 transition-all"
                       value={checkPhone}
                       onChange={e => setCheckPhone(e.target.value)}
                     />
                     <input 
                       type="text" 
                       placeholder="АДРЕС ДОСТАВКИ" 
-                      className="w-full bg-zinc-100 p-6 rounded-[2rem] font-black outline-none uppercase text-[12px] border-2 border-transparent focus:border-black/5 transition-all"
+                      className="w-full bg-zinc-100 p-6 rounded-[2rem] font-black outline-none uppercase text-[12px] focus:bg-zinc-200 transition-all"
                       value={orderAddress}
                       onChange={e => setOrderAddress(e.target.value)}
                     />
                  </div>
                  <div className="flex justify-between items-end pt-6 px-4">
-                   <span className="text-[12px] font-black text-zinc-300 uppercase tracking-widest">Total Price:</span>
+                   <span className="text-[12px] font-black text-zinc-300 uppercase tracking-widest">Итого:</span>
                    <span className="text-5xl font-black italic tracking-tighter">{totalPrice} ₽</span>
                  </div>
                  <button 
                   onClick={handleCheckout}
-                  className="w-full bg-black hover:bg-orange-500 text-white py-8 rounded-[2.5rem] font-black italic uppercase text-xl shadow-2xl shadow-black/10 transition-all active:scale-95"
+                  className="w-full bg-black hover:bg-orange-500 text-white py-8 rounded-[2.5rem] font-black italic uppercase text-xl shadow-2xl transition-all active:scale-95"
                  >
-                   CONFIRM ORDER
+                   ОФОРМИТЬ ЗАКАЗ
                  </button>
               </div>
             )}
@@ -572,14 +601,10 @@ export default function Home() {
       {/* МОДАЛКА ИЗМЕНЕНИЯ ЦЕНЫ */}
       {isProductModalOpen && (
         <div className="fixed inset-0 z-[2100] bg-black/95 backdrop-blur-2xl flex items-center justify-center p-6 animate-fade-in">
-          <div className="bg-[#111] w-full max-w-[420px] rounded-[4rem] p-12 md:p-16 border border-white/5 shadow-2xl shadow-orange-500/10">
-            <div className="text-center mb-12">
-              <h3 className="text-orange-500 font-black italic uppercase text-2xl tracking-tighter leading-none">Price Update</h3>
-              <p className="text-[8px] font-black text-zinc-600 uppercase tracking-[0.4em] mt-2">Database Encryption Active</p>
-            </div>
-            
+          <div className="bg-[#111] w-full max-w-[420px] rounded-[4rem] p-12 md:p-16 border border-white/5 shadow-2xl">
+            <h3 className="text-orange-500 font-black italic uppercase text-2xl tracking-tighter text-center mb-12">Price Update</h3>
             <form onSubmit={handleSaveProduct}>
-              <div className="bg-black p-10 rounded-[2.5rem] mb-12 border border-white/5 relative shadow-inner">
+              <div className="bg-black p-10 rounded-[2.5rem] mb-12 border border-white/5 relative">
                 <input 
                   type="number" 
                   className="w-full bg-transparent text-white text-7xl font-black outline-none tracking-tighter text-center"
@@ -587,57 +612,27 @@ export default function Home() {
                   onChange={e => setEditingProduct({...editingProduct, price: e.target.value})}
                   autoFocus
                 />
-                <span className="absolute bottom-6 right-10 text-zinc-800 font-black italic text-xl">RUB</span>
               </div>
-              
               <div className="flex gap-4">
-                <button 
-                  type="button" 
-                  onClick={() => setIsProductModalOpen(false)}
-                  className="flex-1 bg-zinc-900 py-6 rounded-[2rem] font-black uppercase text-[11px] text-zinc-500 italic hover:text-white transition-all"
-                >
-                  Cancel
-                </button>
-                <button 
-                  type="submit" 
-                  className="flex-[2] bg-orange-500 py-6 rounded-[2rem] font-black uppercase text-[11px] shadow-2xl shadow-orange-500/20 italic hover:bg-orange-400 active:scale-95 transition-all"
-                >
-                  Update Database
-                </button>
+                <button type="button" onClick={() => setIsProductModalOpen(false)} className="flex-1 bg-zinc-900 py-6 rounded-[2rem] font-black uppercase text-[11px] text-zinc-500 italic transition-all">Cancel</button>
+                <button type="submit" className="flex-[2] bg-orange-500 py-6 rounded-[2rem] font-black uppercase text-[11px] italic hover:bg-orange-400 active:scale-95 transition-all">Save</button>
               </div>
             </form>
           </div>
         </div>
       )}
 
-      {/* СТИЛИ */}
       <style jsx global>{`
-        @keyframes loading-bar {
-          0% { transform: translateX(-100%); }
-          100% { transform: translateX(100%); }
-        }
-        @keyframes slide-left {
-          from { transform: translateX(100%); }
-          to { transform: translateX(0); }
-        }
-        @keyframes fade-in {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
+        @keyframes loading-bar { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
+        @keyframes slide-up { from { transform: translateY(100%); } to { transform: translateY(0); } }
+        @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
         .animate-loading-bar { animation: loading-bar 1.5s infinite linear; }
-        .animate-slide-left { animation: slide-left 0.5s cubic-bezier(0.16, 1, 0.3, 1); }
+        .animate-slide-up { animation: slide-up 0.5s cubic-bezier(0.16, 1, 0.3, 1); }
         .animate-fade-in { animation: fade-in 0.3s ease-out; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .custom-scroll::-webkit-scrollbar { width: 5px; }
-        .custom-scroll::-webkit-scrollbar-track { background: transparent; }
         .custom-scroll::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.1); border-radius: 10px; }
-        .custom-scroll:hover::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.2); }
         body { background: #F8F8F8; -webkit-tap-highlight-color: transparent; }
-        input[type="number"]::-webkit-outer-spin-button,
-        input[type="number"]::-webkit-inner-spin-button {
-          -webkit-appearance: none;
-          margin: 0;
-        }
       `}</style>
     </div>
   );

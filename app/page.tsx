@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo, useRef } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { supabase } from './lib/supabase';
 
 export default function Home() {
@@ -31,11 +31,30 @@ export default function Home() {
   const [currentSeller, setCurrentSeller] = useState<any>(null);
   const [sellerActiveOrders, setSellerActiveOrders] = useState<any[]>([]);
   const [sellerProducts, setSellerProducts] = useState<any[]>([]);
-  const [adminTab, setAdminTab] = useState<'витрина' | 'истории' | 'заказы' | 'архив'>('витрина');
+  const [adminTab, setAdminTab] = useState<'витрина' | 'заказы' | 'архив'>('витрина');
 
   // --- РЕДАКТИРОВАНИЕ ---
   const [editingProduct, setEditingProduct] = useState<any>(null);
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
+
+  // --- 1. ЛОГИКА LOCAL STORAGE ---
+  
+  // Загрузка корзины при старте
+  useEffect(() => {
+    const savedCart = localStorage.getItem('radell_cart');
+    if (savedCart) {
+      try {
+        setCart(JSON.parse(savedCart));
+      } catch (e) {
+        console.error("Ошибка загрузки корзины:", e);
+      }
+    }
+  }, []);
+
+  // Сохранение корзины при изменениях
+  useEffect(() => {
+    localStorage.setItem('radell_cart', JSON.stringify(cart));
+  }, [cart]);
 
   // Следим за хешем для админки (#/admin)
   useEffect(() => {
@@ -139,7 +158,7 @@ export default function Home() {
 
   // --- ЛОГИКА МАГАЗИНА ---
   const addToCart = (p: any) => {
-    setCart([...cart, p]);
+    setCart(prev => [...prev, p]);
     setCartBumping(true);
     setTimeout(() => setCartBumping(false), 300);
   };
@@ -150,6 +169,12 @@ export default function Home() {
       const newCart = [...cart];
       newCart.splice(index, 1);
       setCart(newCart);
+    }
+  };
+
+  const clearCart = () => {
+    if (confirm("Очистить корзину?")) {
+      setCart([]);
     }
   };
 
@@ -172,7 +197,7 @@ export default function Home() {
 
     if (!error) {
       alert("ЗАКАЗ УСПЕШНО ОТПРАВЛЕН!");
-      setCart([]);
+      setCart([]); // Очистка после заказа
       setIsCartOpen(false);
       setOrderAddress('');
     } else {
@@ -273,7 +298,7 @@ export default function Home() {
                 {adminTab === 'витрина' && sellerProducts.map(p => (
                   <div key={p.id} className="bg-[#111] p-6 rounded-[3rem] flex items-center gap-6 border border-white/5 group hover:border-orange-500/30 transition-all">
                     <div className="w-24 h-24 rounded-[2rem] overflow-hidden shadow-2xl">
-                      <img src={p.image_url} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                      <img src={p.image_url} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" alt={p.name} />
                     </div>
                     <div className="flex-1">
                       <h4 className="font-black italic uppercase text-sm mb-1 text-zinc-300">{p.name}</h4>
@@ -340,7 +365,7 @@ export default function Home() {
 
           <button 
             onClick={() => setIsCartOpen(true)}
-            className={`h-14 w-14 rounded-2xl flex items-center justify-center transition-all ${cartBumping ? 'scale-110 bg-orange-500 shadow-2xl' : 'bg-black active:scale-90'}`}
+            className={`h-14 w-14 rounded-2xl relative flex items-center justify-center transition-all ${cartBumping ? 'scale-110 bg-orange-500 shadow-2xl' : 'bg-black active:scale-90'}`}
           >
             <span className="text-xl">🛒</span>
             {cart.length > 0 && (
@@ -440,7 +465,7 @@ export default function Home() {
                return (
                 <div key={p.id} className="bg-white rounded-[2.5rem] p-3 border border-zinc-100 shadow-sm">
                   <div className="relative aspect-square rounded-[2rem] overflow-hidden mb-4">
-                    <img src={p.image_url} className="w-full h-full object-cover" />
+                    <img src={p.image_url} className="w-full h-full object-cover" alt={p.name}/>
                     <div className="absolute bottom-3 right-3 bg-black text-white px-4 py-2 rounded-full text-[11px] font-black italic">{p.price} ₽</div>
                   </div>
                   <h3 className="text-[10px] font-black italic h-8 line-clamp-2 leading-tight mb-4 uppercase text-center text-zinc-800">{p.name}</h3>
@@ -529,7 +554,17 @@ export default function Home() {
             <div className="w-12 h-1.5 bg-zinc-200 rounded-full mx-auto mb-8" />
             <div className="flex justify-between items-center mb-10">
               <h2 className="text-5xl font-black italic uppercase tracking-tighter">Корзина</h2>
-              <button onClick={() => setIsCartOpen(false)} className="text-4xl font-light">×</button>
+              <div className="flex items-center gap-4">
+                {cart.length > 0 && (
+                  <button 
+                    onClick={clearCart}
+                    className="text-[10px] font-black uppercase text-zinc-400 hover:text-red-500 transition-colors"
+                  >
+                    Очистить
+                  </button>
+                )}
+                <button onClick={() => setIsCartOpen(false)} className="text-4xl font-light">×</button>
+              </div>
             </div>
 
             <div className="flex-1 overflow-y-auto custom-scroll space-y-8 pr-2">
@@ -545,7 +580,7 @@ export default function Home() {
                   return (
                     <div key={id} className="flex items-center gap-6 group border-b border-zinc-50 pb-8">
                       <div className="w-20 h-20 rounded-[1.8rem] overflow-hidden shadow-lg">
-                        <img src={item.image_url} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                        <img src={item.image_url} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" alt={item.name} />
                       </div>
                       <div className="flex-1">
                         <h4 className="font-black italic uppercase text-[11px] leading-tight mb-1 text-zinc-800 tracking-tighter">{item.name}</h4>

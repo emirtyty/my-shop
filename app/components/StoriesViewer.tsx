@@ -51,7 +51,7 @@ export default function StoriesViewer() {
   const [touchStartX, setTouchStartX] = useState(0);
   const [touchEndX, setTouchEndX] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
-  const intervalRef = useRef<number | null>(null);
+  const intervalRef = useRef<any>(null);
 
   useEffect(() => {
     fetchStories();

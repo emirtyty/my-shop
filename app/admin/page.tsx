@@ -258,27 +258,15 @@ export default function AdminPage() {
         <p className="text-purple-300 font-bold">MARKETPLACE TERMINAL v2.0</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-        <div className="bg-gradient-to-br from-slate-800/50 to-slate-900/50 p-6 rounded-2xl border border-cyan-500/20 backdrop-blur">
-          <div className="text-3xl mb-2">📦</div>
-          <div className="text-2xl font-black text-cyan-400">{stats.totalProducts}</div>
-          <div className="text-sm text-slate-400">Всего товаров</div>
-        </div>
-        <div className="bg-gradient-to-br from-slate-800/50 to-slate-900/50 p-6 rounded-2xl border border-yellow-500/20 backdrop-blur">
-          <div className="text-3xl mb-2">⚠️</div>
-          <div className="text-2xl font-black text-yellow-400">{stats.lowStock}</div>
-          <div className="text-sm text-slate-400">Мало остаток</div>
-        </div>
-        <div className="bg-gradient-to-br from-slate-800/50 to-slate-900/50 p-6 rounded-2xl border border-red-500/20 backdrop-blur">
-          <div className="text-3xl mb-2">🚫</div>
-          <div className="text-2xl font-black text-red-400">{stats.outOfStock}</div>
-          <div className="text-sm text-slate-400">Нет в наличии</div>
-        </div>
-        <div className="bg-gradient-to-br from-slate-800/50 to-slate-900/50 p-6 rounded-2xl border border-green-500/20 backdrop-blur">
-          <div className="text-3xl mb-2">💰</div>
-          <div className="text-2xl font-black text-green-400">{stats.totalValue.toLocaleString()}₽</div>
-          <div className="text-sm text-slate-400">Общая стоимость</div>
-        </div>
+      <div className="fixed top-20 right-4 z-50">
+        <button className="relative p-3 bg-slate-800/50 rounded-full border border-purple-500/20 backdrop-blur hover:bg-slate-700/50 transition-colors">
+          <span className="text-2xl">🔔</span>
+          {(stats.lowStock > 0 || stats.outOfStock > 0) && (
+            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-6 h-6 flex items-center justify-center font-bold">
+              {stats.lowStock + stats.outOfStock}
+            </span>
+          )}
+        </button>
       </div>
 
       <div className="pb-24">
@@ -470,33 +458,42 @@ export default function AdminPage() {
         )}
       </div>
 
-      <div className="fixed bottom-0 left-0 right-0 bg-slate-900/95 backdrop-blur-lg border-t border-purple-500/20 z-40">
-        <div className="flex justify-around items-center p-4">
-          <button
-            onClick={() => setActiveTab('products')}
-            className={`flex flex-col items-center gap-1 px-6 py-2 rounded-xl ${
-              activeTab === 'products' 
-                ? 'bg-purple-600/30 text-purple-300 border border-purple-500/30' 
-                : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            <span className="text-2xl">📦</span>
-            <span className="text-xs font-medium">Товары</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('add-product')}
-            className={`flex flex-col items-center gap-1 px-6 py-2 rounded-xl ${
-              activeTab === 'add-product' 
-                ? 'bg-purple-600/30 text-purple-300 border border-purple-500/30' 
-                : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            <span className="text-2xl">➕</span>
-            <span className="text-xs font-medium">Добавить</span>
-          </button>
+      {/* Liquid Glass Bottom Navigation */}
+      <div className="fixed bottom-0 left-0 right-0 z-40">
+        <div className="absolute inset-0 bg-black/20 backdrop-blur-xl"></div>
+        <div className="relative bg-white/5 backdrop-blur-2xl border-t border-white/10">
+          <div className="flex justify-around items-center p-4">
+            <button
+              onClick={() => setActiveTab('products')}
+              className={`flex flex-col items-center gap-2 px-8 py-3 rounded-2xl transition-all duration-300 ${
+                activeTab === 'products' 
+                  ? 'bg-white/20 shadow-lg scale-105 border border-white/20' 
+                  : 'hover:bg-white/10 active:scale-95'
+              }`}
+            >
+              <span className="text-2xl filter drop-shadow-sm">📦</span>
+              <span className={`text-xs font-medium ${
+                activeTab === 'products' ? 'text-white' : 'text-white/70'
+              }`}>Товары</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('add-product')}
+              className={`flex flex-col items-center gap-2 px-8 py-3 rounded-2xl transition-all duration-300 ${
+                activeTab === 'add-product' 
+                  ? 'bg-white/20 shadow-lg scale-105 border border-white/20' 
+                  : 'hover:bg-white/10 active:scale-95'
+              }`}
+            >
+              <span className="text-2xl filter drop-shadow-sm">➕</span>
+              <span className={`text-xs font-medium ${
+                activeTab === 'add-product' ? 'text-white' : 'text-white/70'
+              }`}>Добавить</span>
+            </button>
+          </div>
         </div>
       </div>
 
+      {/* Edit Modal */}
       {showEditModal && editingProduct && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-slate-800 rounded-2xl border border-purple-500/20 p-6 max-w-md w-full">

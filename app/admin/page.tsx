@@ -47,12 +47,14 @@ export default function AdminPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [stories, setStories] = useState<Story[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('Все');
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [activeTab, setActiveTab] = useState<'products' | 'stories' | 'add-product'>('products');
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string>('');
   const [newProduct, setNewProduct] = useState<Partial<Product>>({
     name: '',
     price: 0,
@@ -61,12 +63,65 @@ export default function AdminPage() {
     discount: 0,
     stock_quantity: 0
   });
+
   const [stats, setStats] = useState<Stats>({
     totalProducts: 0,
     lowStock: 0,
     outOfStock: 0,
     totalValue: 0
   });
+
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setSelectedImageFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result as string);
+        setNewProduct({...newProduct, image_url: reader.result as string});
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const text = await file.text();
+      const data = file.name.endsWith('.json') ? JSON.parse(text) : parseCSV(text);
+      
+      for (const item of data) {
+        await supabase.from('product_market').insert({
+          name: item.name,
+          price: Number(item.price),
+          category: item.category,
+          discount: Number(item.discount || 0),
+          stock_quantity: Number(item.stock_quantity || 0),
+          image_url: item.image_url || 'https://via.placeholder.com/150',
+          seller_id: 'default-seller'
+        });
+      }
+      
+      await fetchProducts();
+      addToast(`Импортировано ${data.length} товаров`, 'success');
+    } catch (error) {
+      addToast('Ошибка при импорте', 'error');
+    }
+  };
+
+  const parseCSV = (text: string) => {
+    const lines = text.split('\n');
+    const headers = lines[0].split(',').map(h => h.trim());
+    return lines.slice(1).map(line => {
+      const values = line.split(',').map(v => v.trim());
+      return headers.reduce((obj, header, index) => {
+        obj[header] = values[index];
+        return obj;
+      }, {} as any);
+    });
+  };
 
   useEffect(() => {
     fetchProducts();
@@ -221,10 +276,8 @@ export default function AdminPage() {
     }, 3000);
   };
 
-  const categories = ['Все', ...Array.from(new Set(products.map(p => p.category)))];
   const filteredProducts = products.filter(p => 
-    p.name.toLowerCase().includes(searchQuery.toLowerCase()) &&
-    (selectedCategory === 'Все' || p.category === selectedCategory)
+    p.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const getStockStatus = (quantity?: number) => {
@@ -235,7 +288,7 @@ export default function AdminPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900/20 to-slate-900 text-white p-6 pb-24">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900/20 to-slate-900 text-white p-6 pb-32">
       <div className="fixed top-4 right-4 z-50 space-y-2">
         {toasts.map(toast => (
           <div
@@ -252,56 +305,47 @@ export default function AdminPage() {
       </div>
 
       <div className="mb-8">
-        <h1 className="text-6xl font-black italic bg-gradient-to-r from-cyan-400 via-purple-500 to-pink-500 bg-clip-text text-transparent mb-2">
-          Admin Panel
-        </h1>
-        <p className="text-purple-300 font-bold">MARKETPLACE TERMINAL v2.0</p>
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex-1 max-w-md">
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="Поиск товаров..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full px-4 py-3 bg-slate-800/50 rounded-xl outline-none focus:ring-2 focus:ring-cyan-500 border border-purple-500/20 text-white placeholder-slate-400 backdrop-blur"
+              />
+              <span className="absolute right-4 top-1/2 -translate-y-1/2">🔍</span>
+            </div>
+          </div>
+          <div className="ml-4">
+            <label className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-bold hover:shadow-lg cursor-pointer inline-block">
+              📁 Импорт товаров
+              <input
+                type="file"
+                accept=".csv,.json"
+                onChange={handleImport}
+                className="hidden"
+              />
+            </label>
+          </div>
+        </div>
       </div>
 
-      <div className="fixed top-20 right-4 z-50">
-        <button className="relative p-3 bg-slate-800/50 rounded-full border border-purple-500/20 backdrop-blur hover:bg-slate-700/50 transition-colors">
+      <div className="fixed top-4 right-4 z-50">
+        <button className="relative p-3 bg-slate-800/80 rounded-full border border-purple-500/20 backdrop-blur-xl hover:bg-slate-700/80 transition-all duration-300 shadow-2xl hover:scale-105">
           <span className="text-2xl">🔔</span>
           {(stats.lowStock > 0 || stats.outOfStock > 0) && (
-            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-6 h-6 flex items-center justify-center font-bold">
+            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-6 h-6 flex items-center justify-center font-bold shadow-lg">
               {stats.lowStock + stats.outOfStock}
             </span>
           )}
         </button>
       </div>
 
-      <div className="pb-24">
+      <div className="pb-32">
         {activeTab === 'products' && (
           <div>
-            <div className="bg-gradient-to-br from-slate-800/50 to-slate-900/50 p-6 rounded-2xl border border-purple-500/20 backdrop-blur mb-8">
-              <div className="flex flex-col md:flex-row gap-4">
-                <div className="flex-1 relative">
-                  <input
-                    type="text"
-                    placeholder="Поиск товаров..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full px-4 py-3 bg-slate-700/50 rounded-xl outline-none focus:ring-2 focus:ring-cyan-500 border border-purple-500/20 text-white placeholder-slate-400"
-                  />
-                  <span className="absolute right-4 top-1/2 -translate-y-1/2">🔍</span>
-                </div>
-                <select
-                  value={selectedCategory}
-                  onChange={(e) => setSelectedCategory(e.target.value)}
-                  className="px-4 py-3 bg-slate-700/50 rounded-xl outline-none focus:ring-2 focus:ring-cyan-500 border border-purple-500/20 text-white"
-                >
-                  {categories.map(cat => (
-                    <option key={cat} value={cat}>{cat}</option>
-                  ))}
-                </select>
-                <button
-                  onClick={() => alert('Экспорт в разработке')}
-                  className="px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl font-bold hover:shadow-lg"
-                >
-                  📊 Экспорт CSV
-                </button>
-              </div>
-            </div>
-
             <div className="bg-gradient-to-br from-slate-800/50 to-slate-900/50 p-6 rounded-2xl border border-purple-500/20 backdrop-blur">
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-2xl font-black italic bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent">
@@ -437,14 +481,38 @@ export default function AdminPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-purple-300 mb-2">URL изображения</label>
-                  <input
-                    type="text"
-                    value={newProduct.image_url}
-                    onChange={(e) => setNewProduct({...newProduct, image_url: e.target.value})}
-                    className="w-full px-4 py-3 bg-slate-700/50 rounded-xl outline-none focus:ring-2 focus:ring-cyan-500 border border-purple-500/20 text-white"
-                    placeholder="https://example.com/image.jpg"
-                  />
+                  <label className="block text-sm font-medium text-purple-300 mb-2">Изображение товара</label>
+                  <div className="space-y-3">
+                    <label className="block w-full px-4 py-8 bg-slate-700/50 rounded-xl outline-none focus:ring-2 focus:ring-cyan-500 border border-purple-500/20 text-center cursor-pointer hover:bg-slate-700/70 transition-colors">
+                      <span className="text-3xl mb-2 block">📷</span>
+                      <span className="text-purple-300">Выбрать изображение</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleImageSelect}
+                        className="hidden"
+                      />
+                    </label>
+                    {imagePreview && (
+                      <div className="relative">
+                        <img 
+                          src={imagePreview} 
+                          alt="Предпросмотр"
+                          className="w-full h-32 object-cover rounded-xl border border-purple-500/20"
+                        />
+                        <button
+                          onClick={() => {
+                            setImagePreview('');
+                            setSelectedImageFile(null);
+                            setNewProduct({...newProduct, image_url: ''});
+                          }}
+                          className="absolute top-2 right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center hover:bg-red-600"
+                        >
+                          ❌
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
                 <button
                   onClick={createProduct}
@@ -459,35 +527,28 @@ export default function AdminPage() {
       </div>
 
       {/* Liquid Glass Bottom Navigation */}
-      <div className="fixed bottom-0 left-0 right-0 z-40">
-        <div className="absolute inset-0 bg-black/20 backdrop-blur-xl"></div>
-        <div className="relative bg-white/5 backdrop-blur-2xl border-t border-white/10">
-          <div className="flex justify-around items-center p-4">
+      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40">
+        <div className="bg-white/10 backdrop-blur-2xl rounded-3xl border border-white/20 shadow-2xl p-2">
+          <div className="flex items-center gap-2">
             <button
               onClick={() => setActiveTab('products')}
-              className={`flex flex-col items-center gap-2 px-8 py-3 rounded-2xl transition-all duration-300 ${
+              className={`flex items-center justify-center w-14 h-14 rounded-2xl transition-all duration-300 ${
                 activeTab === 'products' 
-                  ? 'bg-white/20 shadow-lg scale-105 border border-white/20' 
-                  : 'hover:bg-white/10 active:scale-95'
+                  ? 'bg-white/30 shadow-lg scale-110' 
+                  : 'hover:bg-white/20 active:scale-95'
               }`}
             >
               <span className="text-2xl filter drop-shadow-sm">📦</span>
-              <span className={`text-xs font-medium ${
-                activeTab === 'products' ? 'text-white' : 'text-white/70'
-              }`}>Товары</span>
             </button>
             <button
               onClick={() => setActiveTab('add-product')}
-              className={`flex flex-col items-center gap-2 px-8 py-3 rounded-2xl transition-all duration-300 ${
+              className={`flex items-center justify-center w-14 h-14 rounded-2xl transition-all duration-300 ${
                 activeTab === 'add-product' 
-                  ? 'bg-white/20 shadow-lg scale-105 border border-white/20' 
-                  : 'hover:bg-white/10 active:scale-95'
+                  ? 'bg-white/30 shadow-lg scale-110' 
+                  : 'hover:bg-white/20 active:scale-95'
               }`}
             >
               <span className="text-2xl filter drop-shadow-sm">➕</span>
-              <span className={`text-xs font-medium ${
-                activeTab === 'add-product' ? 'text-white' : 'text-white/70'
-              }`}>Добавить</span>
             </button>
           </div>
         </div>

@@ -1,0 +1,7 @@
+RaDellAndroid/
+unitychina.codely-1.5.1-linux-x64.vsix
+.aider*
+node_modules/
+.next/
+out/
+build/

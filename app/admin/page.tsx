@@ -279,25 +279,13 @@ export default function AdminPage() {
         ))}
       </div>
 
-      {/* Header with Search */}
+      {/* Header */}
       <div className="mb-6">
         <div className="flex flex-col sm:flex-row items-center gap-4 mb-4">
-          <div className="w-full sm:flex-1">
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="Поиск товаров..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full px-4 py-2 sm:py-3 bg-white/10 backdrop-blur-xl rounded-2xl outline-none focus:ring-2 focus:ring-cyan-500 border border-white/20 text-white placeholder-white/50 text-sm sm:text-base"
-              />
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm sm:text-base">🔍</span>
-            </div>
-          </div>
           <div className="w-full sm:w-auto">
             <button
               onClick={() => setShowSocialModal(true)}
-              className="block w-full px-4 py-2 sm:py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-2xl font-bold hover:shadow-2xl cursor-pointer text-center text-sm sm:text-base backdrop-blur-xl border border-white/20"
+              className="block w-full px-4 py-2 sm:py-3 bg-gray-800 text-white rounded-2xl font-bold hover:bg-gray-700 cursor-pointer text-center text-sm sm:text-base"
             >
               📱 Соцсети
             </button>
@@ -306,11 +294,11 @@ export default function AdminPage() {
       </div>
 
       {/* Notification Bell */}
-      <div className="fixed top-4 right-4 z-50">
-        <button className="relative p-3 bg-white/10 backdrop-blur-xl rounded-full border border-white/20 hover:bg-white/20 transition-all duration-300 shadow-2xl hover:scale-105">
+      <div className="fixed top-20 right-4 z-50">
+        <button className="relative p-3 bg-gray-800 rounded-full border border-gray-700 hover:bg-gray-700 transition-all duration-300 shadow-lg">
           <span className="text-2xl">🔔</span>
           {(stats.lowStock > 0 || stats.outOfStock > 0) && (
-            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-6 h-6 flex items-center justify-center font-bold shadow-lg">
+            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-6 h-6 flex items-center justify-center font-bold">
               {stats.lowStock + stats.outOfStock}
             </span>
           )}
@@ -323,7 +311,7 @@ export default function AdminPage() {
           <div>
             <div className="bg-white/5 backdrop-blur-2xl p-4 sm:p-6 rounded-3xl border border-white/10 shadow-2xl mb-6">
               <div className="flex justify-between items-center mb-4 sm:mb-6">
-                <h2 className="text-xl sm:text-2xl font-black italic bg-gradient-to-r from-cyan-400 via-purple-500 to-pink-500 bg-clip-text text-transparent">
+                <h2 className="text-xl sm:text-2xl font-bold text-white mb-4 sm:mb-6">
                   Товары ({filteredProducts.length})
                 </h2>
               </div>
@@ -395,7 +383,7 @@ export default function AdminPage() {
         {/* Add Product Tab */}
         {activeTab === 'add-product' && (
           <div className="bg-white/5 backdrop-blur-2xl p-4 sm:p-6 rounded-3xl border border-white/10 shadow-2xl">
-            <h2 className="text-xl sm:text-2xl font-black italic bg-gradient-to-r from-cyan-400 via-purple-500 to-pink-500 bg-clip-text text-transparent mb-4 sm:mb-6">
+            <h2 className="text-xl sm:text-2xl font-bold text-white mb-4 sm:mb-6">
               Добавить новый товар
             </h2>
             <div className="max-w-full sm:max-w-md">
@@ -462,7 +450,7 @@ export default function AdminPage() {
                 </div>
                 <button
                   onClick={createProduct}
-                  className="w-full px-4 py-2 sm:px-6 sm:py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-2xl font-bold hover:shadow-2xl text-sm sm:text-base backdrop-blur-xl border border-white/20"
+                  className="w-full px-4 py-2 sm:px-6 sm:py-3 bg-green-600 text-white rounded-2xl font-bold hover:bg-green-700 text-sm sm:text-base"
                 >
                   ➕ Добавить товар
                 </button>
@@ -563,7 +551,7 @@ export default function AdminPage() {
               <div className="flex gap-3 pt-4">
                 <button
                   onClick={() => updateProduct(editingProduct)}
-                  className="flex-1 px-3 py-2 sm:px-4 sm:py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-2xl font-bold hover:shadow-2xl text-sm sm:text-base"
+                  className="flex-1 px-3 py-2 sm:px-4 sm:py-3 bg-green-600 text-white rounded-2xl font-bold hover:bg-green-700 text-sm sm:text-base"
                 >
                   💾 Сохранить
                 </button>
@@ -631,7 +619,7 @@ export default function AdminPage() {
               <div className="flex gap-3 pt-4">
                 <button
                   onClick={updateSellerSocials}
-                  className="flex-1 px-4 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-2xl font-bold hover:shadow-2xl"
+                  className="flex-1 px-4 py-3 bg-purple-600 text-white rounded-2xl font-bold hover:bg-purple-700"
                 >
                   💾 Сохранить
                 </button>

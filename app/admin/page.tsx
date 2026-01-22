@@ -3,6 +3,22 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 
+// Add CSS animations
+if (typeof window !== 'undefined') {
+  const style = document.createElement('style');
+  style.textContent = `
+    @keyframes bounce-in {
+      0% { transform: scale(0); opacity: 0; }
+      50% { transform: scale(1.1); }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    .animate-bounce-in {
+      animation: bounce-in 0.5s ease-out;
+    }
+  `;
+  document.head.appendChild(style);
+}
+
 interface Product {
   id: string;
   name: string;
@@ -74,6 +90,11 @@ export default function AdminPage() {
     discount: 0,
     stock_quantity: 0
   });
+  const [selectedImages, setSelectedImages] = useState<File[]>([]);
+  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+  const [cachedData, setCachedData] = useState<{products: Product[], lastUpdate: number} | null>(null);
+  const [autoRestock, setAutoRestock] = useState(false);
+  const [restockThreshold, setRestockThreshold] = useState(5);
   const [stats, setStats] = useState<Stats>({
     totalProducts: 0,
     lowStock: 0,
@@ -90,23 +111,45 @@ export default function AdminPage() {
     instagram_url: ''
   });
   const [showSocialModal, setShowSocialModal] = useState(false);
+  const [showStoriesModal, setShowStoriesModal] = useState(false);
 
   useEffect(() => {
     fetchProducts();
     fetchStories();
     fetchSellerInfo();
-  }, []);
+    
+    // Периодическая проверка автопополнения (каждые 5 минут)
+    const interval = setInterval(() => {
+      if (autoRestock) {
+        checkAutoRestock();
+      }
+    }, 300000); // 5 минут
+    
+    return () => clearInterval(interval);
+  }, [autoRestock]);
 
   const fetchProducts = async () => {
     try {
+      // Сначала проверяем кэш
+      const cached = getCachedData();
+      if (cached) {
+        setProducts(cached);
+        calculateStats(cached);
+      }
+
       const { data, error } = await supabase
         .from('product_market')
         .select('*, sellers(shop_name, id, telegram_url, vk_url, whatsapp_url, instagram_url)')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setProducts(data || []);
-      calculateStats(data || []);
+      const products = data || [];
+      setProducts(products);
+      cacheData(products);
+      calculateStats(products);
+      
+      // Проверяем автопополнение
+      await checkAutoRestock();
     } catch (error) {
       console.error('Error loading products:', error);
     } finally {
@@ -182,6 +225,9 @@ export default function AdminPage() {
 
   const createProduct = async () => {
     try {
+      // Используем первое изображение из галереи или заглушку
+      const imageUrl = imagePreviews.length > 0 ? imagePreviews[0] : 'https://via.placeholder.com/150';
+      
       const { error } = await supabase
         .from('product_market')
         .insert({
@@ -190,7 +236,7 @@ export default function AdminPage() {
           category: newProduct.category,
           discount: newProduct.discount,
           stock_quantity: newProduct.stock_quantity,
-          image_url: newProduct.image_url,
+          image_url: imageUrl,
           seller_id: sellerInfo.id || 'default-seller'
         });
 
@@ -205,6 +251,8 @@ export default function AdminPage() {
         discount: 0,
         stock_quantity: 0
       });
+      setSelectedImages([]);
+      setImagePreviews([]);
       addToast('Товар успешно создан', 'success');
     } catch (error) {
       console.error('Error creating product:', error);
@@ -261,6 +309,111 @@ export default function AdminPage() {
     return '🔗';
   };
 
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    setSelectedImages(prev => [...prev, ...files]);
+    
+    files.forEach(file => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreviews(prev => [...prev, reader.result as string]);
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const removeImage = (index: number) => {
+    setSelectedImages(prev => prev.filter((_, i) => i !== index));
+    setImagePreviews(prev => prev.filter((_, i) => i !== index));
+  };
+
+  // Stories функции
+  const createStory = async (productId: string) => {
+    try {
+      const product = products.find(p => p.id === productId);
+      if (!product) return;
+
+      const { error } = await supabase
+        .from('stories')
+        .insert({
+          product_id: productId,
+          image_url: product.image_url,
+          title: product.name,
+          price: product.price,
+          discount: product.discount,
+          description: `Отличный товар из категории ${product.category}`,
+          link_url: `/product/${productId}`
+        });
+
+      if (error) throw error;
+      
+      await fetchStories();
+      addToast('Story успешно создан', 'success');
+    } catch (error) {
+      console.error('Error creating story:', error);
+      addToast('Ошибка при создании Story', 'error');
+    }
+  };
+
+  const deleteStory = async (storyId: string) => {
+    try {
+      const { error } = await supabase
+        .from('stories')
+        .delete()
+        .eq('id', storyId);
+
+      if (error) throw error;
+      
+      await fetchStories();
+      addToast('Story удален', 'success');
+    } catch (error) {
+      console.error('Error deleting story:', error);
+      addToast('Ошибка при удалении Story', 'error');
+    }
+  };
+
+  // Кэширование данных
+  const cacheData = (products: Product[]) => {
+    const now = Date.now();
+    setCachedData({ products, lastUpdate: now });
+    localStorage.setItem('cached_products', JSON.stringify({ products, lastUpdate: now }));
+  };
+
+  const getCachedData = () => {
+    const cached = localStorage.getItem('cached_products');
+    if (cached) {
+      const data = JSON.parse(cached);
+      const now = Date.now();
+      // Кэш действителен 5 минут
+      if (now - data.lastUpdate < 300000) {
+        return data.products;
+      }
+    }
+    return null;
+  };
+
+  // Автоматическое восполнение запасов
+  const checkAutoRestock = async () => {
+    if (!autoRestock) return;
+    
+    const lowStockProducts = products.filter(p => 
+      (p.stock_quantity || 0) <= restockThreshold && (p.stock_quantity || 0) > 0
+    );
+    
+    for (const product of lowStockProducts) {
+      const newQuantity = Math.min((product.stock_quantity || 0) * 2, 50); // Удваиваем, но не более 50
+      await supabase
+        .from('product_market')
+        .update({ stock_quantity: newQuantity })
+        .eq('id', product.id);
+    }
+    
+    if (lowStockProducts.length > 0) {
+      addToast(`Автоматически пополнено ${lowStockProducts.length} товаров`, 'success');
+      await fetchProducts();
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900/20 to-slate-900 text-white p-4 pb-24">
       {/* Toast Notifications */}
@@ -290,20 +443,57 @@ export default function AdminPage() {
               📱 Соцсети
             </button>
           </div>
+          <div className="w-full sm:w-auto">
+            <button
+              onClick={() => setShowStoriesModal(true)}
+              className="block w-full px-4 py-2 sm:py-3 bg-purple-600 text-white rounded-2xl font-bold hover:bg-purple-700 cursor-pointer text-center text-sm sm:text-base"
+            >
+              📱 Stories
+            </button>
+          </div>
+          <div className="w-full sm:w-auto">
+            <button
+              onClick={() => setAutoRestock(!autoRestock)}
+              className={`block w-full px-4 py-2 sm:py-3 rounded-2xl font-bold cursor-pointer text-center text-sm sm:text-base transition-colors ${
+                autoRestock 
+                  ? 'bg-green-600 text-white hover:bg-green-700' 
+                  : 'bg-gray-600 text-white hover:bg-gray-700'
+              }`}
+            >
+              🔄 {autoRestock ? 'Автопополнение ВКЛ' : 'Автопополнение ВЫКЛ'}
+            </button>
+          </div>
         </div>
+        {autoRestock && (
+          <div className="flex items-center gap-2 text-xs text-gray-400">
+            <span>Порог: {restockThreshold} шт.</span>
+            <button
+              onClick={() => setRestockThreshold(prev => Math.max(1, prev - 1))}
+              className="px-2 py-1 bg-gray-700 rounded hover:bg-gray-600"
+            >
+              -
+            </button>
+            <button
+              onClick={() => setRestockThreshold(prev => prev + 1)}
+              className="px-2 py-1 bg-gray-700 rounded hover:bg-gray-600"
+            >
+              +
+            </button>
+          </div>
+        )}
       </div>
 
-      {/* Notification Bell */}
-      <div className="fixed top-20 right-4 z-50">
-        <button className="relative p-3 bg-gray-800 rounded-full border border-gray-700 hover:bg-gray-700 transition-all duration-300 shadow-lg">
-          <span className="text-2xl">🔔</span>
-          {(stats.lowStock > 0 || stats.outOfStock > 0) && (
-            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-6 h-6 flex items-center justify-center font-bold">
+      {/* Smart Notification Bell */}
+      {(stats.lowStock > 0 || stats.outOfStock > 0) && (
+        <div className="fixed top-20 right-4 z-50 animate-bounce-in">
+          <button className="relative p-3 bg-red-600 rounded-full border border-red-700 hover:bg-red-700 transition-all duration-300 shadow-lg hover:scale-105 animate-pulse">
+            <span className="text-2xl">🔔</span>
+            <span className="absolute -top-1 -right-1 bg-white text-red-600 text-xs rounded-full w-6 h-6 flex items-center justify-center font-bold shadow-lg">
               {stats.lowStock + stats.outOfStock}
             </span>
-          )}
-        </button>
-      </div>
+          </button>
+        </div>
+      )}
 
       <div className="pb-24">
         {/* Products Tab */}
@@ -363,9 +553,15 @@ export default function AdminPage() {
                                     setEditingProduct(product);
                                     setShowEditModal(true);
                                   }}
-                                  className="w-full px-2 py-1 sm:px-3 bg-blue-600/80 hover:bg-blue-700/80 text-white text-xs rounded-xl backdrop-blur-xl border border-white/20"
+                                  className="flex-1 px-2 py-1 sm:px-3 bg-blue-600/80 hover:bg-blue-700/80 text-white text-xs rounded-xl backdrop-blur-xl border border-white/20"
                                 >
                                   ✏️ Изменить
+                                </button>
+                                <button
+                                  onClick={() => createStory(product.id)}
+                                  className="flex-1 px-2 py-1 sm:px-3 bg-purple-600/80 hover:bg-purple-700/80 text-white text-xs rounded-xl backdrop-blur-xl border border-white/20"
+                                >
+                                  📱 Story
                                 </button>
                               </div>
                             </div>
@@ -439,14 +635,39 @@ export default function AdminPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-cyan-300 mb-2">URL изображения</label>
-                  <input
-                    type="text"
-                    value={newProduct.image_url}
-                    onChange={(e) => setNewProduct({...newProduct, image_url: e.target.value})}
-                    className="w-full px-3 py-2 sm:px-4 sm:py-3 bg-white/10 backdrop-blur-xl rounded-2xl outline-none focus:ring-2 focus:ring-cyan-500 border border-white/20 text-white text-sm sm:text-base placeholder-white/50"
-                    placeholder="https://example.com/image.jpg"
-                  />
+                  <label className="block text-sm font-medium text-cyan-300 mb-2">Изображения товара</label>
+                  <div className="space-y-3">
+                    <label className="block w-full px-4 py-8 bg-gray-800 rounded-2xl border-2 border-dashed border-gray-600 text-center cursor-pointer hover:border-cyan-500 hover:bg-gray-700 transition-colors">
+                      <span className="text-3xl mb-2 block">📸</span>
+                      <span className="text-gray-300 text-sm">Выберите изображения</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        onChange={handleImageSelect}
+                        className="hidden"
+                      />
+                    </label>
+                    {imagePreviews.length > 0 && (
+                      <div className="grid grid-cols-3 gap-2">
+                        {imagePreviews.map((preview, index) => (
+                          <div key={index} className="relative group">
+                            <img 
+                              src={preview} 
+                              alt={`Предпросмотр ${index + 1}`}
+                              className="w-full h-20 object-cover rounded-lg border border-gray-600"
+                            />
+                            <button
+                              onClick={() => removeImage(index)}
+                              className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs hover:bg-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                            >
+                              ×
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
                 <button
                   onClick={createProduct}
@@ -628,6 +849,31 @@ export default function AdminPage() {
                   className="flex-1 px-4 py-3 bg-white/10 hover:bg-white/20 text-white rounded-2xl font-bold backdrop-blur-xl border border-white/20"
                 >
                   ❌ Отмена
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    {/* Stories Modal */}
+      {showStoriesModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-gray-800 rounded-3xl border border-gray-700 p-6 max-w-md w-full">
+            <h3 className="text-xl font-bold text-white mb-6">📱 Stories</h3>
+            <div className="space-y-4">
+              <div className="text-gray-300 text-sm">
+                <p className="mb-2">Stories - это временные карточки товаров, которые исчезают через 24 часа.</p>
+                <p className="mb-2">• Горизонтальная навигация (свайп влево/вправо)</p>
+                <p className="mb-2">• Автовоспроизведение каждые 5 секунд</p>
+                <p className="mb-2">• Статистика просмотров и кликов</p>
+                <p>• Автоматическое удаление через 24 часа</p>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowStoriesModal(false)}
+                  className="flex-1 px-4 py-3 bg-gray-600 hover:bg-gray-700 text-white rounded-2xl font-bold"
+                >
+                  Закрыть
                 </button>
               </div>
             </div>

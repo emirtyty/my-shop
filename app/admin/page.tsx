@@ -305,24 +305,16 @@ export default function AdminPage() {
         </div>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
-        <div className="bg-white/10 backdrop-blur-xl rounded-2xl border border-white/20 p-4 shadow-2xl">
-          <div className="text-2xl font-bold text-white">{stats.totalProducts}</div>
-          <div className="text-xs text-white/70">Товары</div>
-        </div>
-        <div className="bg-white/10 backdrop-blur-xl rounded-2xl border border-white/20 p-4 shadow-2xl">
-          <div className="text-2xl font-bold text-yellow-400">{stats.lowStock}</div>
-          <div className="text-xs text-white/70">Мало</div>
-        </div>
-        <div className="bg-white/10 backdrop-blur-xl rounded-2xl border border-white/20 p-4 shadow-2xl">
-          <div className="text-2xl font-bold text-red-400">{stats.outOfStock}</div>
-          <div className="text-xs text-white/70">Нет</div>
-        </div>
-        <div className="bg-white/10 backdrop-blur-xl rounded-2xl border border-white/20 p-4 shadow-2xl">
-          <div className="text-2xl font-bold text-green-400">{stats.totalValue}₽</div>
-          <div className="text-xs text-white/70">Стоимость</div>
-        </div>
+      {/* Notification Bell */}
+      <div className="fixed top-4 right-4 z-50">
+        <button className="relative p-3 bg-white/10 backdrop-blur-xl rounded-full border border-white/20 hover:bg-white/20 transition-all duration-300 shadow-2xl hover:scale-105">
+          <span className="text-2xl">🔔</span>
+          {(stats.lowStock > 0 || stats.outOfStock > 0) && (
+            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-6 h-6 flex items-center justify-center font-bold shadow-lg">
+              {stats.lowStock + stats.outOfStock}
+            </span>
+          )}
+        </button>
       </div>
 
       <div className="pb-24">
@@ -383,22 +375,9 @@ export default function AdminPage() {
                                     setEditingProduct(product);
                                     setShowEditModal(true);
                                   }}
-                                  className="flex-1 px-2 py-1 sm:px-3 bg-blue-600/80 hover:bg-blue-700/80 text-white text-xs rounded-xl backdrop-blur-xl border border-white/20"
+                                  className="w-full px-2 py-1 sm:px-3 bg-blue-600/80 hover:bg-blue-700/80 text-white text-xs rounded-xl backdrop-blur-xl border border-white/20"
                                 >
                                   ✏️ Изменить
-                                </button>
-                                <button
-                                  onClick={() => {
-                                    const socialUrl = product.sellers?.telegram_url || product.sellers?.vk_url || product.sellers?.whatsapp_url || product.sellers?.instagram_url;
-                                    if (socialUrl) {
-                                      window.open(socialUrl, '_blank');
-                                    } else {
-                                      addToast('Социальные сети не настроены', 'warning');
-                                    }
-                                  }}
-                                  className="flex-1 px-2 py-1 sm:px-3 bg-purple-600/80 hover:bg-purple-700/80 text-white text-xs rounded-xl backdrop-blur-xl border border-white/20"
-                                >
-                                  📱 Купить
                                 </button>
                               </div>
                             </div>

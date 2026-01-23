@@ -1,7 +1,8 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState, useMemo } from 'react';
 import { supabase } from './lib/supabase';
+import StoriesFeed from './components/StoriesFeed';
 
 interface Product {
   id: string;
@@ -42,6 +43,14 @@ export default function Home() {
   async function fetchData() {
     setLoading(true);
     try {
+      // Check if Supabase is properly configured
+      if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+        console.warn('Supabase environment variables are missing');
+        setProducts([]);
+        setStories([]);
+        return;
+      }
+
       const [prodRes, storyRes] = await Promise.all([
         supabase.from('product_market').select('*, sellers(shop_name, id, telegram_url, vk_url, whatsapp_url, instagram_url)'),
         supabase.from('seller_stories').select('*').order('created_at', { ascending: false })
@@ -107,15 +116,11 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-black text-white">
+    <div className="min-h-screen bg-white text-gray-900">
       {/* Header */}
-      <header className="sticky top-0 z-50 bg-gray-900 border-b border-gray-800 p-4">
+      <header className="sticky top-0 z-50 bg-white border-b border-gray-200 p-4">
         <div className="max-w-6xl mx-auto">
-          <div className="flex justify-between items-center mb-4">
-            <h1 className="text-3xl font-bold text-white">RA DELL</h1>
-            <div className="flex gap-4">
-              <button className="text-2xl">📦</button>
-            </div>
+          <div className="flex justify-end items-center mb-4">
           </div>
           <div className="relative">
             <input 
@@ -123,14 +128,19 @@ export default function Home() {
               placeholder="Поиск товаров..." 
               value={searchQuery} 
               onChange={e => setSearchQuery(e.target.value)} 
-              className="w-full px-4 py-3 bg-gray-800 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-white placeholder-gray-400" 
+              className="w-full px-4 py-3 bg-gray-100 rounded-lg outline-none focus:ring-2 focus:ring-orange-500 text-gray-900 placeholder-gray-500" 
             />
             <span className="absolute right-4 top-1/2 -translate-y-1/2">🔍</span>
           </div>
         </div>
       </header>
 
-      <div className="max-w-6xl mx-auto px-4 py-8">
+      {/* Stories Feed */}
+      <div className="max-w-6xl mx-auto px-4">
+        <StoriesFeed />
+      </div>
+
+      <div className="max-w-6xl mx-auto px-4 py-4">
         {/* Categories */}
         <div className="flex gap-3 overflow-x-auto pb-4 mb-8">
           {categories.map(cat => (
@@ -138,7 +148,7 @@ export default function Home() {
               key={cat} 
               onClick={() => setActiveCategory(cat)} 
               className={`px-6 py-3 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
-                activeCategory === cat ? 'bg-blue-500 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                activeCategory === cat ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
             >
               {cat}
@@ -154,7 +164,7 @@ export default function Home() {
             const socialUrl = getSocialUrl(p.sellers);
             
             return (
-              <div key={p.id} className="bg-white rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow">
+              <div key={p.id} className="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow border border-gray-200">
                 <div className="relative aspect-square bg-gray-100">
                   <img 
                     src={p.image_url} 
@@ -162,7 +172,7 @@ export default function Home() {
                     alt={p.name} 
                   />
                   {hasDiscount && (
-                    <div className="absolute top-2 left-2 bg-red-500 text-white px-2 py-1 rounded text-xs font-bold">
+                    <div className="absolute top-2 left-2 bg-yellow-400 text-gray-900 px-2 py-1 rounded text-xs font-bold">
                       -{p.discount}%
                     </div>
                   )}
@@ -178,7 +188,9 @@ export default function Home() {
                   <div className="mb-3">
                     {hasDiscount ? (
                       <>
-                        <del className="text-gray-400 text-xs block">{p.price}₽</del>
+                        <div className="bg-yellow-400 text-gray-900 text-xs px-2 py-1 rounded inline-block mb-1">
+                          <del className="font-medium">{p.price}₽</del>
+                        </div>
                         <div className="text-lg font-bold text-gray-900">{displayPrice}₽</div>
                       </>
                     ) : (
@@ -189,7 +201,7 @@ export default function Home() {
                     onClick={() => handleBuyClick(p)}
                     className={`w-full py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 ${
                       socialUrl 
-                        ? 'bg-blue-500 text-white hover:bg-blue-600' 
+                        ? 'bg-orange-500 text-white hover:bg-orange-600' 
                         : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                     }`}
                   >
@@ -204,17 +216,17 @@ export default function Home() {
 
       {/* Seller Modal */}
       {viewingSeller && (
-        <div className="fixed inset-0 z-50 bg-black flex flex-col">
-          <header className="bg-gray-900 border-b border-gray-800 p-4 flex justify-between items-center">
-            <h2 className="text-xl font-bold text-white">{viewingSeller.shop_name}</h2>
+        <div className="fixed inset-0 z-50 bg-white flex flex-col">
+          <header className="bg-white border-b border-gray-200 p-4 flex justify-between items-center">
+            <h2 className="text-xl font-bold text-gray-900">{viewingSeller.shop_name}</h2>
             <button 
               onClick={() => setViewingSeller(null)} 
-              className="bg-blue-500 text-white w-10 h-10 rounded-full font-bold hover:bg-blue-600"
+              className="bg-orange-500 text-white w-10 h-10 rounded-full font-bold hover:bg-orange-600"
             >
               ←
             </button>
           </header>
-          <div className="max-w-6xl mx-auto p-4 pb-20">
+          <div className="flex-1 overflow-y-auto p-4 pb-20">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {products.filter(p => p.seller_id === viewingSeller.id).map(p => {
                 const hasDiscount = p.discount > 0;
@@ -251,7 +263,7 @@ export default function Home() {
                         onClick={() => handleBuyClick(p)}
                         className={`w-full py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 ${
                           socialUrl 
-                            ? 'bg-blue-500 text-white hover:bg-blue-600' 
+                            ? 'bg-orange-500 text-white hover:bg-orange-600' 
                             : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                         }`}
                       >

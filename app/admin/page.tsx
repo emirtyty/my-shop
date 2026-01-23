@@ -76,6 +76,7 @@ interface Seller {
 }
 
 export default function AdminPage() {
+  const [user, setUser] = useState<any>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [stories, setStories] = useState<Story[]>([]);
   const [loading, setLoading] = useState(true);
@@ -114,8 +115,21 @@ export default function AdminPage() {
   });
   const [showSocialModal, setShowSocialModal] = useState(false);
   const [showStoriesModal, setShowStoriesModal] = useState(false);
+  const [showCreateStoryModal, setShowCreateStoryModal] = useState(false);
+  const [storyImages, setStoryImages] = useState<File[]>([]);
+  const [storyPreviews, setStoryPreviews] = useState<string[]>([]);
 
   useEffect(() => {
+    checkUser();
+  }, []);
+
+  const checkUser = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      window.location.href = '/auth';
+      return;
+    }
+    setUser(user);
     fetchProducts();
     fetchStories();
     fetchSellerInfo();
@@ -128,7 +142,12 @@ export default function AdminPage() {
     }, 300000); // 5 минут
     
     return () => clearInterval(interval);
-  }, [autoRestock]);
+  };
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    window.location.href = '/auth';
+  };
 
   const fetchProducts = async () => {
     try {
@@ -146,6 +165,10 @@ export default function AdminPage() {
 
       if (error) throw error;
       const products = data || [];
+      
+      // Отладка - проверяем ID товаров
+      console.log('Fetched products:', products.map(p => ({ id: p.id, name: p.name, hasId: !!p.id })));
+      
       setProducts(products);
       cacheData(products);
       calculateStats(products);
@@ -227,22 +250,53 @@ export default function AdminPage() {
 
   const createProduct = async () => {
     try {
+      // Проверяем обязательные поля
+      if (!newProduct.name || !newProduct.category) {
+        addToast('Заполните название и категорию товара', 'error');
+        return;
+      }
+
+      // Валидация цены
+      const price = parseFloat(String(newProduct.price)) || 0;
+      if (price <= 0) {
+        addToast('Цена должна быть больше 0', 'error');
+        return;
+      }
+
+      // Валидация количества
+      const stockQuantity = parseInt(String(newProduct.stock_quantity)) || 0;
+      if (stockQuantity < 0) {
+        addToast('Количество не может быть отрицательным', 'error');
+        return;
+      }
+
       // Используем первое изображение из галереи или заглушку
       const imageUrl = imagePreviews.length > 0 ? imagePreviews[0] : 'https://via.placeholder.com/150';
       
+      // Получаем seller_id
+      const sellerId = sellerInfo?.id || 'default-seller';
+      
+      // Конвертируем все числовые поля
+      const productData = {
+        name: newProduct.name,
+        price: price,
+        category: newProduct.category,
+        discount: parseFloat(String(newProduct.discount)) || 0,
+        stock_quantity: stockQuantity,
+        image_url: imageUrl,
+        seller_id: sellerId
+      };
+      
+      console.log('Creating product with data:', productData);
+      
       const { error } = await supabase
         .from('product_market')
-        .insert({
-          name: newProduct.name,
-          price: newProduct.price,
-          category: newProduct.category,
-          discount: newProduct.discount,
-          stock_quantity: newProduct.stock_quantity,
-          image_url: imageUrl,
-          seller_id: sellerInfo.id || 'default-seller'
-        });
+        .insert(productData);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase error:', error);
+        throw error;
+      }
       
       await fetchProducts();
       setNewProduct({
@@ -258,7 +312,7 @@ export default function AdminPage() {
       addToast('Товар успешно создан', 'success');
     } catch (error) {
       console.error('Error creating product:', error);
-      addToast('Ошибка при создании товара', 'error');
+      addToast(`Ошибка при создании товара: ${error.message}`, 'error');
     }
   };
 
@@ -329,31 +383,139 @@ export default function AdminPage() {
     setImagePreviews(prev => prev.filter((_, i) => i !== index));
   };
 
+  // Stories функции для изображений
+  const handleStoryImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    setStoryImages(prev => [...prev, ...files]);
+    
+    files.forEach(file => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setStoryPreviews(prev => [...prev, reader.result as string]);
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const removeStoryImage = (index: number) => {
+    setStoryImages(prev => prev.filter((_, i) => i !== index));
+    setStoryPreviews(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const openCreateStoryModal = () => {
+    setStoryImages([]);
+    setStoryPreviews([]);
+    setShowCreateStoryModal(true);
+  };
+
+  const createStoryFromGallery = async () => {
+    try {
+      console.log('=== createStoryFromGallery called ===');
+      console.log('storyPreviews:', storyPreviews);
+      
+      if (storyPreviews.length === 0) {
+        console.log('Validation failed: no images');
+        addToast('Выберите изображения для Stories', 'error');
+        return;
+      }
+
+      console.log('Creating stories for each image...');
+      
+      // Создаем Story для каждого изображения
+      const storyPromises = storyPreviews.map((imageUrl, index) => {
+        const storyData = {
+          image_url: imageUrl,
+          title: `Story ${index + 1}`,
+          price: 0,
+          discount: 0,
+          description: 'Новый Story',
+          link_url: '',
+          seller_id: sellerInfo?.id || null, // Добавляем ID текущего продавца
+          is_active: true,
+          expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() // 24 часа
+        };
+
+        console.log(`Story ${index + 1} data:`, storyData);
+
+        return supabase
+          .from('stories')
+          .insert(storyData);
+      });
+
+      console.log('Executing all story promises...');
+      const results = await Promise.all(storyPromises);
+      console.log('Story results:', results);
+      
+      const errors = results.filter(result => result.error);
+      console.log('Errors found:', errors);
+
+      if (errors.length > 0) {
+        console.log('Errors details:', errors.map(e => e.error));
+        throw new Error(`Ошибка при создании ${errors.length} Stories`);
+      }
+      
+      console.log('Stories created successfully, fetching stories...');
+      await fetchStories();
+      setShowCreateStoryModal(false);
+      addToast(`Создано ${storyPreviews.length} Stories`, 'success');
+    } catch (error) {
+      console.error('Error creating stories:', error);
+      addToast(`Ошибка при создании Stories: ${error.message}`, 'error');
+    }
+  };
+
   // Stories функции
   const createStory = async (productId: string) => {
     try {
-      const product = products.find(p => p.id === productId);
-      if (!product) return;
-
-      const { error } = await supabase
-        .from('stories')
-        .insert({
-          product_id: productId,
-          image_url: product.image_url,
-          title: product.name,
-          price: product.price,
-          discount: product.discount,
-          description: `Отличный товар из категории ${product.category}`,
-          link_url: `/product/${productId}`
-        });
-
-      if (error) throw error;
+      console.log('Attempting to create story for product ID:', productId);
+      console.log('Available products:', products.map(p => ({ id: p.id, name: p.name, hasId: !!p.id })));
       
+      if (!productId) {
+        console.error('Product ID is undefined or null');
+        addToast('ID товара не указан', 'error');
+        return;
+      }
+      
+      const product = products.find(p => p.id === productId);
+      if (!product) {
+        console.error('Product not found with ID:', productId);
+        addToast('Товар не найден', 'error');
+        return;
+      }
+
+      console.log('Found product:', product);
+      
+      // Конвертируем все числовые поля
+      const storyData = {
+        image_url: product.image_url,
+        title: product.name,
+        price: parseFloat(String(product.price)) || 0,
+        discount: parseFloat(String(product.discount || 0)) || 0,
+        description: `Отличный товар из категории ${product.category}`,
+        link_url: productId,
+        seller_id: sellerInfo?.id || null, // Добавляем ID текущего продавца
+        is_active: true,
+        expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() // 24 часа
+      };
+
+      console.log('Story data to insert:', storyData);
+
+      const { data, error } = await supabase
+        .from('stories')
+        .insert(storyData)
+        .select();
+
+      if (error) {
+        console.error('Supabase error creating story:', error);
+        throw error;
+      }
+      
+      console.log('Story created successfully:', data);
       await fetchStories();
       addToast('Story успешно создан', 'success');
     } catch (error) {
       console.error('Error creating story:', error);
-      addToast('Ошибка при создании Story', 'error');
+      addToast(`Ошибка при создании Story: ${error.message}`, 'error');
     }
   };
 
@@ -436,6 +598,16 @@ export default function AdminPage() {
 
       {/* Header */}
       <div className="mb-6">
+        <div className="flex justify-between items-center mb-4">
+          <h1 className="text-2xl font-bold text-white">📊 Админка</h1>
+          <button
+            onClick={handleLogout}
+            className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-2xl font-bold transition-colors"
+          >
+            🚪 Выйти
+          </button>
+        </div>
+        
         <div className="flex flex-col sm:flex-row items-center gap-4 mb-4">
           <div className="w-full sm:w-auto">
             <button
@@ -451,6 +623,16 @@ export default function AdminPage() {
               className="block w-full px-4 py-2 sm:py-3 bg-purple-600 text-white rounded-2xl font-bold hover:bg-purple-700 cursor-pointer text-center text-sm sm:text-base"
             >
               📱 Stories
+            </button>
+          </div>
+          <div className="w-full sm:w-auto">
+            <button
+              onClick={openCreateStoryModal}
+              className="block w-full px-4 py-2 sm:py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-2xl font-bold hover:from-purple-700 hover:to-pink-700 cursor-pointer text-center text-sm sm:text-base flex items-center justify-center gap-2"
+            >
+              <span>📸</span>
+              <span>Выложить Stories</span>
+              <span>→</span>
             </button>
           </div>
           <div className="w-full sm:w-auto">
@@ -558,12 +740,6 @@ export default function AdminPage() {
                                   className="flex-1 px-2 py-1 sm:px-3 bg-blue-600/80 hover:bg-blue-700/80 text-white text-xs rounded-xl backdrop-blur-xl border border-white/20"
                                 >
                                   ✏️ Изменить
-                                </button>
-                                <button
-                                  onClick={() => createStory(product.id)}
-                                  className="flex-1 px-2 py-1 sm:px-3 bg-purple-600/80 hover:bg-purple-700/80 text-white text-xs rounded-xl backdrop-blur-xl border border-white/20"
-                                >
-                                  📱 Story
                                 </button>
                               </div>
                             </div>
@@ -876,6 +1052,83 @@ export default function AdminPage() {
                   className="flex-1 px-4 py-3 bg-gray-600 hover:bg-gray-700 text-white rounded-2xl font-bold"
                 >
                   Закрыть
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create Story Modal */}
+      {showCreateStoryModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
+          <div className="bg-gray-800 rounded-3xl border border-gray-700 p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <h3 className="text-xl font-bold text-white mb-4">
+              📸 Выложить Stories
+            </h3>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Выберите изображения для Stories
+                </label>
+                <div className="space-y-3">
+                  <label className="block w-full px-4 py-8 bg-gray-700 rounded-2xl border-2 border-dashed border-gray-600 text-center cursor-pointer hover:border-purple-500 hover:bg-gray-600 transition-colors">
+                    <span className="text-3xl mb-2 block">📸</span>
+                    <span className="text-gray-300 text-sm">Нажмите чтобы выбрать изображения</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      onChange={handleStoryImageSelect}
+                      className="hidden"
+                    />
+                  </label>
+                  {storyPreviews.length > 0 && (
+                    <div className="grid grid-cols-3 gap-2">
+                      {storyPreviews.map((preview, index) => (
+                        <div key={index} className="relative group">
+                          <img 
+                            src={preview} 
+                            alt={`Story ${index + 1}`}
+                            className="w-full h-20 object-cover rounded-lg border border-gray-600"
+                          />
+                          <button
+                            onClick={() => removeStoryImage(index)}
+                            className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs hover:bg-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+              
+              <div className="text-sm text-gray-400">
+                <p>• Выберите до 10 изображений</p>
+                <p>• Stories будут автоматически удалены через 24 часа</p>
+                <p>• Каждое изображение создаст отдельный Story</p>
+              </div>
+              
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    setShowCreateStoryModal(false);
+                  }}
+                  className="flex-1 px-4 py-3 bg-gray-600 hover:bg-gray-700 text-white rounded-2xl font-bold"
+                >
+                  Отмена
+                </button>
+                <button
+                  onClick={createStoryFromGallery}
+                  disabled={storyPreviews.length === 0}
+                  className="flex-1 px-4 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 disabled:from-gray-600 disabled:to-gray-700 disabled:cursor-not-allowed text-white rounded-2xl font-bold flex items-center justify-center gap-2"
+                >
+                  <span>📸</span>
+                  <span>Выложить Stories ({storyPreviews.length})</span>
+                  <span>→</span>
                 </button>
               </div>
             </div>

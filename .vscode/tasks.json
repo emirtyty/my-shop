@@ -1,0 +1,84 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Build Android APK",
+      "type": "shell",
+      "command": "./gradlew",
+      "args": [
+        "assembleDebug"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}/android"
+      },
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": ["$gradle"],
+      "detail": "Build Android debug APK"
+    },
+    {
+      "label": "Run Android App",
+      "type": "shell",
+      "command": "npx",
+      "args": [
+        "cap",
+        "run",
+        "android"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": "build",
+      "problemMatcher": [],
+      "detail": "Run Android app with Capacitor"
+    },
+    {
+      "label": "Sync Capacitor",
+      "type": "shell",
+      "command": "npx",
+      "args": [
+        "cap",
+        "sync",
+        "android"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": "build",
+      "problemMatcher": [],
+      "detail": "Sync Capacitor with Android"
+    },
+    {
+      "label": "Clean Android Build",
+      "type": "shell",
+      "command": "./gradlew",
+      "args": [
+        "clean"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}/android"
+      },
+      "group": "build",
+      "problemMatcher": ["$gradle"],
+      "detail": "Clean Android build cache"
+    },
+    {
+      "label": "Install APK",
+      "type": "shell",
+      "command": "adb",
+      "args": [
+        "install",
+        "-r",
+        "android/app/build/outputs/apk/debug/app-debug.apk"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": "build",
+      "problemMatcher": [],
+      "detail": "Install APK on connected device"
+    }
+  ]
+}

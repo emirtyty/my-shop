@@ -3,6 +3,60 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 
+// Haptic Feedback utilities
+declare global {
+  interface Window {
+    Capacitor?: any;
+  }
+}
+
+const haptics = {
+  impact: async (type: 'light' | 'medium' | 'heavy' = 'light') => {
+    try {
+      // Только Vibration API для веба
+      if (typeof window !== 'undefined' && 'vibrate' in navigator) {
+        const duration = type === 'light' ? 25 : type === 'medium' ? 50 : 75;
+        navigator.vibrate(duration);
+        console.log(`Vibration API fallback in Stories: ${duration}ms`);
+      }
+    } catch (error) {
+      console.log('Haptics error in Stories:', error);
+    }
+  },
+  notification: async (type: 'success' | 'warning' | 'error' = 'success') => {
+    try {
+      // Только Vibration API для веба
+      if (typeof window !== 'undefined' && 'vibrate' in navigator) {
+        const pattern = type === 'success' ? [30, 50, 30] : [50, 100, 50];
+        navigator.vibrate(pattern);
+        console.log(`Vibration API fallback pattern in Stories: ${pattern}`);
+      }
+    } catch (error) {
+      console.log('Haptics notification error in Stories:', error);
+    }
+  }
+};
+
+// Gesture utilities
+const gestures = {
+  detectSwipe: (touchStartX: number, touchStartY: number, touchEndX: number, touchEndY: number) => {
+    const deltaX = touchEndX - touchStartX;
+    const deltaY = touchEndY - touchStartY;
+    const minSwipeDistance = 50;
+    
+    if (Math.abs(deltaX) > Math.abs(deltaY)) {
+      if (Math.abs(deltaX) > minSwipeDistance) {
+        return deltaX > 0 ? 'right' : 'left';
+      }
+    } else {
+      if (Math.abs(deltaY) > minSwipeDistance) {
+        return deltaY > 0 ? 'down' : 'up';
+      }
+    }
+    return null;
+  }
+};
+
 interface Story {
   id: string;
   product_id?: string;
@@ -39,11 +93,35 @@ export default function StoriesFeed() {
   const [progress, setProgress] = useState(0);
   const [touchStart, setTouchStart] = useState(0);
   const [touchEnd, setTouchEnd] = useState(0);
+  const [touchStartY, setTouchStartY] = useState(0);
+  const [touchCurrentY, setTouchCurrentY] = useState(0);
+  const [isDraggingDown, setIsDraggingDown] = useState(false);
+  const [dragOffsetY, setDragOffsetY] = useState(0);
 
   useEffect(() => {
     console.log('=== StoriesFeed useEffect called ===');
     fetchStories();
   }, []);
+
+  // Блокировка pull-to-refresh для Stories
+  useEffect(() => {
+    const handlePullToRefresh = (e: TouchEvent) => {
+      if (isModalOpen) {
+        const touch = e.touches[0];
+        if (touch.clientY < 100) { // Если касание в верхней части экрана
+          e.preventDefault();
+        }
+      }
+    };
+
+    if (isModalOpen) {
+      document.addEventListener('touchmove', handlePullToRefresh, { passive: false });
+      
+      return () => {
+        document.removeEventListener('touchmove', handlePullToRefresh);
+      };
+    }
+  }, [isModalOpen]);
 
   // Автопереход и прогресс-бар
   useEffect(() => {
@@ -91,6 +169,7 @@ export default function StoriesFeed() {
           )
         `)
         .eq('is_active', true)
+        .gte('expires_at', new Date().toISOString())
         .order('created_at', { ascending: false })
         .limit(10);
 
@@ -114,29 +193,54 @@ export default function StoriesFeed() {
   };
 
   const handleStoryClick = (story: Story, index: number) => {
+    console.log('Opening story at index:', index);
     setCurrentIndex(index);
     setIsModalOpen(true);
     setIsPaused(false);
+    // Сбрасываем состояния перетаскивания при открытии
+    setIsDraggingDown(false);
+    setDragOffsetY(0);
+    setTouchStartY(0);
+    setTouchCurrentY(0);
+    setTouchStart(0);
+    setTouchEnd(0);
   };
 
   const handleCloseModal = () => {
+    console.log('Stories handleCloseModal called - resetting all states');
     setIsModalOpen(false);
     setIsPaused(false);
     setProgress(0);
+    // Сбрасываем состояния перетаскивания
+    setIsDraggingDown(false);
+    setDragOffsetY(0);
+    setTouchStartY(0);
+    setTouchCurrentY(0);
+    setTouchStart(0);
+    setTouchEnd(0);
   };
 
   const handleNextStory = () => {
     if (currentIndex < stories.length - 1) {
       setCurrentIndex(currentIndex + 1);
+      // Сбрасываем состояния перетаскивания при смене story
+      setIsDraggingDown(false);
+      setDragOffsetY(0);
+      setTouchStartY(0);
+      setTouchCurrentY(0);
     } else {
-      setIsModalOpen(false);
-      setProgress(0);
+      handleCloseModal();
     }
   };
 
   const handlePrevStory = () => {
     if (currentIndex > 0) {
       setCurrentIndex(currentIndex - 1);
+      // Сбрасываем состояния перетаскивания при смене story
+      setIsDraggingDown(false);
+      setDragOffsetY(0);
+      setTouchStartY(0);
+      setTouchCurrentY(0);
     }
   };
 
@@ -146,19 +250,65 @@ export default function StoriesFeed() {
 
   // Свайп обработчики
   const handleTouchStart = (e: React.TouchEvent) => {
-    setTouchStart(e.targetTouches[0].clientX);
+    console.log('Stories touch start - adding haptic feedback');
+    setTouchStart(e.touches[0].clientX);
+    setTouchStartY(e.touches[0].clientY);
+    setTouchCurrentY(e.touches[0].clientY);
+    // Легкая вибрация при начале жеста
+    haptics.impact('light');
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
-    setTouchEnd(e.targetTouches[0].clientX);
+    if (isModalOpen) {
+      const currentX = e.targetTouches[0].clientX;
+      const currentY = e.targetTouches[0].clientY;
+      const deltaX = currentX - touchStart;
+      const deltaY = currentY - touchStartY;
+      
+      // Свайп вниз для закрытия - только если движение по Y значительно больше движения по X
+      if (deltaY > 40 && Math.abs(deltaY) > Math.abs(deltaX) * 2 && !isDraggingDown) {
+        setIsDraggingDown(true);
+        console.log('Stories drag down started - adding haptic feedback');
+        haptics.impact('medium');
+        e.preventDefault(); // Предотвращаем скролл только при начале жеста
+      }
+      
+      if (isDraggingDown) {
+        // Резиновый эффект - сопротивление при сильном перетаскивании
+        const rubberBandFactor = deltaY > 200 ? 1 + (deltaY - 200) * 0.001 : 1;
+        setDragOffsetY(Math.max(deltaY * rubberBandFactor, 0));
+        setTouchCurrentY(currentY);
+        e.preventDefault(); // Предотвращаем скролл во время перетаскивания
+      } else {
+        setTouchEnd(currentX);
+      }
+    }
   };
 
   const handleTouchEnd = () => {
+    if (isDraggingDown) {
+      // Если перетащили достаточно далеко - закрываем
+      if (dragOffsetY > 120) { // Увеличим порог закрытия
+        console.log('Stories closing - adding haptic feedback');
+        haptics.notification('success');
+        handleCloseModal();
+        return;
+      }
+      
+      // Сбрасываем состояние
+      console.log('Stories drag cancelled - resetting drag states');
+      setIsDraggingDown(false);
+      setDragOffsetY(0);
+      setTouchStartY(0);
+      setTouchCurrentY(0);
+      return;
+    }
+    
     if (!touchStart || !touchEnd) return;
     
     const distance = touchStart - touchEnd;
-    const isLeftSwipe = distance > 50;
-    const isRightSwipe = distance < -50;
+    const isLeftSwipe = distance > 80; // Увеличим порог свайпа
+    const isRightSwipe = distance < -80; // Увеличим порог свайпа
 
     if (isLeftSwipe) {
       handleNextStory();
@@ -206,10 +356,11 @@ export default function StoriesFeed() {
   if (isLoading) {
     return (
       <div className="rounded-2xl p-4 mb-2">
-        <div className="flex gap-3 overflow-x-auto pb-2">
+        <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
           {[...Array(5)].map((_, i) => (
-            <div key={i} className="flex-shrink-0">
+            <div key={i} className="shrink-0">
               <div className="w-16 h-16 rounded-full bg-gray-200 animate-pulse"></div>
+              <div className="w-16 h-3 bg-gray-200 rounded mt-1 animate-pulse"></div>
             </div>
           ))}
         </div>
@@ -225,7 +376,7 @@ export default function StoriesFeed() {
     <>
       {/* Stories Feed */}
       <div className="rounded-2xl p-4 mb-2">
-        <div className="flex gap-3 overflow-x-auto pb-2">
+        <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
           {stories.map((story, index) => (
             <div 
               key={story.id} 
@@ -239,10 +390,15 @@ export default function StoriesFeed() {
                     <img
                       src={story.image_url}
                       alt={story.title}
-                      className="w-full h-full rounded-full object-cover"
+                      className="w-full h-full rounded-full object-cover transition-transform duration-200 group-hover:scale-110"
                     />
                   </div>
                 </div>
+                
+                {/* Индикатор просмотренной истории */}
+                {index === 0 && (
+                  <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white" />
+                )}
               </div>
               
               {/* Название сторис */}
@@ -256,18 +412,26 @@ export default function StoriesFeed() {
 
       {/* Story Modal */}
       {isModalOpen && stories[currentIndex] && (
-        <div className="fixed inset-0 z-50 bg-black flex items-center justify-center">
-          <div className="relative w-full max-w-md h-full max-h-[85vh] bg-black">
+        <div data-modal-open="true" className="fixed inset-0 z-50 bg-black flex items-center justify-center overflow-hidden">
+          <div 
+            className="relative w-full h-full bg-black transition-transform"
+            style={{ 
+              maxHeight: '100vh',
+              maxWidth: '100vw',
+              transform: `translateY(${dragOffsetY}px) scale(${isDraggingDown ? 1 - dragOffsetY / 1000 : 1})`,
+              opacity: isDraggingDown ? 1 - dragOffsetY / 500 : 1
+            }}
+          >
             {/* Close button */}
             <button
               onClick={handleCloseModal}
-              className="absolute top-4 right-4 z-10 text-white text-2xl hover:text-gray-300"
+              className="absolute top-12 right-4 z-10 text-white text-2xl hover:text-gray-300"
             >
               ×
             </button>
 
             {/* Progress bars */}
-            <div className="absolute top-4 left-4 right-12 z-10 flex gap-1">
+            <div className="absolute top-12 left-4 right-12 z-10 flex gap-1">
               {stories.map((_, index) => (
                 <div
                   key={index}
@@ -287,17 +451,43 @@ export default function StoriesFeed() {
 
             {/* Story content */}
             <div 
-              className="relative w-full h-full"
+              className="relative w-full h-full flex items-center justify-center"
               onTouchStart={handleTouchStart}
               onTouchMove={handleTouchMove}
               onTouchEnd={handleTouchEnd}
               onClick={handlePauseToggle}
+              style={{
+                maxHeight: '100vh',
+                maxWidth: '100vw',
+                overflow: 'hidden'
+              }}
             >
-              <img
-                src={stories[currentIndex].image_url}
-                alt={stories[currentIndex].title}
-                className="w-full h-full object-contain"
-              />
+              {stories[currentIndex]?.image_url ? (
+                <img
+                  src={stories[currentIndex].image_url}
+                  alt={stories[currentIndex].title || 'Story'}
+                  className="max-w-full max-h-full object-contain"
+                  style={{
+                    maxHeight: 'calc(100vh - 100px)',
+                    maxWidth: '100vw'
+                  }}
+                  onError={(e) => {
+                    console.log('Story image failed to load:', stories[currentIndex].image_url);
+                    e.currentTarget.style.display = 'none';
+                  }}
+                  onLoad={() => {
+                    console.log('Story image loaded:', stories[currentIndex].image_url);
+                  }}
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center bg-gray-900" style={{ maxHeight: '100vh', maxWidth: '100vw' }}>
+                  <div className="text-white text-center">
+                    <div className="text-6xl mb-4">📱</div>
+                    <div className="text-xl">Story #{currentIndex + 1}</div>
+                    <div className="text-sm opacity-75 mt-2">{stories[currentIndex]?.title || 'Loading...'}</div>
+                  </div>
+                </div>
+              )}
 
               {/* Pause indicator */}
               {isPaused && (

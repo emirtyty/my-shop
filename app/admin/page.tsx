@@ -5,6 +5,19 @@ export const dynamic = 'force-dynamic';
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 
+// Временный интерфейс для категорий
+interface Category {
+  id: string;
+  name: string;
+  icon: string;
+  color: string;
+  count: number;
+  is_active: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
 // Add CSS animations
 if (typeof window !== 'undefined') {
   const style = document.createElement('style');
@@ -29,6 +42,7 @@ interface Product {
   category: string;
   discount?: number;
   stock_quantity?: number;
+  description?: string;
   created_at?: string;
   sellers?: {
     shop_name: string;
@@ -75,6 +89,11 @@ interface Seller {
   instagram_url?: string;
 }
 
+interface ProductSize {
+  size: string;
+  stock_quantity: number;
+}
+
 export default function AdminPage() {
   const [user, setUser] = useState<any>(null);
   const [products, setProducts] = useState<Product[]>([]);
@@ -82,17 +101,22 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [toasts, setToasts] = useState<Toast[]>([]);
-  const [activeTab, setActiveTab] = useState<'products' | 'add-product' | 'social'>('products');
+  const [activeTab, setActiveTab] = useState<'products' | 'add-product' | 'social' | 'categories'>('products');
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [newProduct, setNewProduct] = useState<Partial<Product>>({
+  const [newProduct, setNewProduct] = useState({
     name: '',
-    price: 0,
-    image_url: '',
+    price: '',
     category: '',
-    discount: 0,
-    stock_quantity: 0
+    customCategory: '',
+    discount: '',
+    stock_quantity: '',
+    description: '',
+    image_url: '',
+    has_sizes: false
   });
+  const [productSizes, setProductSizes] = useState<ProductSize[]>([]);
+  const [showSizeSelector, setShowSizeSelector] = useState(false);
   const [selectedImages, setSelectedImages] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   const [cachedData, setCachedData] = useState<{products: Product[], lastUpdate: number} | null>(null);
@@ -116,6 +140,17 @@ export default function AdminPage() {
   const [showSocialModal, setShowSocialModal] = useState(false);
   const [showStoriesModal, setShowStoriesModal] = useState(false);
   const [showCreateStoryModal, setShowCreateStoryModal] = useState(false);
+  
+  // Categories state
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [newCategory, setNewCategory] = useState({
+    name: '',
+    icon: '📦',
+    color: 'from-gray-400 to-gray-600',
+    sort_order: 0
+  });
   const [storyImages, setStoryImages] = useState<File[]>([]);
   const [storyPreviews, setStoryPreviews] = useState<string[]>([]);
 
@@ -133,6 +168,7 @@ export default function AdminPage() {
     fetchProducts();
     fetchStories();
     fetchSellerInfo();
+    loadCategories();
     
     // Периодическая проверка автопополнения (каждые 5 минут)
     const interval = setInterval(() => {
@@ -276,43 +312,155 @@ export default function AdminPage() {
       // Получаем seller_id
       const sellerId = sellerInfo?.id || 'default-seller';
       
+      // Определяем итоговую категорию
+      const finalCategory = newProduct.category === 'custom' 
+        ? newProduct.customCategory 
+        : newProduct.category;
+
       // Конвертируем все числовые поля
       const productData = {
         name: newProduct.name,
         price: price,
-        category: newProduct.category,
+        category: finalCategory,
         discount: parseFloat(String(newProduct.discount)) || 0,
         stock_quantity: stockQuantity,
+        description: newProduct.description || null,
         image_url: imageUrl,
-        seller_id: sellerId
+        seller_id: sellerId,
+        has_sizes: newProduct.has_sizes
       };
       
       console.log('Creating product with data:', productData);
       
-      const { error } = await supabase
+      // Создаем товар
+      const { data: createdProduct, error } = await supabase
         .from('product_market')
-        .insert(productData);
+        .insert(productData)
+        .select()
+        .single();
 
       if (error) {
         console.error('Supabase error:', error);
         throw error;
       }
+
+      // Если у товара есть размеры, сохраняем их
+      if (newProduct.has_sizes && productSizes.length > 0) {
+        const sizeData = productSizes
+          .filter(size => size.stock_quantity > 0) // Сохраняем только размеры с количеством > 0
+          .map(size => ({
+            product_id: createdProduct.id,
+            size: size.size,
+            stock_quantity: size.stock_quantity
+          }));
+
+        if (sizeData.length > 0) {
+          const { error: sizeError } = await supabase
+            .from('product_sizes')
+            .insert(sizeData);
+
+          if (sizeError) {
+            console.error('Error saving sizes:', sizeError);
+            // Не прерываем процесс, но логируем ошибку
+            addToast('Товар создан, но размеры не сохранены', 'warning');
+          }
+        }
+      }
       
       await fetchProducts();
       setNewProduct({
         name: '',
-        price: 0,
-        image_url: '',
+        price: '',
         category: '',
-        discount: 0,
-        stock_quantity: 0
+        customCategory: '',
+        discount: '',
+        stock_quantity: '',
+        description: '',
+        image_url: '',
+        has_sizes: false
       });
+      setProductSizes([]);
+      setShowSizeSelector(false);
       setSelectedImages([]);
       setImagePreviews([]);
       addToast('Товар успешно создан', 'success');
     } catch (error) {
       console.error('Error creating product:', error);
       addToast(`Ошибка при создании товара: ${error.message}`, 'error');
+    }
+  };
+
+  // Categories functions
+  const loadCategories = async () => {
+    try {
+      // Временно заглушка, пока categories API не работает
+      const mockCategories = [
+        { id: '1', name: 'Смартфоны', icon: '📱', color: 'from-blue-400 to-blue-600', count: 156, is_active: true, sort_order: 1, created_at: '', updated_at: '' },
+        { id: '2', name: 'Ноутбуки', icon: '💻', color: 'from-purple-400 to-purple-600', count: 89, is_active: true, sort_order: 2, created_at: '', updated_at: '' },
+        { id: '3', name: 'Планшеты', icon: '📋', color: 'from-green-400 to-green-600', count: 67, is_active: true, sort_order: 3, created_at: '', updated_at: '' },
+        { id: '4', name: 'Продукты', icon: '🍎', color: 'from-red-500 to-red-700', count: 0, is_active: true, sort_order: 24, created_at: '', updated_at: '' }
+      ];
+      setCategories(mockCategories);
+    } catch (error) {
+      console.error('Error loading categories:', error);
+      addToast('Ошибка при загрузке категорий', 'error');
+    }
+  };
+
+  const handleSaveCategory = async () => {
+    try {
+      if (!newCategory.name.trim()) {
+        addToast('Название категории не может быть пустым', 'error');
+        return;
+      }
+
+      if (editingCategory) {
+        // Update existing category
+        setCategories(prev => prev.map(cat => 
+          cat.id === editingCategory.id 
+            ? { ...cat, ...newCategory, updated_at: new Date().toISOString() }
+            : cat
+        ));
+        addToast('Категория обновлена', 'success');
+      } else {
+        // Create new category
+        const newCat: Category = {
+          id: Date.now().toString(),
+          ...newCategory,
+          count: 0,
+          is_active: true,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+        setCategories(prev => [...prev, newCat]);
+        addToast('Категория создана', 'success');
+      }
+
+      setShowCategoryModal(false);
+      setEditingCategory(null);
+      setNewCategory({
+        name: '',
+        icon: '📦',
+        color: 'from-gray-400 to-gray-600',
+        sort_order: 0
+      });
+    } catch (error) {
+      console.error('Error saving category:', error);
+      addToast('Ошибка при сохранении категории', 'error');
+    }
+  };
+
+  const handleDeleteCategory = async (id: string) => {
+    if (!confirm('Вы уверены, что хотите удалить эту категорию?')) {
+      return;
+    }
+
+    try {
+      setCategories(prev => prev.filter(cat => cat.id !== id));
+      addToast('Категория удалена', 'success');
+    } catch (error) {
+      console.error('Error deleting category:', error);
+      addToast('Ошибка при удалении категории', 'error');
     }
   };
 
@@ -402,15 +550,54 @@ export default function AdminPage() {
     setStoryPreviews(prev => prev.filter((_, i) => i !== index));
   };
 
-  const openCreateStoryModal = () => {
-    setStoryImages([]);
-    setStoryPreviews([]);
-    setShowCreateStoryModal(true);
+  // Функции для управления размерами
+  const getClothingSizes = () => ['XS', 'S', 'M', 'L', 'XL', 'XXL'];
+  const getShoeSizes = () => ['36', '37', '38', '39', '40', '41', '42', '43', '44', '45'];
+
+  const initializeSizes = (category: string) => {
+    if (category === 'Одежда') {
+      return getClothingSizes().map(size => ({ size, stock_quantity: 0 }));
+    } else if (category === 'Обувь') {
+      return getShoeSizes().map(size => ({ size, stock_quantity: 0 }));
+    }
+    return [];
+  };
+
+  const handleCategoryChange = (category: string) => {
+    setNewProduct({...newProduct, category});
+    
+    // Если категория одежда или обувь, показываем опцию размеров
+    if (category === 'Одежда' || category === 'Обувь') {
+      setShowSizeSelector(true);
+      if (productSizes.length === 0) {
+        setProductSizes(initializeSizes(category));
+      }
+    } else {
+      setShowSizeSelector(false);
+      setProductSizes([]);
+      setNewProduct({...newProduct, category, has_sizes: false});
+    }
+  };
+
+  const handleSizeQuantityChange = (size: string, quantity: number) => {
+    setProductSizes(prev => 
+      prev.map(s => s.size === size ? {...s, stock_quantity: quantity} : s)
+    );
+  };
+
+  const toggleHasSizes = () => {
+    const newHasSizes = !newProduct.has_sizes;
+    setNewProduct({...newProduct, has_sizes: newHasSizes});
+    
+    if (newHasSizes && newProduct.category) {
+      setProductSizes(initializeSizes(newProduct.category));
+    } else if (!newHasSizes) {
+      setProductSizes([]);
+    }
   };
 
   const createStoryFromGallery = async () => {
     try {
-      console.log('=== createStoryFromGallery called ===');
       console.log('storyPreviews:', storyPreviews);
       
       if (storyPreviews.length === 0) {
@@ -627,7 +814,7 @@ export default function AdminPage() {
           </div>
           <div className="w-full sm:w-auto">
             <button
-              onClick={openCreateStoryModal}
+              onClick={() => setShowCreateStoryModal(true)}
               className="block w-full px-4 py-2 sm:py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-2xl font-bold hover:from-purple-700 hover:to-pink-700 cursor-pointer text-center text-sm sm:text-base flex items-center justify-center gap-2"
             >
               <span>📸</span>
@@ -777,7 +964,7 @@ export default function AdminPage() {
                   <input
                     type="number"
                     value={newProduct.price}
-                    onChange={(e) => setNewProduct({...newProduct, price: Number(e.target.value)})}
+                    onChange={(e) => setNewProduct({...newProduct, price: e.target.value})}
                     className="w-full px-3 py-2 sm:px-4 sm:py-3 bg-white/10 backdrop-blur-xl rounded-2xl outline-none focus:ring-2 focus:ring-cyan-500 border border-white/20 text-white text-sm sm:text-base placeholder-white/50"
                     placeholder="0"
                   />
@@ -787,7 +974,7 @@ export default function AdminPage() {
                   <input
                     type="number"
                     value={newProduct.discount}
-                    onChange={(e) => setNewProduct({...newProduct, discount: Number(e.target.value)})}
+                    onChange={(e) => setNewProduct({...newProduct, discount: e.target.value})}
                     className="w-full px-3 py-2 sm:px-4 sm:py-3 bg-white/10 backdrop-blur-xl rounded-2xl outline-none focus:ring-2 focus:ring-cyan-500 border border-white/20 text-white text-sm sm:text-base placeholder-white/50"
                     placeholder="0"
                   />
@@ -797,21 +984,97 @@ export default function AdminPage() {
                   <input
                     type="number"
                     value={newProduct.stock_quantity}
-                    onChange={(e) => setNewProduct({...newProduct, stock_quantity: Number(e.target.value)})}
+                    onChange={(e) => setNewProduct({...newProduct, stock_quantity: e.target.value})}
                     className="w-full px-3 py-2 sm:px-4 sm:py-3 bg-white/10 backdrop-blur-xl rounded-2xl outline-none focus:ring-2 focus:ring-cyan-500 border border-white/20 text-white text-sm sm:text-base placeholder-white/50"
                     placeholder="0"
                   />
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-cyan-300 mb-2">Категория</label>
-                  <input
-                    type="text"
-                    value={newProduct.category}
-                    onChange={(e) => setNewProduct({...newProduct, category: e.target.value})}
-                    className="w-full px-3 py-2 sm:px-4 sm:py-3 bg-white/10 backdrop-blur-xl rounded-2xl outline-none focus:ring-2 focus:ring-cyan-500 border border-white/20 text-white text-sm sm:text-base placeholder-white/50"
-                    placeholder="Введите категорию"
+                <div className="sm:col-span-2">
+                  <label className="block text-sm font-medium text-cyan-300 mb-2">Описание товара (по желанию)</label>
+                  <textarea
+                    value={newProduct.description}
+                    onChange={(e) => setNewProduct({...newProduct, description: e.target.value})}
+                    className="w-full px-3 py-2 sm:px-4 sm:py-3 bg-white/10 backdrop-blur-xl rounded-2xl outline-none focus:ring-2 focus:ring-cyan-500 border border-white/20 text-white text-sm sm:text-base placeholder-white/50 resize-none"
+                    placeholder="Расскажите о товаре..."
+                    rows={3}
                   />
                 </div>
+                <div>
+                  <label className="block text-sm font-medium text-cyan-300 mb-2">Категория</label>
+                  <select
+                    value={newProduct.category}
+                    onChange={(e) => handleCategoryChange(e.target.value)}
+                    className="w-full px-3 py-2 sm:px-4 sm:py-3 bg-white/10 backdrop-blur-xl rounded-2xl outline-none focus:ring-2 focus:ring-cyan-500 border border-white/20 text-white text-sm sm:text-base"
+                  >
+                    <option value="">Выберите категорию</option>
+                    <option value="Одежда">Одежда</option>
+                    <option value="Обувь">Обувь</option>
+                    <option value="Аксессуары">Аксессуары</option>
+                    <option value="Электроника">Электроника</option>
+                    <option value="Другое">Другое</option>
+                    <option value="custom">✏️ Своя категория</option>
+                  </select>
+                  
+                  {/* Поле для ввода своей категории */}
+                  {newProduct.category === 'custom' && (
+                    <input
+                      type="text"
+                      value={newProduct.customCategory || ''}
+                      onChange={(e) => {
+                        setNewProduct({...newProduct, customCategory: e.target.value});
+                        handleCategoryChange(e.target.value);
+                      }}
+                      className="w-full mt-2 px-3 py-2 sm:px-4 sm:py-3 bg-white/10 backdrop-blur-xl rounded-2xl outline-none focus:ring-2 focus:ring-cyan-500 border border-white/20 text-white text-sm sm:text-base placeholder-white/50"
+                      placeholder="Введите свою категорию"
+                    />
+                  )}
+                </div>
+
+                {/* Опция размеров для одежды и обуви */}
+                {showSizeSelector && (
+                  <div>
+                    <div className="flex items-center gap-2 mb-3">
+                      <input
+                        type="checkbox"
+                        id="has_sizes"
+                        checked={newProduct.has_sizes}
+                        onChange={toggleHasSizes}
+                        className="w-4 h-4 rounded"
+                      />
+                      <label htmlFor="has_sizes" className="text-sm font-medium text-cyan-300">
+                        Этот товар имеет размеры
+                      </label>
+                    </div>
+
+                    {newProduct.has_sizes && (
+                      <div className="bg-white/5 backdrop-blur-xl rounded-2xl p-4 border border-white/10">
+                        <h4 className="text-sm font-medium text-cyan-300 mb-3">
+                          📏 Доступные размеры ({newProduct.category})
+                        </h4>
+                        <div className="grid grid-cols-3 gap-2 max-h-40 overflow-y-auto">
+                          {productSizes.map((size) => (
+                            <div key={size.size} className="flex items-center gap-2 bg-white/10 rounded-lg p-2">
+                              <span className="text-xs text-white font-medium min-w-[30px]">
+                                {size.size}
+                              </span>
+                              <input
+                                type="number"
+                                min="0"
+                                value={size.stock_quantity}
+                                onChange={(e) => handleSizeQuantityChange(size.size, parseInt(e.target.value) || 0)}
+                                className="w-16 px-2 py-1 bg-white/20 rounded text-white text-xs text-center placeholder-white/50"
+                                placeholder="0"
+                              />
+                            </div>
+                          ))}
+                        </div>
+                        <p className="text-xs text-gray-400 mt-2">
+                          Укажите количество для каждого размера
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
                 <div>
                   <label className="block text-sm font-medium text-cyan-300 mb-2">Изображения товара</label>
                   <div className="space-y-3">
@@ -857,6 +1120,79 @@ export default function AdminPage() {
             </div>
           </div>
         )}
+
+        {/* Categories Tab */}
+        {activeTab === 'categories' && (
+          <div className="bg-white/5 backdrop-blur-2xl p-4 sm:p-6 rounded-3xl border border-white/10 shadow-2xl">
+            <div className="flex justify-between items-center mb-4 sm:mb-6">
+              <h2 className="text-xl sm:text-2xl font-bold text-white">
+                📂 Категории ({categories.length})
+              </h2>
+              <button
+                onClick={() => {
+                  setEditingCategory(null);
+                  setNewCategory({
+                    name: '',
+                    icon: '📦',
+                    color: 'from-gray-400 to-gray-600',
+                    sort_order: categories.length + 1
+                  });
+                  setShowCategoryModal(true);
+                }}
+                className="px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl hover:from-green-600 hover:to-emerald-700 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105"
+              >
+                ➕ Добавить категорию
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {categories.map((category) => (
+                <div
+                  key={category.id}
+                  className="bg-white/10 backdrop-blur-xl rounded-2xl p-4 border border-white/20 hover:bg-white/15 transition-all duration-300"
+                >
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-3">
+                      <div className="text-3xl">{category.icon}</div>
+                      <div>
+                        <h3 className="text-white font-semibold">{category.name}</h3>
+                        <p className="text-white/70 text-sm">{category.count} товаров</p>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className={`h-2 w-full rounded-full bg-gradient-to-r ${category.color}`}></div>
+                  </div>
+                  
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        setEditingCategory(category);
+                        setNewCategory({
+                          name: category.name,
+                          icon: category.icon,
+                          color: category.color,
+                          sort_order: category.sort_order
+                        });
+                        setShowCategoryModal(true);
+                      }}
+                      className="flex-1 px-3 py-2 bg-blue-500/20 text-blue-300 rounded-lg hover:bg-blue-500/30 transition-colors text-sm"
+                    >
+                      ✏️ Редактировать
+                    </button>
+                    <button
+                      onClick={() => handleDeleteCategory(category.id)}
+                      className="flex-1 px-3 py-2 bg-red-500/20 text-red-300 rounded-lg hover:bg-red-500/30 transition-colors text-sm"
+                    >
+                      🗑️ Удалить
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Liquid Glass Bottom Navigation */}
@@ -882,6 +1218,16 @@ export default function AdminPage() {
               }`}
             >
               <span className="text-xl sm:text-2xl filter drop-shadow-sm">➕</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('categories')}
+              className={`flex items-center justify-center w-12 h-12 sm:w-14 sm:h-14 rounded-2xl transition-all duration-300 ${
+                activeTab === 'categories' 
+                  ? 'bg-white/30 shadow-lg scale-110' 
+                  : 'hover:bg-white/20 active:scale-95'
+              }`}
+            >
+              <span className="text-xl sm:text-2xl filter drop-shadow-sm">📂</span>
             </button>
           </div>
         </div>
@@ -1131,6 +1477,109 @@ export default function AdminPage() {
                   <span>→</span>
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Category Modal */}
+      {showCategoryModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white/10 backdrop-blur-2xl rounded-3xl border border-white/20 p-4 sm:p-6 max-w-md w-full shadow-2xl">
+            <h3 className="text-lg sm:text-xl font-bold text-white mb-4">
+              {editingCategory ? '✏️ Редактировать категорию' : '➕ Добавить категорию'}
+            </h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-cyan-300 mb-2">Название категории</label>
+                <input
+                  type="text"
+                  value={newCategory.name}
+                  onChange={(e) => setNewCategory({...newCategory, name: e.target.value})}
+                  className="w-full px-3 py-2 sm:px-4 sm:py-3 bg-white/10 backdrop-blur-xl rounded-2xl outline-none focus:ring-2 focus:ring-cyan-500 border border-white/20 text-white text-sm sm:text-base"
+                  placeholder="Например: Смартфоны"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-cyan-300 mb-2">Иконка</label>
+                <div className="grid grid-cols-6 gap-2">
+                  {['📱', '💻', '📋', '📺', '🎧', '⌚', '📷', '🎮', '👔', '👗', '👟', '👜', '💍', '🪑', '🍳', '⚽', '💄', '🚗', '📚', '🐾', '🌱', '🔧', '🍎', '📦'].map((icon) => (
+                    <button
+                      key={icon}
+                      onClick={() => setNewCategory({...newCategory, icon})}
+                      className={`p-2 rounded-lg text-xl transition-all ${
+                        newCategory.icon === icon
+                          ? 'bg-cyan-500/30 border border-cyan-400'
+                          : 'bg-white/10 border border-white/20 hover:bg-white/20'
+                      }`}
+                    >
+                      {icon}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-cyan-300 mb-2">Цвет градиента</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    'from-blue-400 to-blue-600',
+                    'from-purple-400 to-purple-600',
+                    'from-green-400 to-green-600',
+                    'from-red-400 to-red-600',
+                    'from-yellow-400 to-yellow-600',
+                    'from-pink-400 to-pink-600',
+                    'from-gray-600 to-gray-800',
+                    'from-orange-400 to-orange-600'
+                  ].map((color) => (
+                    <button
+                      key={color}
+                      onClick={() => setNewCategory({...newCategory, color})}
+                      className={`p-3 rounded-lg bg-gradient-to-r ${color} transition-all ${
+                        newCategory.color === color
+                          ? 'ring-2 ring-white ring-offset-2 ring-offset-transparent'
+                          : ''
+                      }`}
+                    />
+                  ))}
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-cyan-300 mb-2">Порядок сортировки</label>
+                <input
+                  type="number"
+                  value={newCategory.sort_order}
+                  onChange={(e) => setNewCategory({...newCategory, sort_order: parseInt(e.target.value) || 0})}
+                  className="w-full px-3 py-2 sm:px-4 sm:py-3 bg-white/10 backdrop-blur-xl rounded-2xl outline-none focus:ring-2 focus:ring-cyan-500 border border-white/20 text-white text-sm sm:text-base"
+                  placeholder="1, 2, 3..."
+                />
+              </div>
+            </div>
+            
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => {
+                  setShowCategoryModal(false);
+                  setEditingCategory(null);
+                  setNewCategory({
+                    name: '',
+                    icon: '📦',
+                    color: 'from-gray-400 to-gray-600',
+                    sort_order: 0
+                  });
+                }}
+                className="flex-1 px-4 py-3 bg-gray-600 hover:bg-gray-700 text-white rounded-2xl font-bold"
+              >
+                Отмена
+              </button>
+              <button
+                onClick={handleSaveCategory}
+                className="flex-1 px-4 py-3 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-700 hover:to-blue-700 text-white rounded-2xl font-bold"
+              >
+                {editingCategory ? '💾 Сохранить' : '➕ Создать'}
+              </button>
             </div>
           </div>
         </div>

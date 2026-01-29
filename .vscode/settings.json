@@ -1,0 +1,29 @@
+{
+  "java.configuration.runtimes": [
+    {
+      "name": "JavaSE-1.8",
+      "path": "C:\\Program Files\\Java\\jdk1.8.0_361"
+    },
+    {
+      "name": "JavaSE-11", 
+      "path": "C:\\Program Files\\Java\\jdk-11.0.20"
+    },
+    {
+      "name": "JavaSE-17",
+      "path": "C:\\Program Files\\Java\\jdk-17.0.8",
+      "default": true
+    }
+  ],
+  "java.compile.nullAnalysis.mode": "automatic",
+  "java.debug.settings.onBuildFailureProceed": true,
+  "java.import.gradle.enabled": true,
+  "java.import.gradle.wrapper.enabled": true,
+  "java.jdt.ls.java.home": "C:\\Program Files\\Java\\jdk-17.0.8",
+  "java.configuration.updateBuildConfiguration": "automatic",
+  "java.autobuild.enabled": true,
+  "java.maxConcurrentBuilds": 1,
+  "java.references.includeDecompiledSources": true,
+  "java.format.settings.url": "https://raw.githubusercontent.com/google/styleguide/gh-pages/eclipse-java-google-style.xml",
+  "java.saveActions.organizeImports": true,
+  "android.java.home": "C:\\Program Files\\Java\\jdk-17.0.8"
+}

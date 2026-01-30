@@ -1,5 +1,28 @@
 {
+  "version": 2,
+  "framework": "nextjs",
   "buildCommand": "next build",
   "devCommand": "next dev",
-  "installCommand": "npm install"
+  "installCommand": "npm install",
+  "functions": {
+    "app/**/*": {
+      "maxDuration": 30
+    }
+  },
+  "routes": [
+    {
+      "src": "/(.*)",
+      "headers": {
+        "Cache-Control": "no-cache, no-store, must-revalidate",
+        "Pragma": "no-cache",
+        "Expires": "0",
+        "Surrogate-Control": "no-store"
+      }
+    }
+  ],
+  "build": {
+    "env": {
+      "NEXT_PUBLIC_CACHE_BUST": "2024-01-30-v2"
+    }
+  }
 }

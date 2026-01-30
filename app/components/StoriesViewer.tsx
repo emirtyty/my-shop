@@ -242,10 +242,17 @@ export default function StoriesViewer() {
   const currentStory = stories[currentIndex];
 
   return (
-    <div className="fixed inset-0 bg-black z-50 flex flex-col">
+    <div className="fixed inset-0 z-50 flex flex-col" style={{
+      backgroundColor: 'black'
+    }}>
       {/* Header */}
-      <div className="bg-gray-900/90 backdrop-blur-sm border-b border-gray-800 p-4 flex justify-between items-center">
-        <h2 className="text-white font-bold text-lg">Stories</h2>
+      <div className="backdrop-blur-sm border-b p-4 flex justify-between items-center" style={{
+        backgroundColor: 'rgba(17, 24, 39, 0.9)',
+        borderColor: 'var(--border-primary)'
+      }}>
+        <h2 className="font-bold text-lg" style={{
+          color: 'white'
+        }}>Stories</h2>
         <button 
           onClick={() => window.history.back()}
           className="text-white text-2xl hover:scale-110 transition-transform"
@@ -283,7 +290,9 @@ export default function StoriesViewer() {
                   onClick={() => handleStoryClick(story)}
                   onMouseEnter={() => handleView(story.id)}
                 >
-                  <div className="relative w-full h-full bg-black flex items-center justify-center">
+                  <div className="relative w-full h-full flex items-center justify-center" style={{
+                    backgroundColor: 'black'
+                  }}>
                     <img
                       src={story.image_url}
                       alt={story.title}
@@ -292,15 +301,23 @@ export default function StoriesViewer() {
                     />
                     
                     {/* Overlay */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent">
+                    <div className="absolute inset-0" style={{
+                      background: 'linear-gradient(to top, rgba(0, 0, 0, 0.6), transparent, transparent)'
+                    }}>
                       <div className="absolute bottom-0 left-0 right-0 p-4">
                         <div className="flex items-center gap-2 mb-2">
                           {story.discount && (
-                            <span className="bg-red-500 text-white text-xs px-2 py-1 rounded-full font-bold">
+                            <span className="text-xs px-2 py-1 rounded-full font-bold" style={{
+                              backgroundColor: '#dc2626',
+                              color: 'white'
+                            }}>
                               -{story.discount}%
                             </span>
                           )}
-                          <span className="bg-white/20 backdrop-blur-sm text-white text-xs px-2 py-1 rounded-full">
+                          <span className="text-xs px-2 py-1 rounded-full backdrop-blur-sm" style={{
+                            backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                            color: 'white'
+                          }}>
                             {story.price}₽
                           </span>
                         </div>
@@ -338,10 +355,15 @@ export default function StoriesViewer() {
         </div>
 
         {/* Progress Bar */}
-        <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/20">
+        <div className="absolute bottom-0 left-0 right-0 h-1" style={{
+          backgroundColor: 'rgba(255, 255, 255, 0.2)'
+        }}>
           <div 
-            className="h-full bg-white transition-all duration-300"
-            style={{ width: `${((currentIndex + 1) / stories.length) * 100}%` }}
+            className="h-full transition-all duration-300"
+            style={{ 
+              backgroundColor: 'white',
+              width: `${((currentIndex + 1) / stories.length) * 100}%` 
+            }}
           />
         </div>
       </div>

@@ -14,6 +14,109 @@ html, body {
   box-sizing: border-box;
 }
 
+/* Умная подстройка под системные цвета */
+:root {
+  /* Основные цвета для светлой темы */
+  --bg-primary: #ffffff;
+  --bg-secondary: #f8fafc;
+  --bg-tertiary: #f1f5f9;
+  --text-primary: #1e293b;
+  --text-secondary: #475569;
+  --text-tertiary: #64748b;
+  --border-primary: #e2e8f0;
+  --border-secondary: #cbd5e1;
+  --accent: #3b82f6;
+  --accent-hover: #2563eb;
+  
+  /* Оранжевая тема для приложения */
+  --md-sys-color-primary: #FF6B35;
+  --md-sys-color-on-primary: #FFFFFF;
+  --md-sys-color-primary-container: #FFE8DB;
+  --md-sys-color-on-primary-container: #4A1F00;
+  
+  /* Notification bar адаптация */
+  --md-sys-color-surface: #FFFBFE;
+  --md-sys-color-surface-variant: #F0E0D0;
+  --md-sys-color-surface-container: #F9F0E8;
+  --md-sys-color-surface-container-high: #F4EAE1;
+  --md-sys-color-surface-container-highest: #EEE5DC;
+  
+  /* Системные цвета для notification bar */
+  --system-background: #FFFFFF;
+  --system-background-secondary: #F2F2F7;
+  --system-label: #000000;
+  --system-label-secondary: #3C3C43;
+  --system-separator: #C6C6C8;
+  --system-fill: #78788033;
+}
+
+/* Темная тема адаптация */
+@media (prefers-color-scheme: dark) {
+  :root {
+    /* Основные цвета для темной темы */
+    --bg-primary: #0f172a;
+    --bg-secondary: #1e293b;
+    --bg-tertiary: #334155;
+    --text-primary: #f1f5f9;
+    --text-secondary: #cbd5e1;
+    --text-tertiary: #94a3b8;
+    --border-primary: #334155;
+    --border-secondary: #475569;
+    --accent: #3b82f6;
+    --accent-hover: #60a5fa;
+    
+    --md-sys-color-primary: #FFB59B;
+    --md-sys-color-on-primary: #672B00;
+    --md-sys-color-primary-container: #933E00;
+    --md-sys-color-on-primary-container: #FFDCC2;
+    
+    --md-sys-color-surface: #1F1B16;
+    --md-sys-color-surface-variant: #50453A;
+    --md-sys-color-surface-container: #2B1609;
+    --md-sys-color-surface-container-high: #362F26;
+    --md-sys-color-surface-container-highest: #413A30;
+    
+    /* Системные цвета для темной темы */
+    --system-background: #000000;
+    --system-background-secondary: #1C1C1E;
+    --system-label: #FFFFFF;
+    --system-label-secondary: #EBEBF5;
+    --system-separator: #38383A;
+    --system-fill: #7878805C;
+  }
+}
+
+/* Подстройка notification bar под систему */
+@supports (-webkit-touch-callout: none) {
+  /* iOS */
+  :root {
+    --system-background: #FFFFFF;
+    --system-background-secondary: #F2F2F7;
+  }
+  
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --system-background: #000000;
+      --system-background-secondary: #1C1C1E;
+    }
+  }
+}
+
+@supports (-moz-appearance: none) {
+  /* Android */
+  :root {
+    --system-background: #FFFFFF;
+    --system-background-secondary: #F5F5F5;
+  }
+  
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --system-background: #121212;
+      --system-background-secondary: #1E1E1E;
+    }
+  }
+}
+
 @keyframes loading-bar {
   0% { transform: translateX(-100%); }
   100% { transform: translateX(100%); }
@@ -99,4 +202,277 @@ body {
     transform: scale(1) translateY(0);
     opacity: 1;
   }
+}
+
+/* Улучшенные анимации для компонентов */
+
+/* Fade In */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in ease-out;
+}
+
+/* Slide Up */
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-slide-up {
+  animation: slide-up ease-out;
+}
+
+/* Scale In */
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-scale-in {
+  animation: scale-in ease-out;
+}
+
+/* Bounce In */
+@keyframes bounce-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+  70% {
+    transform: scale(0.9);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-bounce-in {
+  animation: bounce-in ease-out;
+}
+
+/* Slide In Left */
+@keyframes slide-in-left {
+  from {
+    opacity: 0;
+    transform: translateX(-30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.animate-slide-in-left {
+  animation: slide-in-left ease-out;
+}
+
+/* Slide In Right */
+@keyframes slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.animate-slide-in-right {
+  animation: slide-in-right ease-out;
+}
+
+/* Pulse Variations */
+@keyframes pulse-light {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+
+.animate-pulse-light {
+  animation: pulse-light 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse-strong {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+.animate-pulse-strong {
+  animation: pulse-strong 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Shake Variations */
+@keyframes shake-light {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-2px);
+  }
+  75% {
+    transform: translateX(2px);
+  }
+}
+
+.animate-shake-light {
+  animation: shake-light ease-in-out;
+}
+
+@keyframes shake {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  10%, 30%, 50%, 70%, 90% {
+    transform: translateX(-5px);
+  }
+  20%, 40%, 60%, 80% {
+    transform: translateX(5px);
+  }
+}
+
+.animate-shake {
+  animation: shake ease-in-out;
+}
+
+@keyframes shake-strong {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  10%, 30%, 50%, 70%, 90% {
+    transform: translateX(-10px);
+  }
+  20%, 40%, 60%, 80% {
+    transform: translateX(10px);
+  }
+}
+
+.animate-shake-strong {
+  animation: shake-strong ease-in-out;
+}
+
+/* Floating Animation */
+@keyframes floating {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(var(--floating-amplitude, -10px));
+  }
+}
+
+.animate-floating {
+  animation: floating 3s ease-in-out infinite;
+}
+
+/* Micro-interactions */
+.hover-lift {
+  transition: transform 0.2s ease-out, box-shadow 0.2s ease-out;
+}
+
+.hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+}
+
+.hover-glow {
+  transition: box-shadow 0.3s ease-out;
+}
+
+.hover-glow:hover {
+  box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
+}
+
+/* Smooth transitions */
+.smooth-transition {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Loading states */
+.loading-skeleton {
+  background: linear-gradient(90deg, 
+    var(--bg-tertiary) 25%, 
+    var(--bg-secondary) 50%, 
+    var(--bg-tertiary) 75%
+  );
+  background-size: 200% 100%;
+  animation: loading-skeleton 1.5s infinite;
+}
+
+@keyframes loading-skeleton {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* Optimized animations for mobile */
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-in,
+  .animate-slide-up,
+  .animate-scale-in,
+  .animate-bounce-in,
+  .animate-slide-in-left,
+  .animate-slide-in-right,
+  .animate-pulse,
+  .animate-pulse-light,
+  .animate-pulse-strong,
+  .animate-floating {
+    animation: none;
+  }
+  
+  .hover-lift,
+  .hover-glow,
+  .smooth-transition {
+    transition: none;
+  }
+}
+
+/* Performance optimizations */
+.gpu-accelerated {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  perspective: 1000px;
+}
+
+.will-change-transform {
+  will-change: transform;
+}
+
+.will-change-opacity {
+  will-change: opacity;
 }

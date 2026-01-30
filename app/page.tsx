@@ -75,9 +75,18 @@ interface Product {
   category: string;
   seller_id: string;
   description?: string;
+  rating?: number;
+  reviews?: number;
   sellers?: { 
     id: string; 
     shop_name: string;
+    contact?: string;
+    telegram?: string;
+    vk?: string;
+    whatsapp?: string;
+    phone?: string;
+    instagram?: string;
+    website?: string;
     telegram_url?: string;
     vk_url?: string;
     whatsapp_url?: string;
@@ -142,6 +151,17 @@ export default function Home() {
   
   // Состояние для полноэкранного просмотра картинок
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
+  
+  // Pull-to-refresh состояния
+  const [isPullToRefresh, setIsPullToRefresh] = useState(false);
+  const [pullDistance, setPullDistance] = useState(0);
+  
+  // Lazy loading для изображений
+  const [loadedImages, setLoadedImages] = useState<Set<string>>(new Set());
+  
+  const handleImageLoad = (imageId: string) => {
+    setLoadedImages(prev => new Set(prev).add(imageId));
+  };
 
   useEffect(() => {
     fetchData();
@@ -149,7 +169,7 @@ export default function Home() {
 
   // Блокировка скролла при открытом модальном окне
   useEffect(() => {
-    if (showCategoryCloud) {
+    if (showCategoryCloud || touchProductModal) {
       // Сохраняем текущую позицию скролла
       const scrollY = window.scrollY;
       
@@ -173,20 +193,20 @@ export default function Home() {
         window.scrollTo(0, parseInt(scrollY || '0') * -1);
       };
     }
-  }, [showCategoryCloud]);
+  }, [showCategoryCloud, touchProductModal]);
 
   async function fetchData() {
     setLoading(true);
     try {
-      // Check if Supabase is properly configured
-      if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-        console.warn('Supabase environment variables are missing');
-        setProducts([]);
-        setStories([]);
-        return;
-      }
+      console.log('🔄 Starting data fetch from Supabase...');
+      
+      // Добавляем таймаут для запросов
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Timeout')), 10000); // 10 секунд таймаут
+      });
 
-      const [prodRes, storyRes] = await Promise.all([
+      console.log('📡 Making requests to Supabase...');
+      const dataPromise = Promise.all([
         supabase.from('product_market').select('*, sellers(shop_name, id, telegram_url, vk_url, whatsapp_url, instagram_url)'),
         supabase
           .from('stories')
@@ -205,14 +225,26 @@ export default function Home() {
           .order('created_at', { ascending: false })
           .limit(10)
       ]);
+
+      const [prodRes, storyRes] = await Promise.race([dataPromise, timeoutPromise]) as any;
+      
+      console.log('📦 Products response:', prodRes);
+      console.log('📖 Stories response:', storyRes);
       
       setProducts(prodRes.data || []);
       setStories(storyRes.data || []);
       
-      if (prodRes.error) console.warn('Ошибка загрузки товаров:', prodRes.error.message);
-      if (storyRes.error) console.warn('Ошибка загрузки историй:', storyRes.error.message);
+      if (prodRes.error) {
+        console.error('❌ Products error:', prodRes.error.message);
+      }
+      if (storyRes.error) {
+        console.error('❌ Stories error:', storyRes.error.message);
+      }
+      
+      console.log('✅ Data loaded successfully!');
     } catch (err) {
-      console.error('Ошибка при загрузке данных:', err);
+      console.error('💥 Error loading data:', err);
+      // В случае ошибки просто показываем пустые данные
       setProducts([]);
       setStories([]);
     } finally {
@@ -221,7 +253,7 @@ export default function Home() {
   }
 
   const getSocialUrl = (seller: any) => {
-    return seller?.telegram_url || seller?.vk_url || seller?.whatsapp_url || seller?.instagram_url;
+    return seller?.telegram || seller?.vk || seller?.whatsapp || seller?.instagram || seller?.telegram_url || seller?.vk_url || seller?.whatsapp_url || seller?.instagram_url;
   };
 
   const getSocialIcon = (url: string) => {
@@ -235,9 +267,23 @@ export default function Home() {
   const handleBuyClick = (product: Product) => {
     const socialUrl = getSocialUrl(product.sellers);
     if (socialUrl) {
-      window.open(socialUrl, '_blank');
+      // Используем window.open с правильными параметрами чтобы избежать перезагрузки
+      const link = document.createElement('a');
+      link.href = socialUrl;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
     } else {
-      alert('Социальные сети продавца не настроены');
+      // Показываем уведомление вместо alert
+      const notification = document.createElement('div');
+      notification.className = 'fixed top-4 right-4 bg-red-500 text-white px-4 py-2 rounded-lg shadow-lg z-50';
+      notification.textContent = 'Социальные сети продавца не настроены';
+      document.body.appendChild(notification);
+      setTimeout(() => {
+        document.body.removeChild(notification);
+      }, 3000);
     }
   };
 
@@ -246,20 +292,21 @@ export default function Home() {
     const touch = e.touches[0];
     const rect = e.currentTarget.getBoundingClientRect();
     
-    // Тактильная отдача при начале касания
-    haptics.impact('light');
-    
-    // Сохраняем начальные координаты
+    // Сохраняем начальные координаты для определения скролла
     setTouchProductModal(product);
     setTouchStartTime(Date.now());
     setProductDragStartY(touch.clientY);
+    setProductTouchStart(touch.clientY); // Добавляем для отслеживания движения
     
-    // Запускаем таймер только если это не скролл
+    // Тактильная отдача при начале касания
+    haptics.impact('light');
+    
+    // Запускаем таймер только если это не скролл (уменьшено с 500мс на 300мс)
     const timer = setTimeout(() => {
       if (touchProductModal === product) {
         haptics.notification('success');
       }
-    }, 500);
+    }, 300);
     
     setTouchHoldTimer(timer);
   };
@@ -271,52 +318,49 @@ export default function Home() {
       setTouchHoldTimer(null);
     }
     
-    // Проверяем было ли это удержание или просто касание
+    // Проверяем было ли это удержание или просто касание (уменьшено с 500мс на 300мс)
     const holdDuration = Date.now() - touchStartTime;
-    if (holdDuration < 500) {
-      setTimeout(() => {
-        setTouchProductModal(null);
-      }, 100);
+    if (holdDuration < 300) {
+      // Просто касание - не открываем модальное окно
+      setTouchProductModal(null);
     }
   };
 
   const handleProductTouchMove = (e: React.TouchEvent) => {
-    if (!touchProductModal) return;
-    
     const touch = e.touches[0];
-    const deltaY = Math.abs(touch.clientY - productDragStartY);
+    const touchStartY = productDragStartY;
+    const currentY = touch.clientY;
     
-    // Если палец сдвинулся больше чем на 15px по вертикали - это скролл
-    if (deltaY > 15) {
+    // Проверяем на скролл - если движение больше 15px в любую сторону, отменяем 3D Touch
+    const movement = Math.abs(currentY - touchStartY);
+    if (movement > 15) {
+      // Отменяем открытие модального окна
       if (touchHoldTimer) {
         clearTimeout(touchHoldTimer);
         setTouchHoldTimer(null);
       }
+      // Не открываем модальное окно при скролле
       setTouchProductModal(null);
       return;
     }
     
-    // Проверяем что палец все еще в пределах карточки
-    const rect = e.currentTarget.getBoundingClientRect();
-    const deltaX = Math.abs(touch.clientX - (rect.left + rect.width / 2));
-    const maxDistance = Math.max(rect.width, rect.height) / 2;
-    
-    if (deltaX > maxDistance) {
-      if (touchHoldTimer) {
-        clearTimeout(touchHoldTimer);
-        setTouchHoldTimer(null);
+    // Если модальное окно открыто, обрабатываем свайп
+    if (touchProductModal) {
+      const deltaY = currentY - touchStartY;
+      
+      // Если тянем вниз, начинаем свайп
+      if (deltaY > 15) {
+        setProductIsDragging(true);
+        setProductDragOffset(deltaY);
+        
+        // Добавляем сопротивление при свайпе
+        const resistance = Math.max(0, deltaY - 100) * 0.3;
+        setProductDragOffset(deltaY + resistance);
       }
-      setTouchProductModal(null);
     }
   };
 
   // Функции для свайпа модального окна товара
-  const handleProductModalTouchStart = (e: React.TouchEvent) => {
-    setProductTouchStart(e.touches[0].clientY);
-    setProductDragStartY(e.touches[0].clientY);
-    setProductIsDragging(true);
-  };
-
   const handleProductModalTouchMove = (e: React.TouchEvent) => {
     if (!productIsDragging) return;
     
@@ -422,49 +466,142 @@ export default function Home() {
     { id: 24, name: 'Продукты', icon: '🍎', count: 0, color: 'from-red-500 to-red-700' }
   ];
 
-  const filteredProducts = products.filter(p => 
-    p.name.toLowerCase().includes(searchQuery.toLowerCase())
+  // Pull-to-refresh handlers
+  const handlePullStart = (e: React.TouchEvent) => {
+    // Блокируем pull-to-refresh если открыто модальное окно
+    if (touchProductModal) return;
+    
+    const touch = e.touches[0];
+    if (window.scrollY === 0 && touch.clientY < 100) {
+      setIsPullToRefresh(true);
+      setPullDistance(0);
+    }
+  };
+
+  const handlePullMove = (e: React.TouchEvent) => {
+    // Блокируем pull-to-refresh если открыто модальное окно
+    if (touchProductModal || !isPullToRefresh) return;
+    
+    const touch = e.touches[0];
+    // Обновляем только если тянем вниз
+    if (touch.clientY > 0) {
+      setPullDistance(Math.min(touch.clientY / 3, 120)); // Уменьшаем чувствительность
+    }
+  };
+
+  const handlePullEnd = () => {
+    // Блокируем pull-to-refresh если открыто модальное окно
+    if (touchProductModal || !isPullToRefresh) return;
+    
+    // Обновляем только если потянули достаточно сильно
+    if (pullDistance > 60) {
+      haptics.notification('success');
+      fetchData();
+    }
+    setIsPullToRefresh(false);
+    setPullDistance(0);
+  };
+
+  // Skeleton loader component
+  const ProductSkeleton = () => (
+    <div className="rounded-lg overflow-hidden shadow-sm border" style={{
+      backgroundColor: 'var(--bg-secondary)',
+      borderColor: 'var(--border-primary)'
+    }}>
+      <div className="relative aspect-3/4" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+        <div className="absolute inset-0 animate-pulse" style={{
+          background: 'linear-gradient(to right, var(--bg-tertiary), var(--bg-secondary), var(--bg-tertiary))'
+        }} />
+      </div>
+      <div className="p-2">
+        <div className="h-2 rounded animate-pulse mb-1" style={{ backgroundColor: 'var(--bg-tertiary)' }} />
+        <div className="h-2 rounded animate-pulse mb-1 w-3/4" style={{ backgroundColor: 'var(--bg-tertiary)' }} />
+        <div className="flex justify-between items-center">
+          <div className="h-3 rounded animate-pulse w-12" style={{ backgroundColor: 'var(--bg-tertiary)' }} />
+          <div className="w-5 h-5 rounded animate-pulse" style={{ backgroundColor: 'var(--bg-tertiary)' }} />
+        </div>
+      </div>
+    </div>
   );
 
   if (loading) {
     return (
-      <div className="h-screen bg-black flex items-center justify-center">
+      <div className="h-screen flex items-center justify-center transition-colors duration-300" style={{
+        backgroundColor: 'var(--bg-primary)'
+      }}>
         <div className="text-center">
-          <div className="text-6xl font-bold mb-8 text-white">RA DELL</div>
-          <div className="w-64 h-2 bg-gray-800 rounded-full overflow-hidden">
-            <div className="h-full bg-white animate-loading-bar"></div>
+          <div className="text-6xl font-bold mb-8" style={{ color: 'var(--text-primary)' }}>RA DELL</div>
+          <div className="w-64 h-2 rounded-full overflow-hidden" style={{
+            backgroundColor: 'var(--bg-tertiary)'
+          }}>
+            <div className="h-full animate-loading-bar" style={{
+              background: 'linear-gradient(to right, #FF6B35, #FF8C42)'
+            }} />
           </div>
-          <p className="mt-8 text-gray-400 font-bold">Загрузка...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-white text-gray-900" style={{
+    <div className="min-h-screen transition-colors duration-300" style={{
       // Safe area для edge-to-edge
       paddingTop: 'env(safe-area-inset-top)',
       paddingLeft: 'env(safe-area-inset-left)',
       paddingRight: 'env(safe-area-inset-right)',
-      paddingBottom: 'env(safe-area-inset-bottom)'
-    }}>
+      paddingBottom: 'env(safe-area-inset-bottom)',
+      // Умная подстройка под систему
+      backgroundColor: 'var(--bg-primary)',
+      color: 'var(--text-primary)'
+    }}
+    onTouchStart={handlePullStart}
+    onTouchMove={handlePullMove}
+    onTouchEnd={handlePullEnd}
+    >
+      {/* Pull-to-refresh indicator */}
+      {isPullToRefresh && (
+        <div 
+          className="fixed top-0 left-0 right-0 z-40 flex justify-center items-center transition-all duration-300"
+          style={{
+            height: `${Math.min(pullDistance, 120)}px`,
+            opacity: pullDistance / 120,
+            background: 'linear-gradient(135deg, #FF6B35 0%, #FF8C42 100%)'
+          }}
+        >
+          <div className="text-center">
+            <div className="text-2xl mb-2 text-white" style={{
+              transform: `rotate(${pullDistance * 2}deg)`,
+              transition: 'transform 0.3s ease-out'
+            }}>
+              🔄
+            </div>
+            <div className="text-sm text-white">
+              {pullDistance > 80 ? 'Отпустите для обновления' : 'Тяните для обновления'}
+            </div>
+          </div>
+        </div>
+      )}
+      
       {/* Header с учетом safe area */}
-      <header className="sticky top-0 z-50 bg-white p-4" style={{
+      <header className="sticky top-0 z-50 p-4 backdrop-blur-md border-b transition-colors duration-300" style={{
+        backgroundColor: 'var(--bg-primary)',
+        borderColor: 'var(--border-primary)',
         // Компенсируем safe area для sticky header
         paddingTop: 'calc(1rem + env(safe-area-inset-top))',
         paddingLeft: 'calc(1rem + env(safe-area-inset-left))',
         paddingRight: 'calc(1rem + env(safe-area-inset-right))'
       }}>
         <div className="max-w-6xl mx-auto">
-          <div className="flex justify-end items-center mb-4">
-          </div>
           <div className="relative">
             <input 
               type="text" 
               placeholder={showCategoryCloud ? "Поиск по категориям..." : "Поиск товаров..."} 
               value={searchQuery} 
               onChange={e => setSearchQuery(e.target.value)} 
-              className="w-full pl-12 pr-4 py-3 bg-gray-100 rounded-lg outline-none focus:ring-2 focus:ring-orange-500 text-gray-900 placeholder-gray-500 transition-all duration-300" 
+              className="w-full pl-12 pr-20 py-3 rounded-lg outline-none transition-all duration-300 placeholder-gray-500" style={{
+                backgroundColor: 'var(--bg-secondary)',
+                color: 'var(--text-primary)'
+              }}
             />
             <button
               onClick={openCategoryCloud}
@@ -473,151 +610,190 @@ export default function Home() {
                 button.style.transform = 'translateY(2px) scale(0.95)';
                 button.style.transition = 'transform 0.1s ease-out';
               }}
-              onTouchMove={(e) => {
-                const button = e.currentTarget;
-                const touch = e.touches[0];
-                const rect = button.getBoundingClientRect();
-                const centerX = rect.left + rect.width / 2;
-                const centerY = rect.top + rect.height / 2;
-                const distance = Math.sqrt(
-                  Math.pow(touch.clientX - centerX, 2) + 
-                  Math.pow(touch.clientY - centerY, 2)
-                );
-                
-                const maxDistance = Math.max(rect.width, rect.height) / 2;
-                const pressure = Math.max(0, 1 - distance / maxDistance);
-                const scale = 0.95 - (pressure * 0.1);
-                const translateY = 2 + (pressure * 3);
-                
-                button.style.transform = `translateY(${translateY}px) scale(${scale})`;
-                button.style.filter = `brightness(${1 - pressure * 0.2})`;
-              }}
               onTouchEnd={(e) => {
                 const button = e.currentTarget;
                 button.style.transform = '';
-                button.style.filter = '';
-                button.style.transition = 'transform 0.3s cubic-bezier(0.4, 0.0, 0.2, 1), filter 0.3s ease-out';
+                button.style.transition = 'transform 0.3s cubic-bezier(0.4, 0.0, 0.2, 1)';
               }}
-              onMouseDown={(e) => {
-                const button = e.currentTarget;
-                button.style.transform = 'translateY(1px) scale(0.98)';
-                button.style.filter = 'brightness(0.9)';
-              }}
-              onMouseUp={(e) => {
-                const button = e.currentTarget;
-                button.style.transform = '';
-                button.style.filter = '';
-              }}
-              onMouseLeave={(e) => {
-                const button = e.currentTarget;
-                button.style.transform = '';
-                button.style.filter = '';
-              }}
-              className={`absolute left-3 top-1/2 -translate-y-1/2 text-lg transition-all duration-300 ${
-                showCategoryCloud 
-                  ? 'text-orange-500 scale-110' 
-                  : 'text-gray-400 hover:text-gray-600 hover:scale-110'
-              }`}
-              style={{
-                animation: !showCategoryCloud ? 'pulse-subtle 2s infinite' : 'none',
-                pointerEvents: 'auto',
-                WebkitTapHighlightColor: 'transparent',
-                WebkitTouchCallout: 'none',
-                WebkitUserSelect: 'none',
-                userSelect: 'none'
+              className="absolute right-3 top-1/2 -translate-y-1/2 transition-colors duration-200" style={{
+                color: 'var(--text-tertiary)'
               }}
             >
-              {showCategoryCloud ? '✕' : '⊞'}
+              ☁️
             </button>
           </div>
         </div>
       </header>
 
-      {/* Stories Feed */}
-      <div className="max-w-6xl mx-auto px-4">
-        <StoriesFeed />
-      </div>
-
       <div className="max-w-6xl mx-auto px-4 py-4">
+        {/* Проверка на отсутствие товаров */}
+        {!loading && products.length === 0 && (
+          <div className="text-center py-20">
+            <div className="text-6xl mb-4">📦</div>
+            <h2 className="text-2xl font-bold mb-2" style={{ color: 'var(--text-primary)' }}>Товары не найдены</h2>
+            <p style={{ color: 'var(--text-secondary)' }}>
+              Не удалось загрузить товары. Пожалуйста, проверьте подключение к базе данных.
+            </p>
+          </div>
+        )}
+        
         {/* Products Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 pb-32">
-          {filteredProducts.map(p => {
-            const hasDiscount = p.discount > 0;
-            const displayPrice = hasDiscount ? Math.round(p.price * (1 - p.discount / 100)) : p.price;
-            const socialUrl = getSocialUrl(p.sellers);
-            
-            return (
-              <div key={p.id} className="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow border border-gray-200">
-                <div className="relative aspect-square bg-gray-100">
-                  <img 
-                    src={p.image_url} 
-                    className="w-full h-full object-cover cursor-pointer transition-transform duration-300 hover:scale-105" 
-                    alt={p.name} 
-                    onClick={() => setFullscreenImage(p.image_url)}
-                    onTouchStart={(e) => {
-                      handleProductTouchStart(p, e);
-                    }}
-                    onTouchMove={(e) => {
-                      handleProductTouchMove(e);
-                    }}
-                    onTouchEnd={(e) => {
-                      handleProductTouchEnd();
-                    }}
-                  />
-                  {hasDiscount && (
-                    <div className="absolute top-2 left-2 bg-yellow-400 text-gray-900 px-2 py-1 rounded text-xs font-bold">
-                      -{p.discount}%
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 pb-32">
+          {loading && products.length === 0 ? (
+            // Показываем skeleton loaders при загрузке
+            Array.from({ length: 8 }).map((_, index) => (
+              <ProductSkeleton key={index} />
+            ))
+          ) : (
+            products.filter(p => 
+              searchQuery === '' || p.name.toLowerCase().includes(searchQuery.toLowerCase())
+            ).map(p => {
+              const hasDiscount = p.discount > 0;
+              const displayPrice = hasDiscount ? Math.round(p.price * (1 - p.discount / 100)) : p.price;
+              const socialUrl = getSocialUrl(p.sellers);
+              
+              return (
+                <div key={p.id} className="rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-all duration-300 border hover:scale-[1.02]" style={{
+                  backgroundColor: 'var(--bg-secondary)',
+                  borderColor: 'var(--border-primary)',
+                  color: 'var(--text-primary)'
+                }}>
+                  <div className="relative aspect-3/4" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+                    {!loadedImages.has(p.id) && (
+                      <div className="absolute inset-0 animate-pulse" style={{
+                        background: 'linear-gradient(to right, var(--bg-tertiary), var(--bg-secondary), var(--bg-tertiary))'
+                      }} />
+                    )}
+                    <img 
+                      src={p.image_url} 
+                      className={`w-full h-full object-cover cursor-pointer transition-all duration-300 hover:scale-105 ${
+                        loadedImages.has(p.id) ? 'opacity-100' : 'opacity-0'
+                      } ${
+                        // Убираем hover эффект при скролле
+                        touchProductModal === p ? '' : 'active:scale-95'
+                      }`} 
+                      alt={p.name} 
+                      loading="lazy"
+                      onClick={() => setFullscreenImage(p.image_url)}
+                      onLoad={() => handleImageLoad(p.id)}
+                      onTouchStart={(e) => {
+                        handleProductTouchStart(p, e);
+                      }}
+                      onTouchMove={(e) => {
+                        handleProductTouchMove(e);
+                      }}
+                      onTouchEnd={(e) => {
+                        handleProductTouchEnd();
+                      }}
+                      style={{
+                        // Убираем визуальные эффекты при скролле
+                        touchAction: touchProductModal === p ? 'none' : 'auto'
+                      }}
+                    />
+                    
+                    {/* Рейтинг на фото */}
+                    <div className="absolute top-2 right-2 px-2 py-1 rounded-lg backdrop-blur-sm" style={{
+                      backgroundColor: 'rgba(0, 0, 0, 0.6)'
+                    }}>
+                      <div className="flex items-center">
+                        {[1, 2, 3, 4, 5].map((star) => (
+                          <span 
+                            key={star} 
+                            className={`text-xs ${
+                              star <= (p.rating || 4) 
+                                ? 'text-yellow-400' 
+                                : 'text-gray-400'
+                            }`}
+                          >
+                            ★
+                          </span>
+                        ))}
+                      </div>
                     </div>
-                  )}
-                </div>
-                <div className="p-4">
-                  <button 
-                    onClick={() => setViewingSeller(p.sellers)} 
-                    className="text-xs font-medium text-blue-500 hover:text-blue-600 mb-2 block w-full text-center"
-                  >
-                    {p.sellers?.shop_name || 'Магазин'}
-                  </button>
-                  <h3 className="text-sm font-medium text-gray-900 mb-2 line-clamp-2 h-10">{p.name}</h3>
-                  <div className="mb-3">
-                    {hasDiscount ? (
-                      <>
-                        <div className="bg-yellow-400 text-gray-900 text-xs px-2 py-1 rounded inline-block mb-1">
-                          <del className="font-medium">{p.price}₽</del>
-                        </div>
-                        <div className="text-lg font-bold text-gray-900">{displayPrice}₽</div>
-                      </>
-                    ) : (
-                      <div className="text-lg font-bold text-gray-900">{p.price}₽</div>
+                    
+                    {hasDiscount && (
+                      <div className="absolute top-2 left-2 px-2 py-1 rounded text-xs font-bold" style={{
+                        backgroundColor: '#dc2626',
+                        color: 'white'
+                      }}>
+                        -{p.discount}%
+                      </div>
                     )}
                   </div>
-                  <button 
-                    onClick={() => handleBuyClick(p)}
-                    className={`w-full py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 ${
-                      socialUrl 
-                        ? 'bg-orange-500 text-white hover:bg-orange-600' 
-                        : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                    }`}
-                  >
-                    {getSocialIcon(socialUrl)} Купить
-                  </button>
+                  <div className="p-2">
+                    <button 
+                      onClick={() => setViewingSeller(p.sellers)} 
+                      className="text-xs font-medium mb-1 block w-full text-center transition-colors duration-200 hover:underline" style={{
+                        color: 'var(--accent)'
+                      }}
+                    >
+                      {p.sellers?.shop_name || 'Магазин'}
+                    </button>
+                    <div className="mb-1">
+                      <h3 className="text-xs font-medium line-clamp-2 h-6 transition-colors duration-200" style={{
+                        color: 'var(--text-primary)'
+                      }}>{p.name}</h3>
+                    </div>
+                    
+                    {/* Цена */}
+                    <div className="mb-2">
+                      {hasDiscount ? (
+                        <div className="flex items-center gap-1">
+                          <del className="text-xs line-through" style={{ color: 'var(--text-tertiary)' }}>{p.price}₽</del>
+                          <div className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{displayPrice}₽</div>
+                        </div>
+                      ) : (
+                        <div className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{p.price}₽</div>
+                      )}
+                    </div>
+                    
+                    {/* Иконка покупки */}
+                    <div className="flex justify-end">
+                      <button 
+                        onClick={() => handleBuyClick(p)}
+                        className={`p-1.5 rounded-lg transition-all duration-300 ${
+                          socialUrl 
+                            ? 'text-white hover:shadow-lg hover:scale-110' 
+                            : 'cursor-not-allowed'
+                        }`}
+                        style={{
+                          backgroundColor: socialUrl ? '#FF6B35' : 'var(--bg-tertiary)',
+                          color: socialUrl ? 'white' : 'var(--text-tertiary)'
+                        }}
+                        title={socialUrl ? 'Купить' : 'Нет в наличии'}
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })
+          )}
         </div>
       </div>
 
       {/* Seller Modal */}
       {viewingSeller && (
-        <div className="fixed inset-0 z-50 bg-white flex flex-col">
-          <header className="bg-white border-b border-gray-200 p-4 flex justify-between items-center">
-            <h2 className="text-xl font-bold text-gray-900">{viewingSeller.shop_name}</h2>
+        <div className="fixed inset-0 z-50 flex flex-col" style={{
+          backgroundColor: 'var(--bg-primary)'
+        }}>
+          <header className="border-b p-4 flex justify-between items-center" style={{
+            backgroundColor: 'var(--bg-primary)',
+            borderColor: 'var(--border-primary)'
+          }}>
             <button 
               onClick={() => setViewingSeller(null)} 
-              className="bg-orange-500 text-white w-10 h-10 rounded-full font-bold hover:bg-orange-600"
+              className="w-10 h-10 rounded-full font-bold transition-colors duration-300" style={{
+                backgroundColor: '#FF6B35',
+                color: 'white'
+              }}
             >
               ←
             </button>
+            <h2 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>{viewingSeller.shop_name}</h2>
           </header>
           <div className="flex-1 overflow-y-auto p-4 pb-20">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -627,40 +803,54 @@ export default function Home() {
                 const socialUrl = getSocialUrl(viewingSeller);
                 
                 return (
-                  <div key={p.id} className="bg-white rounded-lg overflow-hidden shadow-sm">
-                    <div className="relative aspect-square bg-gray-100">
+                  <div key={p.id} className="rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-all duration-300 border hover:scale-[1.02]" style={{
+                    backgroundColor: 'var(--bg-secondary)',
+                    borderColor: 'var(--border-primary)',
+                    color: 'var(--text-primary)'
+                  }}>
+                    <div className="relative aspect-square" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
                       <img 
                         src={p.image_url} 
                         className="w-full h-full object-cover" 
                         alt={p.name} 
                       />
                       {hasDiscount && (
-                        <div className="absolute top-2 left-2 bg-red-500 text-white px-2 py-1 rounded text-xs font-bold">
+                        <div className="absolute top-2 left-2 px-2 py-1 rounded text-xs font-bold" style={{
+                          backgroundColor: '#dc2626',
+                          color: 'white'
+                        }}>
                           -{p.discount}%
                         </div>
                       )}
                     </div>
                     <div className="p-3">
-                      <h3 className="text-sm font-medium text-gray-900 mb-2 line-clamp-2 h-10">{p.name}</h3>
+                      <h3 className="text-sm font-medium mb-2 line-clamp-2 h-10" style={{
+                        color: 'var(--text-primary)'
+                      }}>{p.name}</h3>
                       <div className="mb-2">
                         {hasDiscount ? (
                           <>
-                            <del className="text-gray-400 text-xs block">{p.price}₽</del>
-                            <div className="text-lg font-bold text-gray-900">{displayPrice}₽</div>
+                            <del className="text-xs block" style={{ color: 'var(--text-tertiary)' }}>{p.price}₽</del>
+                            <div className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>{displayPrice}₽</div>
                           </>
                         ) : (
-                          <div className="text-lg font-bold text-gray-900">{p.price}₽</div>
+                          <div className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>{p.price}₽</div>
                         )}
                       </div>
                       <button 
                         onClick={() => handleBuyClick(p)}
-                        className={`w-full py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 ${
+                        className={`p-1.5 rounded-lg transition-all duration-300 ${
                           socialUrl 
-                            ? 'bg-orange-500 text-white hover:bg-orange-600' 
-                            : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                            ? 'text-white hover:shadow-lg hover:scale-110' 
+                            : 'cursor-not-allowed'
                         }`}
+                        style={{
+                          backgroundColor: socialUrl ? '#FF6B35' : 'var(--bg-tertiary)',
+                          color: socialUrl ? 'white' : 'var(--text-tertiary)'
+                        }}
+                        title={socialUrl ? 'Купить' : 'Нет в наличии'}
                       >
-                        {getSocialIcon(socialUrl)} Купить
+                        {getSocialIcon(socialUrl)}
                       </button>
                     </div>
                   </div>
@@ -876,7 +1066,11 @@ export default function Home() {
       {fullscreenImage && (
         <div 
           className="fixed inset-0 z-50 bg-black flex items-center justify-center p-4"
-          onClick={() => setFullscreenImage(null)}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setFullscreenImage(null);
+            }
+          }}
           style={{
             animation: 'fade-in 0.3s ease-out'
           }}
@@ -889,7 +1083,10 @@ export default function Home() {
               onClick={(e) => e.stopPropagation()}
             />
             <button
-              onClick={() => setFullscreenImage(null)}
+              onClick={(e) => {
+                e.stopPropagation();
+                setFullscreenImage(null);
+              }}
               className="absolute top-4 right-4 w-12 h-12 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center text-white hover:bg-white/30 transition-colors"
             >
               ✕
@@ -902,7 +1099,22 @@ export default function Home() {
       {touchProductModal && (
         <div 
           className="fixed inset-0 z-50 bg-black/60 backdrop-blur-md flex items-center justify-center p-4"
-          onClick={() => setTouchProductModal(null)}
+          onClick={(e) => {
+            // Закрываем только при клике на фон, не на модальное окно
+            if (e.target === e.currentTarget) {
+              const modal = document.querySelector('[data-product-modal]') as HTMLElement;
+              if (modal) {
+                modal.style.transition = 'transform 0.4s cubic-bezier(0.4, 0.0, 0.2, 1), opacity 0.3s cubic-bezier(0.4, 0.0, 0.2, 1), filter 0.3s ease-out';
+                modal.style.transform = 'scale(0.8) rotateX(15deg)';
+                modal.style.opacity = '0';
+                modal.style.filter = 'blur(8px)';
+                
+                setTimeout(() => {
+                  setTouchProductModal(null);
+                }, 300);
+              }
+            }
+          }}
           style={{
             animation: 'fade-in 0.3s ease-out'
           }}
@@ -911,11 +1123,16 @@ export default function Home() {
             data-product-modal
             className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl max-h-[85vh] overflow-y-auto scrollbar-hide"
             onClick={(e) => e.stopPropagation()}
-            onTouchStart={handleProductModalTouchStart}
+            onTouchStart={(e) => {
+              const touch = e.touches[0];
+              setProductTouchStart(touch.clientY);
+              setProductDragStartY(touch.clientY);
+              setProductIsDragging(true);
+            }}
             onTouchMove={handleProductModalTouchMove}
             onTouchEnd={handleProductModalTouchEnd}
             style={{
-              animation: 'card-to-modal 0.8s cubic-bezier(0.68, -0.55, 0.265, 1.55)',
+              animation: 'ios-3d-touch-modal 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
               transformOrigin: 'center'
             }}
           >
@@ -986,36 +1203,83 @@ export default function Home() {
                 
                 {/* Social Links */}
                 <div className="flex flex-wrap gap-2">
-                  {touchProductModal.sellers?.telegram_url && (
+                  {touchProductModal.sellers?.telegram && (
                     <button
-                      onClick={() => window.open(touchProductModal.sellers.telegram_url, '_blank')}
+                      onClick={() => {
+                        const link = document.createElement('a');
+                        link.href = touchProductModal.sellers.telegram;
+                        link.target = '_blank';
+                        link.rel = 'noopener noreferrer';
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                      }}
                       className="flex items-center gap-1 px-3 py-2 bg-blue-500 text-white rounded-lg text-sm font-medium hover:bg-blue-600 transition-colors"
                     >
                       📱 Telegram
                     </button>
                   )}
-                  {touchProductModal.sellers?.vk_url && (
+                  {touchProductModal.sellers?.vk && (
                     <button
-                      onClick={() => window.open(touchProductModal.sellers.vk_url, '_blank')}
+                      onClick={() => {
+                        const link = document.createElement('a');
+                        link.href = touchProductModal.sellers.vk;
+                        link.target = '_blank';
+                        link.rel = 'noopener noreferrer';
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                      }}
                       className="flex items-center gap-1 px-3 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
                     >
                       💬 VK
                     </button>
                   )}
-                  {touchProductModal.sellers?.whatsapp_url && (
+                  {touchProductModal.sellers?.whatsapp && (
                     <button
-                      onClick={() => window.open(touchProductModal.sellers.whatsapp_url, '_blank')}
+                      onClick={() => {
+                        const link = document.createElement('a');
+                        link.href = touchProductModal.sellers.whatsapp;
+                        link.target = '_blank';
+                        link.rel = 'noopener noreferrer';
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                      }}
                       className="flex items-center gap-1 px-3 py-2 bg-green-500 text-white rounded-lg text-sm font-medium hover:bg-green-600 transition-colors"
                     >
                       💬 WhatsApp
                     </button>
                   )}
-                  {touchProductModal.sellers?.instagram_url && (
+                  {touchProductModal.sellers?.instagram && (
                     <button
-                      onClick={() => window.open(touchProductModal.sellers.instagram_url, '_blank')}
-                      className="flex items-center gap-1 px-3 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg text-sm font-medium hover:from-purple-600 hover:to-pink-600 transition-all"
+                      onClick={() => {
+                        const link = document.createElement('a');
+                        link.href = touchProductModal.sellers.instagram;
+                        link.target = '_blank';
+                        link.rel = 'noopener noreferrer';
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                      }}
+                      className="flex items-center gap-1 px-3 py-2 bg-pink-500 text-white rounded-lg text-sm font-medium hover:bg-pink-600 transition-colors"
                     >
                       📷 Instagram
+                    </button>
+                  )}
+                  {touchProductModal.sellers?.phone && (
+                    <button
+                      onClick={() => {
+                        const link = document.createElement('a');
+                        link.href = `tel:${touchProductModal.sellers.phone}`;
+                        link.rel = 'noopener noreferrer';
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                      }}
+                      className="flex items-center gap-1 px-3 py-2 bg-gray-500 text-white rounded-lg text-sm font-medium hover:bg-gray-600 transition-colors"
+                    >
+                      📞 Позвонить
                     </button>
                   )}
                 </div>
@@ -1040,12 +1304,43 @@ export default function Home() {
           </div>
         </div>
       )}
-
-      {/* CSS анимации */}
       <style jsx>{`
         @keyframes fade-in {
           from { opacity: 0; }
           to { opacity: 1; }
+        }
+        
+        @keyframes ios-3d-touch-modal {
+          0% {
+            opacity: 0;
+            transform: scale(0.3) rotateX(25deg) translateZ(-50px);
+            filter: blur(10px);
+          }
+          20% {
+            opacity: 0.3;
+            transform: scale(0.5) rotateX(15deg) translateZ(-30px);
+            filter: blur(5px);
+          }
+          40% {
+            opacity: 0.6;
+            transform: scale(0.7) rotateX(8deg) translateZ(-15px);
+            filter: blur(2px);
+          }
+          60% {
+            opacity: 0.85;
+            transform: scale(0.85) rotateX(3deg) translateZ(-5px);
+            filter: blur(1px);
+          }
+          80% {
+            opacity: 0.95;
+            transform: scale(0.95) rotateX(1deg) translateZ(-2px);
+            filter: blur(0.5px);
+          }
+          100% {
+            opacity: 1;
+            transform: scale(1) rotateX(0deg) translateZ(0px);
+            filter: blur(0px);
+          }
         }
         
         @keyframes card-to-modal {
@@ -1081,12 +1376,12 @@ export default function Home() {
           }
           92% {
             opacity: 0.96;
-            transform: scale(0.995) rotateX(0.2deg);
+            transform: scale(0.998) rotateX(0.2deg);
             filter: blur(0.2px);
           }
           96% {
             opacity: 0.98;
-            transform: scale(0.998) rotateX(0.1deg);
+            transform: scale(0.999) rotateX(0.1deg);
             filter: blur(0.1px);
           }
           98% {

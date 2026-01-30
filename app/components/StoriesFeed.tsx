@@ -13,7 +13,17 @@ declare global {
 const haptics = {
   impact: async (type: 'light' | 'medium' | 'heavy' = 'light') => {
     try {
-      // Только Vibration API для веба
+      // Проверяем на Capacitor
+      if (typeof window !== 'undefined' && window.Capacitor && window.Capacitor.Platform) {
+        // Динамический импорт для Capacitor
+        const { Haptics, ImpactStyle } = await import('@capacitor/haptics');
+        const impactStyle = type === 'light' ? ImpactStyle.Light : 
+                          type === 'medium' ? ImpactStyle.Medium : ImpactStyle.Heavy;
+        await Haptics.impact({ style: impactStyle });
+        return;
+      }
+      
+      // Fallback на Vibration API для веба
       if (typeof window !== 'undefined' && 'vibrate' in navigator) {
         const duration = type === 'light' ? 25 : type === 'medium' ? 50 : 75;
         navigator.vibrate(duration);
@@ -23,13 +33,32 @@ const haptics = {
       console.log('Haptics error in Stories:', error);
     }
   },
+  selection: async () => {
+    try {
+      if (typeof window !== 'undefined' && window.Capacitor && window.Capacitor.Platform) {
+        const { Haptics, ImpactStyle } = await import('@capacitor/haptics');
+        await Haptics.impact({ style: ImpactStyle.Light });
+        return;
+      }
+      
+      if (typeof window !== 'undefined' && 'vibrate' in navigator) {
+        navigator.vibrate(15);
+      }
+    } catch (error) {
+      console.log('Haptics selection error in Stories:', error);
+    }
+  },
   notification: async (type: 'success' | 'warning' | 'error' = 'success') => {
     try {
-      // Только Vibration API для веба
+      if (typeof window !== 'undefined' && window.Capacitor && window.Capacitor.Platform) {
+        const { Haptics } = await import('@capacitor/haptics');
+        await Haptics.notification({ type: type.toUpperCase() as any });
+        return;
+      }
+      
       if (typeof window !== 'undefined' && 'vibrate' in navigator) {
         const pattern = type === 'success' ? [30, 50, 30] : [50, 100, 50];
         navigator.vibrate(pattern);
-        console.log(`Vibration API fallback pattern in Stories: ${pattern}`);
       }
     } catch (error) {
       console.log('Haptics notification error in Stories:', error);
@@ -355,12 +384,18 @@ export default function StoriesFeed() {
 
   if (isLoading) {
     return (
-      <div className="rounded-2xl p-4 mb-2">
+      <div className="rounded-2xl p-4 mb-2" style={{
+        backgroundColor: 'var(--bg-secondary)'
+      }}>
         <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
           {[...Array(5)].map((_, i) => (
             <div key={i} className="shrink-0">
-              <div className="w-16 h-16 rounded-full bg-gray-200 animate-pulse"></div>
-              <div className="w-16 h-3 bg-gray-200 rounded mt-1 animate-pulse"></div>
+              <div className="w-16 h-16 rounded-full animate-pulse" style={{
+                backgroundColor: 'var(--bg-tertiary)'
+              }}></div>
+              <div className="w-16 h-3 rounded mt-1 animate-pulse" style={{
+                backgroundColor: 'var(--bg-tertiary)'
+              }}></div>
             </div>
           ))}
         </div>
@@ -375,7 +410,9 @@ export default function StoriesFeed() {
   return (
     <>
       {/* Stories Feed */}
-      <div className="rounded-2xl p-4 mb-2">
+      <div className="rounded-2xl p-4 mb-2" style={{
+        backgroundColor: 'var(--bg-secondary)'
+      }}>
         <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
           {stories.map((story, index) => (
             <div 
@@ -385,8 +422,12 @@ export default function StoriesFeed() {
             >
               {/* Кружок с градиентной рамкой как в Instagram */}
               <div className="relative">
-                <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-yellow-400 via-pink-500 to-purple-600 p-0.5">
-                  <div className="w-full h-full rounded-full bg-white p-0.5">
+                <div className="w-16 h-16 rounded-full p-0.5" style={{
+                  background: 'linear-gradient(to top right, #facc15, #ec4899, #9333ea)'
+                }}>
+                  <div className="w-full h-full rounded-full p-0.5" style={{
+                    backgroundColor: 'var(--bg-primary)'
+                  }}>
                     <img
                       src={story.image_url}
                       alt={story.title}
@@ -397,12 +438,17 @@ export default function StoriesFeed() {
                 
                 {/* Индикатор просмотренной истории */}
                 {index === 0 && (
-                  <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white" />
+                  <div className="absolute -top-1 -right-1 w-3 h-3 rounded-full border-2" style={{
+                    backgroundColor: '#dc2626',
+                    borderColor: 'var(--bg-primary)'
+                  }} />
                 )}
               </div>
               
               {/* Название сторис */}
-              <p className="text-xs text-gray-600 text-center mt-1 max-w-[64px] truncate">
+              <p className="text-xs text-center mt-1 max-w-[64px] truncate" style={{
+                color: 'var(--text-secondary)'
+              }}>
                 {story.title}
               </p>
             </div>
@@ -412,10 +458,13 @@ export default function StoriesFeed() {
 
       {/* Story Modal */}
       {isModalOpen && stories[currentIndex] && (
-        <div data-modal-open="true" className="fixed inset-0 z-50 bg-black flex items-center justify-center overflow-hidden">
+        <div data-modal-open="true" className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden" style={{
+          backgroundColor: 'rgba(0, 0, 0, 0.95)'
+        }}>
           <div 
-            className="relative w-full h-full bg-black transition-transform"
+            className="relative w-full h-full transition-transform"
             style={{ 
+              backgroundColor: 'black',
               maxHeight: '100vh',
               maxWidth: '100vw',
               transform: `translateY(${dragOffsetY}px) scale(${isDraggingDown ? 1 - dragOffsetY / 1000 : 1})`,
@@ -425,7 +474,9 @@ export default function StoriesFeed() {
             {/* Close button */}
             <button
               onClick={handleCloseModal}
-              className="absolute top-12 right-4 z-10 text-white text-2xl hover:text-gray-300"
+              className="absolute top-12 right-4 z-10 text-2xl transition-colors duration-200" style={{
+                color: 'white'
+              }}
             >
               ×
             </button>
@@ -435,13 +486,17 @@ export default function StoriesFeed() {
               {stories.map((_, index) => (
                 <div
                   key={index}
-                  className="flex-1 h-1 bg-white/30 rounded-full overflow-hidden"
+                  className="flex-1 h-1 rounded-full overflow-hidden"
+                  style={{
+                    backgroundColor: 'rgba(255, 255, 255, 0.3)'
+                  }}
                 >
                   <div
-                    className={`h-full bg-white transition-all duration-100 ${
+                    className={`h-full transition-all duration-100 ${
                       index === currentIndex ? 'w-full' : index < currentIndex ? 'w-full' : 'w-0'
                     }`}
                     style={{
+                      backgroundColor: 'white',
                       width: index === currentIndex ? `${progress}%` : index < currentIndex ? '100%' : '0%'
                     }}
                   />
@@ -480,48 +535,70 @@ export default function StoriesFeed() {
                   }}
                 />
               ) : (
-                <div className="w-full h-full flex items-center justify-center bg-gray-900" style={{ maxHeight: '100vh', maxWidth: '100vw' }}>
-                  <div className="text-white text-center">
-                    <div className="text-6xl mb-4">📱</div>
-                    <div className="text-xl">Story #{currentIndex + 1}</div>
-                    <div className="text-sm opacity-75 mt-2">{stories[currentIndex]?.title || 'Loading...'}</div>
+                <div className="w-full h-full flex items-center justify-center" style={{ 
+                  backgroundColor: '#111827',
+                  maxHeight: '100vh', 
+                  maxWidth: '100vw' 
+                }}>
+                  <div className="text-center">
+                    <div className="text-6xl mb-4" style={{ color: 'white' }}>📱</div>
+                    <div className="text-xl" style={{ color: 'white' }}>Story #{currentIndex + 1}</div>
+                    <div className="text-sm mt-2" style={{ 
+                      color: 'rgba(255, 255, 255, 0.75)'
+                    }}>{stories[currentIndex]?.title || 'Loading...'}</div>
                   </div>
                 </div>
               )}
 
               {/* Pause indicator */}
               {isPaused && (
-                <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-white text-4xl opacity-75">
+                <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-4xl" style={{
+                  color: 'rgba(255, 255, 255, 0.75)'
+                }}>
                   ⏸
                 </div>
               )}
 
               {/* Story overlay */}
-              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent">
+              <div className="absolute inset-0" style={{
+                background: 'linear-gradient(to top, rgba(0, 0, 0, 0.6), transparent, transparent)'
+              }}>
                 <div className="absolute bottom-0 left-0 right-0 p-4">
                   <div className="flex items-center gap-2 mb-2">
                     {stories[currentIndex].discount && (
-                      <span className="bg-red-500 text-white text-xs px-2 py-1 rounded-full font-bold">
+                      <span className="text-xs px-2 py-1 rounded-full font-bold" style={{
+                        backgroundColor: '#dc2626',
+                        color: 'white'
+                      }}>
                         -{stories[currentIndex].discount}%
                       </span>
                     )}
-                    <span className="bg-white/20 backdrop-blur-sm text-white text-xs px-2 py-1 rounded-full">
+                    <span className="text-xs px-2 py-1 rounded-full backdrop-blur-sm" style={{
+                      backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                      color: 'white'
+                      }}>
                       {stories[currentIndex].price}₽
                     </span>
                   </div>
                   
-                  <h3 className="text-white font-bold text-lg mb-2">
+                  <h3 className="font-bold text-lg mb-2" style={{
+                    color: 'white'
+                  }}>
                     {stories[currentIndex].title}
                   </h3>
                   
                   {stories[currentIndex].sellers?.shop_name && (
-                    <p className="text-white/90 text-sm mb-2">
+                    <p className="text-sm mb-2" style={{
+                      color: 'rgba(255, 255, 255, 0.9)'
+                    }}>
                       📍 {stories[currentIndex].sellers.shop_name}
                     </p>
                   )}
                   
                   {stories[currentIndex].description && (
-                    <p className="text-white/80 text-sm mb-3">
+                    <p className="text-sm mb-3" style={{
+                      color: 'rgba(255, 255, 255, 0.8)'
+                    }}>
                       {stories[currentIndex].description}
                     </p>
                   )}
@@ -533,7 +610,10 @@ export default function StoriesFeed() {
                           e.stopPropagation();
                           handleStoryLinkClick(stories[currentIndex].link_url);
                         }}
-                        className="bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-600 transition-colors"
+                        className="px-4 py-2 rounded-lg text-sm font-medium transition-colors" style={{
+                          backgroundColor: '#3b82f6',
+                          color: 'white'
+                        }}
                       >
                         Перейти →
                       </button>
@@ -545,7 +625,10 @@ export default function StoriesFeed() {
                         e.stopPropagation();
                         handleExpressOrder(stories[currentIndex]);
                       }}
-                      className="bg-orange-500 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-orange-600 transition-colors flex items-center gap-2"
+                      className="px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2" style={{
+                        backgroundColor: '#FF6B35',
+                        color: 'white'
+                      }}
                     >
                       🛒 Купить сейчас
                     </button>

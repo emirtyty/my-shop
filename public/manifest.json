@@ -1,11 +1,11 @@
 {
   "name": "RA DELL - Marketplace",
   "short_name": "RA DELL",
-  "description": "Digital marketplace platform",
+  "description": "Digital marketplace platform with 3D Touch and modern UI",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#FFFFFF",
-  "theme_color": "#FFFFFF",
+  "background_color": "#0f172a",
+  "theme_color": "#FF6B35",
   "orientation": "portrait",
   "scope": "/",
   "icons": [
@@ -24,5 +24,33 @@
   ],
   "categories": ["shopping", "marketplace"],
   "lang": "ru",
-  "dir": "ltr"
+  "dir": "ltr",
+  "screenshots": [
+    {
+      "src": "/screenshot-desktop.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide"
+    },
+    {
+      "src": "/screenshot-mobile.png",
+      "sizes": "375x667",
+      "type": "image/png",
+      "form_factor": "narrow"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Поиск товаров",
+      "short_name": "Поиск",
+      "description": "Быстрый поиск товаров",
+      "url": "/?search=true",
+      "icons": [
+        {
+          "src": "/icon-192x192.png",
+          "sizes": "192x192"
+        }
+      ]
+    }
+  ]
 }

@@ -66,6 +66,27 @@ const haptics = {
   }
 };
 
+// Детекция системной темы
+const useSystemTheme = () => {
+  const [isDark, setIsDark] = useState(false);
+
+  useEffect(() => {
+    const updateTheme = () => {
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      setIsDark(prefersDark);
+    };
+
+    updateTheme();
+    
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    mediaQuery.addEventListener('change', updateTheme);
+    
+    return () => mediaQuery.removeEventListener('change', updateTheme);
+  }, []);
+
+  return isDark;
+};
+
 interface Product {
   id: string;
   name: string;
@@ -126,6 +147,9 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [viewingSeller, setViewingSeller] = useState<any>(null);
+  
+  // Используем системную тему
+  const isDarkTheme = useSystemTheme();
   
   // Состояния для категорий
   const [showCategoryCloud, setShowCategoryCloud] = useState(false);
@@ -777,10 +801,10 @@ export default function Home() {
 
       {/* Seller Modal */}
       {viewingSeller && (
-        <div className="fixed inset-0 z-50 flex flex-col" style={{
-          backgroundColor: 'var(--bg-primary)'
+        <div className="fixed inset-0 z-50 flex flex-col animate-modal-backdrop" style={{
+          backgroundColor: isDarkTheme ? 'rgba(15, 23, 42, 0.95)' : 'rgba(255, 255, 255, 0.95)'
         }}>
-          <header className="border-b p-4 flex justify-between items-center" style={{
+          <header className="border-b p-4 flex justify-between items-center animate-modal-content" style={{
             backgroundColor: 'var(--bg-primary)',
             borderColor: 'var(--border-primary)'
           }}>
@@ -864,11 +888,11 @@ export default function Home() {
       {/* Category Cloud Modal */}
       {showCategoryCloud && (
         <div 
-          className="fixed inset-0 z-50 flex items-start justify-center p-4"
+          className="fixed inset-0 z-50 flex items-start justify-center p-4 animate-modal-backdrop"
           style={{
-            background: 'rgba(0, 0, 0, 0.3)',
-            backdropFilter: 'blur(8px)',
-            WebkitBackdropFilter: 'blur(8px)'
+            background: isDarkTheme ? 'rgba(15, 23, 42, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+            backdropFilter: 'blur(12px)',
+            WebkitBackdropFilter: 'blur(12px)'
           }}
           onClick={(e) => {
             // Плавное закрытие при клике вне окна
@@ -1065,17 +1089,14 @@ export default function Home() {
       {/* Fullscreen Image Viewer */}
       {fullscreenImage && (
         <div 
-          className="fixed inset-0 z-50 bg-black flex items-center justify-center p-4"
+          className="fixed inset-0 z-50 bg-black flex items-center justify-center p-4 animate-modal-backdrop"
           onClick={(e) => {
             if (e.target === e.currentTarget) {
               setFullscreenImage(null);
             }
           }}
-          style={{
-            animation: 'fade-in 0.3s ease-out'
-          }}
         >
-          <div className="relative max-w-6xl max-h-full">
+          <div className="relative max-w-6xl max-h-full animate-modal-content">
             <img 
               src={fullscreenImage} 
               className="max-w-full max-h-full object-contain" 
@@ -1098,7 +1119,10 @@ export default function Home() {
       {/* 3D Touch Product Modal */}
       {touchProductModal && (
         <div 
-          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-md flex items-center justify-center p-4"
+          className="fixed inset-0 z-50 backdrop-blur-lg flex items-center justify-center p-4 animate-modal-backdrop"
+          style={{
+            backgroundColor: isDarkTheme ? 'rgba(15, 23, 42, 0.8)' : 'rgba(0, 0, 0, 0.5)'
+          }}
           onClick={(e) => {
             // Закрываем только при клике на фон, не на модальное окно
             if (e.target === e.currentTarget) {
@@ -1115,13 +1139,14 @@ export default function Home() {
               }
             }
           }}
-          style={{
-            animation: 'fade-in 0.3s ease-out'
-          }}
         >
           <div 
             data-product-modal
-            className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl max-h-[85vh] overflow-y-auto scrollbar-hide"
+            className="rounded-3xl p-6 max-w-md w-full shadow-2xl max-h-[85vh] overflow-y-auto scrollbar-hide animate-modal-content border"
+            style={{
+              backgroundColor: 'var(--bg-primary)',
+              borderColor: 'var(--border-primary)'
+            }}
             onClick={(e) => e.stopPropagation()}
             onTouchStart={(e) => {
               const touch = e.touches[0];
@@ -1131,10 +1156,6 @@ export default function Home() {
             }}
             onTouchMove={handleProductModalTouchMove}
             onTouchEnd={handleProductModalTouchEnd}
-            style={{
-              animation: 'ios-3d-touch-modal 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
-              transformOrigin: 'center'
-            }}
           >
             {/* Drag Handle */}
             <div className="flex justify-center mb-4">
@@ -1144,19 +1165,23 @@ export default function Home() {
             {/* Header */}
             <div className="flex justify-between items-start mb-4">
               <div>
-                <h2 className="text-xl font-bold text-gray-900 mb-2">{touchProductModal.name}</h2>
-                <p className="text-sm text-gray-600">{touchProductModal.category || 'Без категории'}</p>
+                <h2 className="text-xl font-bold mb-2" style={{ color: 'var(--text-primary)' }}>{touchProductModal.name}</h2>
+                <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>{touchProductModal.category || 'Без категории'}</p>
               </div>
               <button
                 onClick={() => setTouchProductModal(null)}
-                className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center text-gray-600 hover:bg-gray-200 transition-colors"
+                className="w-8 h-8 rounded-full flex items-center justify-center transition-colors"
+                style={{
+                  backgroundColor: 'var(--bg-tertiary)',
+                  color: 'var(--text-secondary)'
+                }}
               >
                 ✕
               </button>
             </div>
 
             {/* Product Image */}
-            <div className="relative aspect-square bg-gray-100 rounded-xl mb-4 overflow-hidden">
+            <div className="relative aspect-square rounded-xl mb-4 overflow-hidden" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
               <img 
                 src={touchProductModal.image_url} 
                 className="w-full h-full object-cover"

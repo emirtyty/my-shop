@@ -10,8 +10,8 @@ const config: CapacitorConfig = {
   },
   plugins: {
     StatusBar: {
-      style: 'DEFAULT', 
-      overlaysWebView: true 
+      style: 'DARK', 
+      overlaysWebView: false
     },
     SplashScreen: {
       launchShowDuration: 0,
@@ -22,7 +22,7 @@ const config: CapacitorConfig = {
       showSpinner: true,
       spinnerStyle: 'light',
       splashFullScreen: true,
-      splashImmersive: true,
+      splashImmersive: false,
       layoutName: 'launch_screen',
       useDialog: false
     },

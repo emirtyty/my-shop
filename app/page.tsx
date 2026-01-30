@@ -317,20 +317,25 @@ export default function Home() {
     const rect = e.currentTarget.getBoundingClientRect();
     
     // Сохраняем начальные координаты для определения скролла
-    setTouchProductModal(product);
     setTouchStartTime(Date.now());
     setProductDragStartY(touch.clientY);
-    setProductTouchStart(touch.clientY); // Добавляем для отслеживания движения
+    setProductTouchStart(touch.clientY);
     
-    // Тактильная отдача при начале касания
-    haptics.impact('light');
+    // НЕ устанавливаем touchProductModal сразу - только после удержания
+    // Так не будет мигания при скролле
     
-    // Запускаем таймер только если это не скролл (уменьшено с 500мс на 300мс)
+    // Запускаем таймер для определения удержания (увеличим до 500мс)
     const timer = setTimeout(() => {
-      if (touchProductModal === product) {
+      // Проверяем что пользователь все еще на том же элементе
+      const currentTouch = e.touches[0];
+      const movement = Math.abs(currentTouch.clientY - touch.clientY);
+      
+      // Только если движение минимальное - открываем модальное окно
+      if (movement < 10) {
+        setTouchProductModal(product);
         haptics.notification('success');
       }
-    }, 300);
+    }, 500);
     
     setTouchHoldTimer(timer);
   };
@@ -342,9 +347,9 @@ export default function Home() {
       setTouchHoldTimer(null);
     }
     
-    // Проверяем было ли это удержание или просто касание (уменьшено с 500мс на 300мс)
+    // Проверяем было ли это удержание или просто касание (теперь 500мс)
     const holdDuration = Date.now() - touchStartTime;
-    if (holdDuration < 300) {
+    if (holdDuration < 500) {
       // Просто касание - не открываем модальное окно
       setTouchProductModal(null);
     }
@@ -355,9 +360,9 @@ export default function Home() {
     const touchStartY = productDragStartY;
     const currentY = touch.clientY;
     
-    // Проверяем на скролл - если движение больше 15px в любую сторону, отменяем 3D Touch
+    // Проверяем на скролл - если движение больше 10px, отменяем 3D Touch
     const movement = Math.abs(currentY - touchStartY);
-    if (movement > 15) {
+    if (movement > 10) {
       // Отменяем открытие модального окна
       if (touchHoldTimer) {
         clearTimeout(touchHoldTimer);
@@ -373,7 +378,7 @@ export default function Home() {
       const deltaY = currentY - touchStartY;
       
       // Если тянем вниз, начинаем свайп
-      if (deltaY > 15) {
+      if (deltaY > 20) {
         setProductIsDragging(true);
         setProductDragOffset(deltaY);
         
@@ -802,11 +807,12 @@ export default function Home() {
       {/* Seller Modal */}
       {viewingSeller && (
         <div className="fixed inset-0 z-50 flex flex-col animate-modal-backdrop" style={{
-          backgroundColor: isDarkTheme ? 'rgba(15, 23, 42, 0.95)' : 'rgba(255, 255, 255, 0.95)'
+          backgroundColor: isDarkTheme ? '#0f172a' : '#ffffff'
         }}>
-          <header className="border-b p-4 flex justify-between items-center animate-modal-content" style={{
+          <header className="border-b p-6 flex justify-between items-center animate-seller-modal" style={{
             backgroundColor: 'var(--bg-primary)',
-            borderColor: 'var(--border-primary)'
+            borderColor: 'var(--border-primary)',
+            paddingTop: 'calc(1.5rem + env(safe-area-inset-top))'
           }}>
             <button 
               onClick={() => setViewingSeller(null)} 
@@ -819,7 +825,7 @@ export default function Home() {
             </button>
             <h2 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>{viewingSeller.shop_name}</h2>
           </header>
-          <div className="flex-1 overflow-y-auto p-4 pb-20">
+          <div className="flex-1 overflow-y-auto p-6 pb-20 animate-modal-content">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {products.filter(p => p.seller_id === viewingSeller.id).map(p => {
                 const hasDiscount = p.discount > 0;

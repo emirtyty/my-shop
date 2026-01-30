@@ -3,7 +3,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 const config: CapacitorConfig = {
   appId: 'com.raddell.app',
   appName: 'RA DELL 2.0',
-  webDir: 'out',
+  webDir: '.next',
   server: {
     url: 'https://my-shop-lemon-nine.vercel.app',
     cleartext: true

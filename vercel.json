@@ -16,13 +16,17 @@
         "Cache-Control": "no-cache, no-store, must-revalidate",
         "Pragma": "no-cache",
         "Expires": "0",
-        "Surrogate-Control": "no-store"
+        "Surrogate-Control": "no-store",
+        "X-Cache-Bust": "2024-01-30-v3-final"
       }
     }
   ],
   "build": {
     "env": {
-      "NEXT_PUBLIC_CACHE_BUST": "2024-01-30-v2"
+      "NEXT_PUBLIC_CACHE_BUST": "2024-01-30-v3-final",
+      "FORCE_REBUILD": "true"
     }
-  }
+  },
+  "cleanUrls": true,
+  "trailingSlash": false
 }

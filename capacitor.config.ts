@@ -2,8 +2,8 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'com.raddell.app',
-  appName: 'RaDell',
-  webDir: 'public',
+  appName: 'RA DELL 2.0',
+  webDir: 'out',
   server: {
     url: 'https://my-shop-lemon-nine.vercel.app',
     cleartext: true
@@ -16,18 +16,18 @@ const config: CapacitorConfig = {
     SplashScreen: {
       launchShowDuration: 0,
       launchAutoHide: true,
-      backgroundColor: '#FFFFFF', 
+      backgroundColor: '#0f172a', 
       androidSplashResourceName: 'splash',
       androidScaleType: 'CENTER_CROP',
       showSpinner: true,
-      spinnerStyle: 'dark',
+      spinnerStyle: 'light',
       splashFullScreen: true,
       splashImmersive: true,
       layoutName: 'launch_screen',
       useDialog: false
     },
     App: {
-      appendUserAgent: 'RaDell-App/1.0'
+      appendUserAgent: 'RaDell-App/2.0'
     }
   }
 };

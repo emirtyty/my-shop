@@ -1,7 +1,8 @@
 {
-  "name": "RA DELL - Marketplace",
-  "short_name": "RA DELL",
-  "description": "Digital marketplace platform with 3D Touch and modern UI",
+  "name": "RA DELL Marketplace 2.0",
+  "short_name": "RA DELL 2.0",
+  "description": "Digital marketplace platform with 3D Touch and modern UI - Version 2.0",
+  "version": "2.0.0",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0f172a",
@@ -52,5 +53,15 @@
         }
       ]
     }
-  ]
+  ],
+  "related_applications": [],
+  "prefer_related_applications": false,
+  "edge_side_panel": {
+    "preferred_width": 400
+  },
+  "launch_handler": {
+    "client_mode": "focus-existing"
+  },
+  "update_url": "https://github.com/emirtyty/my-shop/releases",
+  "changelog": "Version 2.0: Major update with dark theme, performance optimizations, PWA features, and enhanced mobile UX"
 }

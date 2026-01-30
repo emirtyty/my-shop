@@ -1,4 +1,7 @@
 {
+  "name": "ra-dell-marketplace",
+  "version": "2.0.0",
+  "description": "RA DELL Marketplace 2.0 - Modern digital marketplace with dark theme and PWA features",
   "type": "module",
   "scripts": {
     "dev": "next dev",

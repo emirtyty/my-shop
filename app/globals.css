@@ -179,6 +179,17 @@ body {
   }
 }
 
+@keyframes seller-modal-out {
+  0% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-30px) scale(0.95);
+  }
+}
+
 .animate-modal-backdrop {
   animation: modal-backdrop-in 0.3s ease-out;
 }
@@ -189,6 +200,251 @@ body {
 
 .animate-modal-slide-up {
   animation: modal-slide-up 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Брендовые анимации и micro-interactions */
+@keyframes brand-pulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(255, 107, 53, 0.4);
+  }
+  50% {
+    transform: scale(1.05);
+    box-shadow: 0 0 0 10px rgba(255, 107, 53, 0);
+  }
+}
+
+@keyframes brand-bounce {
+  0%, 20%, 53%, 80%, 100% {
+    transform: translate3d(0, 0, 0);
+  }
+  40%, 43% {
+    transform: translate3d(0, -8px, 0);
+  }
+  70% {
+    transform: translate3d(0, -4px, 0);
+  }
+  90% {
+    transform: translate3d(0, -2px, 0);
+  }
+}
+
+@keyframes brand-shake {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  10%, 30%, 50%, 70%, 90% {
+    transform: translateX(-2px);
+  }
+  20%, 40%, 60%, 80% {
+    transform: translateX(2px);
+  }
+}
+
+@keyframes brand-rotate {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes brand-fade-in-up {
+  0% {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes brand-scale-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes brand-slide-in-right {
+  0% {
+    opacity: 0;
+    transform: translateX(30px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Классы для брендовых анимаций */
+.brand-pulse {
+  animation: brand-pulse 2s infinite;
+}
+
+.brand-bounce {
+  animation: brand-bounce 1s infinite;
+}
+
+.brand-shake {
+  animation: brand-shake 0.5s;
+}
+
+.brand-rotate {
+  animation: brand-rotate 0.6s linear;
+}
+
+.brand-fade-in-up {
+  animation: brand-fade-in-up 0.3s ease-out;
+}
+
+.brand-scale-in {
+  animation: brand-scale-in 0.3s ease-out;
+}
+
+.brand-slide-in-right {
+  animation: brand-slide-in-right 0.3s ease-out;
+}
+
+/* Hover эффекты с брендовыми цветами */
+.brand-hover-lift {
+  transition: all 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
+}
+
+.brand-hover-lift:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 10px 25px rgba(255, 107, 53, 0.2);
+}
+
+.brand-hover-glow {
+  transition: all 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
+}
+
+.brand-hover-glow:hover {
+  box-shadow: 0 0 20px rgba(255, 107, 53, 0.4);
+}
+
+/* Loading анимации с брендовыми цветами */
+@keyframes brand-loading {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.brand-loading {
+  border: 3px solid rgba(255, 107, 53, 0.1);
+  border-top: 3px solid var(--brand-primary, #FF6B35);
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  animation: brand-loading 1s linear infinite;
+}
+
+/* Skeleton анимация */
+@keyframes brand-skeleton {
+  0% {
+    background-position: -200px 0;
+  }
+  100% {
+    background-position: calc(200px + 100%) 0;
+  }
+}
+
+.brand-skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--bg-secondary) 0%,
+    rgba(255, 107, 53, 0.1) 50%,
+    var(--bg-secondary) 100%
+  );
+  background-size: 200px 100%;
+  animation: brand-skeleton 1.5s ease-in-out infinite;
+}
+
+/* Уведомления с брендовыми цветами */
+@keyframes brand-notification-in {
+  0% {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  100% {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes brand-notification-out {
+  0% {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+}
+
+.brand-notification-in {
+  animation: brand-notification-in 0.3s ease-out;
+}
+
+.brand-notification-out {
+  animation: brand-notification-out 0.3s ease-in;
+}
+
+/* Micro-interactions для кнопок */
+.brand-button {
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
+}
+
+.brand-button::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  transition: width 0.6s, height 0.6s;
+}
+
+.brand-button:active::before {
+  width: 300px;
+  height: 300px;
+}
+
+/* Ripple эффект */
+@keyframes brand-ripple {
+  0% {
+    transform: scale(0);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(4);
+    opacity: 0;
+  }
+}
+
+.brand-ripple {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.3);
+  transform: scale(0);
+  animation: brand-ripple 0.6s ease-out;
+  pointer-events: none;
 }
 
 .animate-seller-modal {

@@ -3,6 +3,9 @@
 import { useEffect, useState, useMemo } from 'react';
 import { supabase } from './lib/supabase';
 import StoriesFeed from './components/StoriesFeed';
+import { useFavorites } from './hooks/useFavorites';
+import { logHealthStatus } from './lib/healthCheck';
+import FastLoader from './components/FastLoader';
 
 // Haptic Feedback utilities
 declare global {
@@ -151,8 +154,19 @@ export default function Home() {
   // Используем системную тему
   const isDarkTheme = useSystemTheme();
   
+  // Используем избранное
+  const { 
+    favoriteIds, 
+    favoritesCount, 
+    toggleFavorite, 
+    isFavorite, 
+    getFavoriteProducts 
+  } = useFavorites();
+  
   // Состояния для категорий
   const [showCategoryCloud, setShowCategoryCloud] = useState(false);
+  const [activeCategory, setActiveCategory] = useState<string | null>(null);
+  const [categorySearchQuery, setCategorySearchQuery] = useState('');
   const [cloudPosition, setCloudPosition] = useState({ x: 0, y: 0 });
   const [isCloudOpening, setIsCloudOpening] = useState(false);
   
@@ -189,6 +203,13 @@ export default function Home() {
 
   useEffect(() => {
     fetchData();
+    
+    // Проверяем состояние приложения при загрузке
+    if (typeof window !== 'undefined') {
+      logHealthStatus().catch(error => {
+        console.warn('Ошибка проверки состояния приложения:', error);
+      });
+    }
   }, []);
 
   // Блокировка скролла при открытом модальном окне
@@ -415,38 +436,23 @@ export default function Home() {
   const handleProductModalTouchEnd = () => {
     if (!productIsDragging) return;
     
-    // Если перетащили достаточно далеко - закрываем
+    // Если перетащили достаточно далеко - закрываем мгновенно
     if (productDragOffset > 120) {
       haptics.notification('success');
-      
-      const modal = document.querySelector('[data-product-modal]') as HTMLElement;
-      if (modal) {
-        modal.style.transition = 'transform 0.4s cubic-bezier(0.4, 0.0, 0.2, 1), opacity 0.3s cubic-bezier(0.4, 0.0, 0.2, 1), filter 0.3s ease-out';
-        modal.style.transform = 'scale(0.8) rotateX(15deg)';
-        modal.style.opacity = '0';
-        modal.style.filter = 'blur(8px)';
-        
-        setTimeout(() => {
-          setTouchProductModal(null);
-          setProductDragOffset(0);
-          modal.style.transition = '';
-          modal.style.transform = '';
-          modal.style.opacity = '';
-          modal.style.filter = '';
-        }, 400);
-      }
+      setTouchProductModal(null);
+      setProductDragOffset(0);
     } else {
       // Возвращаем на место
       const modal = document.querySelector('[data-product-modal]') as HTMLElement;
       if (modal) {
-        modal.style.transition = 'transform 0.3s cubic-bezier(0.4, 0.0, 0.2, 1), opacity 0.3s cubic-bezier(0.4, 0.0, 0.2, 1), filter 0.3s ease-out';
+        modal.style.transition = 'transform 0.2s cubic-bezier(0.4, 0.0, 0.2, 1)';
         modal.style.transform = 'scale(1) rotateX(0deg)';
         modal.style.opacity = '1';
         modal.style.filter = 'blur(0px)';
         
         setTimeout(() => {
           modal.style.transition = '';
-        }, 300);
+        }, 200);
       }
       
       setProductDragOffset(0);
@@ -468,32 +474,101 @@ export default function Home() {
     }, 600);
   };
 
-  const allCategories = [
-    { id: 1, name: 'Смартфоны', icon: '📱', count: 156, color: 'from-blue-400 to-blue-600' },
-    { id: 2, name: 'Ноутбуки', icon: '💻', count: 89, color: 'from-purple-400 to-purple-600' },
-    { id: 3, name: 'Планшеты', icon: '📋', count: 67, color: 'from-green-400 to-green-600' },
-    { id: 4, name: 'Телевизоры', icon: '📺', count: 45, color: 'from-red-400 to-red-600' },
-    { id: 5, name: 'Наушники', icon: '🎧', count: 234, color: 'from-indigo-400 to-indigo-600' },
-    { id: 6, name: 'Часы', icon: '⌚', count: 78, color: 'from-pink-400 to-pink-600' },
-    { id: 7, name: 'Фотоаппараты', icon: '📷', count: 34, color: 'from-yellow-400 to-yellow-600' },
-    { id: 8, name: 'Игровые консоли', icon: '🎮', count: 56, color: 'from-orange-400 to-orange-600' },
-    { id: 9, name: 'Мужская одежда', icon: '👔', count: 189, color: 'from-gray-600 to-gray-800' },
-    { id: 10, name: 'Женская одежда', icon: '👗', count: 267, color: 'from-rose-400 to-rose-600' },
-    { id: 11, name: 'Детская одежда', icon: '👶', count: 145, color: 'from-cyan-400 to-cyan-600' },
-    { id: 12, name: 'Обувь', icon: '👟', count: 198, color: 'from-amber-400 to-amber-600' },
-    { id: 13, name: 'Сумки и аксессуары', icon: '👜', count: 123, color: 'from-teal-400 to-teal-600' },
-    { id: 14, name: 'Украшения', icon: '💍', count: 89, color: 'from-violet-400 to-violet-600' },
-    { id: 15, name: 'Мебель', icon: '🪑', count: 67, color: 'from-brown-400 to-brown-600' },
-    { id: 16, name: 'Кухня', icon: '🍳', count: 234, color: 'from-lime-400 to-lime-600' },
-    { id: 17, name: 'Спорт', icon: '⚽', count: 156, color: 'from-emerald-400 to-emerald-600' },
-    { id: 18, name: 'Красота', icon: '💄', count: 178, color: 'from-fuchsia-400 to-fuchsia-600' },
-    { id: 19, name: 'Автотовары', icon: '🚗', count: 92, color: 'from-slate-400 to-slate-600' },
-    { id: 20, name: 'Книги', icon: '📚', count: 445, color: 'from-stone-400 to-stone-600' },
-    { id: 21, name: 'Домашние животные', icon: '🐾', count: 167, color: 'from-zinc-400 to-zinc-600' },
-    { id: 22, name: 'Сад', icon: '🌱', count: 78, color: 'from-green-500 to-green-700' },
-    { id: 23, name: 'Инструменты', icon: '🔧', count: 134, color: 'from-gray-500 to-gray-700' },
-    { id: 24, name: 'Продукты', icon: '🍎', count: 0, color: 'from-red-500 to-red-700' }
-  ];
+  // Динамические категории из товаров
+  const categoryImages = {
+    'Смартфоны': 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=800&h=400&fit=crop',
+    'Ноутбуки': 'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=800&h=400&fit=crop',
+    'Планшеты': 'https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?w=800&h=400&fit=crop',
+    'Телевизоры': 'https://images.unsplash.com/photo-1593784991095-a0d1fcc5a521?w=800&h=400&fit=crop',
+    'Наушники': 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=800&h=400&fit=crop',
+    'Часы': 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=800&h=400&fit=crop',
+    'Фотоаппараты': 'https://images.unsplash.com/photo-1516035065371-9e6e693b6318?w=800&h=400&fit=crop',
+    'Игровые консоли': 'https://images.unsplash.com/photo-1606144042614-b2417e99c4e3?w=800&h=400&fit=crop',
+    'Одежда': 'https://images.unsplash.com/photo-1445205170230-053b83016050?w=800&h=400&fit=crop',
+    'Обувь': 'https://images.unsplash.com/photo-1549298916-b41d501d3772?w=800&h=400&fit=crop',
+    'Мебель': 'https://images.unsplash.com/photo-1556228728-2a5d86e3d2a1?w=800&h=400&fit=crop',
+    'Книги': 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=800&h=400&fit=crop',
+    'Спорт': 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=800&h=400&fit=crop',
+    'Красота': 'https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=800&h=400&fit=crop',
+    'Автотовары': 'https://images.unsplash.com/photo-1552519507-da3b142c6e3d?w=800&h=400&fit=crop',
+    'Продукты': 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=800&h=400&fit=crop'
+  };
+
+  const allCategories = useMemo(() => {
+    const categoryMap = new Map();
+    
+    // Извлекаем уникальные категории из товаров
+    products.forEach(product => {
+      if (product.category) {
+        if (!categoryMap.has(product.category)) {
+          categoryMap.set(product.category, {
+            id: categoryMap.size + 1,
+            name: product.category,
+            count: 0,
+            icon: '📦', // Иконка по умолчанию
+            color: 'from-blue-400 to-blue-600' // Цвет по умолчанию
+          });
+        }
+        categoryMap.get(product.category).count++;
+      }
+    });
+    
+    // Добавляем иконки, цвета и фотографии для известных категорий
+    const categoryIcons = {
+      'Смартфоны': '📱',
+      'Ноутбуки': '💻',
+      'Планшеты': '📋',
+      'Телевизоры': '📺',
+      'Наушники': '🎧',
+      'Часы': '⌚',
+      'Фотоаппараты': '📷',
+      'Игровые консоли': '🎮',
+      'Одежда': '👔',
+      'Обувь': '👟',
+      'Мебель': '🪑',
+      'Книги': '📚',
+      'Спорт': '⚽',
+      'Красота': '💄',
+      'Автотовары': '🚗',
+      'Продукты': '🍎'
+    };
+    
+    const categoryColors = [
+      'from-blue-400 to-blue-600',
+      'from-purple-400 to-purple-600',
+      'from-green-400 to-green-600',
+      'from-red-400 to-red-600',
+      'from-indigo-400 to-indigo-600',
+      'from-pink-400 to-pink-600',
+      'from-yellow-400 to-yellow-600',
+      'from-orange-400 to-orange-600',
+      'from-gray-600 to-gray-800',
+      'from-rose-400 to-rose-600',
+      'from-cyan-400 to-cyan-600',
+      'from-amber-400 to-amber-600',
+      'from-teal-400 to-teal-600',
+      'from-violet-400 to-violet-600',
+      'from-brown-400 to-brown-600',
+      'from-lime-400 to-lime-600',
+      'from-emerald-400 to-emerald-600',
+      'from-fuchsia-400 to-fuchsia-600'
+    ];
+    
+    // Применяем иконки, цвета и изображения
+    let colorIndex = 0;
+    categoryMap.forEach(category => {
+      if (categoryIcons[category.name]) {
+        category.icon = categoryIcons[category.name];
+      }
+      if (categoryImages[category.name]) {
+        category.image = categoryImages[category.name];
+      }
+      category.color = categoryColors[colorIndex % categoryColors.length];
+      colorIndex++;
+    });
+    
+    return Array.from(categoryMap.values()).sort((a, b) => b.count - a.count);
+  }, [products]);
 
   // Pull-to-refresh handlers
   const handlePullStart = (e: React.TouchEvent) => {
@@ -573,7 +648,8 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen transition-colors duration-300" style={{
+    <FastLoader delay={100}>
+      <div className="min-h-screen transition-colors duration-300" style={{
       // Safe area для edge-to-edge
       paddingTop: 'env(safe-area-inset-top)',
       paddingLeft: 'env(safe-area-inset-left)',
@@ -620,37 +696,73 @@ export default function Home() {
         paddingLeft: 'calc(1rem + env(safe-area-inset-left))',
         paddingRight: 'calc(1rem + env(safe-area-inset-right))'
       }}>
-        <div className="max-w-6xl mx-auto">
-          <div className="relative">
+        <div className="max-w-6xl mx-auto flex items-center gap-3">
+          <div className="flex-1 relative">
             <input 
               type="text" 
-              placeholder={showCategoryCloud ? "Поиск по категориям..." : "Поиск товаров..."} 
+              placeholder="Поиск товаров..." 
               value={searchQuery} 
               onChange={e => setSearchQuery(e.target.value)} 
-              className="w-full pl-12 pr-20 py-3 rounded-lg outline-none transition-all duration-300 placeholder-gray-500" style={{
+              className="w-full pl-4 pr-4 py-3 rounded-lg outline-none transition-all duration-300 placeholder-gray-500" style={{
                 backgroundColor: 'var(--bg-secondary)',
                 color: 'var(--text-primary)'
               }}
             />
-            <button
-              onClick={openCategoryCloud}
-              onTouchStart={(e) => {
-                const button = e.currentTarget;
-                button.style.transform = 'translateY(2px) scale(0.95)';
-                button.style.transition = 'transform 0.1s ease-out';
-              }}
-              onTouchEnd={(e) => {
-                const button = e.currentTarget;
-                button.style.transform = '';
-                button.style.transition = 'transform 0.3s cubic-bezier(0.4, 0.0, 0.2, 1)';
-              }}
-              className="absolute right-3 top-1/2 -translate-y-1/2 transition-colors duration-200" style={{
-                color: 'var(--text-tertiary)'
-              }}
-            >
-              ☁️
-            </button>
           </div>
+          <button
+            onClick={openCategoryCloud}
+            onTouchStart={(e) => {
+              const button = e.currentTarget;
+              button.style.transform = 'translateY(2px) scale(0.95)';
+              button.style.transition = 'transform 0.1s ease-out';
+            }}
+            onTouchEnd={(e) => {
+              const button = e.currentTarget;
+              button.style.transform = '';
+              button.style.transition = 'transform 0.3s cubic-bezier(0.4, 0.0, 0.2, 1)';
+            }}
+            className="w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 hover:scale-110 active:scale-95 shadow-lg" style={{
+              backgroundColor: 'var(--bg-secondary)',
+              color: 'var(--text-tertiary)'
+            }}
+          >
+            <div className="flex flex-col gap-0.5">
+              <div className="w-4 h-0.5 bg-current rounded-full"></div>
+              <div className="w-4 h-0.5 bg-current rounded-full"></div>
+              <div className="w-4 h-0.5 bg-current rounded-full"></div>
+            </div>
+          </button>
+          
+          <button
+            onClick={() => {
+              // Фильтр по избранным
+              setActiveCategory(activeCategory === 'favorites' ? null : 'favorites');
+            }}
+            onTouchStart={(e) => {
+              const button = e.currentTarget;
+              button.style.transform = 'translateY(2px) scale(0.95)';
+              button.style.transition = 'transform 0.1s ease-out';
+            }}
+            onTouchEnd={(e) => {
+              const button = e.currentTarget;
+              button.style.transform = '';
+              button.style.transition = 'transform 0.3s cubic-bezier(0.4, 0.0, 0.2, 1)';
+            }}
+            className="w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 hover:scale-110 active:scale-95 shadow-lg relative" style={{
+              backgroundColor: activeCategory === 'favorites' ? '#FF6B35' : 'var(--bg-secondary)',
+              color: activeCategory === 'favorites' ? 'white' : 'var(--text-tertiary)'
+            }}
+          >
+            <span className="text-lg" style={{ 
+              filter: activeCategory === 'favorites' ? 'none' : 'grayscale(1)',
+              opacity: activeCategory === 'favorites' ? 1 : 0.7
+            }}>❤️</span>
+            {favoritesCount > 0 && (
+              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
+                {favoritesCount > 99 ? '99+' : favoritesCount}
+              </span>
+            )}
+          </button>
         </div>
       </header>
 
@@ -666,6 +778,30 @@ export default function Home() {
           </div>
         )}
         
+        {/* Активная категория */}
+        {activeCategory && (
+          <div className="mb-4 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>
+                {activeCategory === 'favorites' ? 'Избранное:' : 'Категория:'}
+              </span>
+              <span className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
+                {activeCategory === 'favorites' ? `${favoritesCount} товаров` : activeCategory}
+              </span>
+            </div>
+            <button
+              onClick={() => setActiveCategory(null)}
+              className="text-sm px-3 py-1 rounded-full transition-colors"
+              style={{
+                backgroundColor: 'var(--bg-tertiary)',
+                color: 'var(--text-secondary)'
+              }}
+            >
+              ✕ Сбросить
+            </button>
+          </div>
+        )}
+        
         {/* Products Grid */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 pb-32">
           {loading && products.length === 0 ? (
@@ -674,9 +810,13 @@ export default function Home() {
               <ProductSkeleton key={index} />
             ))
           ) : (
-            products.filter(p => 
-              searchQuery === '' || p.name.toLowerCase().includes(searchQuery.toLowerCase())
-            ).map(p => {
+            products.filter(p => {
+              const matchesSearch = searchQuery === '' || p.name.toLowerCase().includes(searchQuery.toLowerCase());
+              const matchesCategory = !activeCategory || activeCategory === 'favorites' 
+                ? activeCategory === 'favorites' ? isFavorite(p.id) : true
+                : p.category === activeCategory;
+              return matchesSearch && matchesCategory;
+            }).map(p => {
               const hasDiscount = p.discount > 0;
               const displayPrice = hasDiscount ? Math.round(p.price * (1 - p.discount / 100)) : p.price;
               const socialUrl = getSocialUrl(p.sellers);
@@ -776,11 +916,26 @@ export default function Home() {
                       )}
                     </div>
                     
-                    {/* Иконка покупки */}
-                    <div className="flex justify-end">
+                    {/* Кнопки действий */}
+                    <div className="flex justify-between items-center">
+                      <button 
+                        onClick={() => {
+                          toggleFavorite(p.id);
+                          haptics.selection();
+                        }}
+                        className="w-8 h-8 rounded-full transition-all duration-300 hover:scale-110 flex items-center justify-center"
+                        style={{
+                          backgroundColor: isFavorite(p.id) ? '#FF6B35' : 'var(--bg-tertiary)',
+                          color: isFavorite(p.id) ? 'white' : 'var(--text-tertiary)'
+                        }}
+                        title={isFavorite(p.id) ? 'Убрать из избранного' : 'Добавить в избранное'}
+                      >
+                        <span className="text-xs">{isFavorite(p.id) ? '❤️' : '🤍'}</span>
+                      </button>
+                      
                       <button 
                         onClick={() => handleBuyClick(p)}
-                        className={`p-1.5 rounded-lg transition-all duration-300 ${
+                        className={`w-8 h-8 rounded-full transition-all duration-300 flex items-center justify-center ${
                           socialUrl 
                             ? 'text-white hover:shadow-lg hover:scale-110' 
                             : 'cursor-not-allowed'
@@ -791,9 +946,7 @@ export default function Home() {
                         }}
                         title={socialUrl ? 'Купить' : 'Нет в наличии'}
                       >
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
-                        </svg>
+                        <span className="text-xs">🛒</span>
                       </button>
                     </div>
                   </div>
@@ -815,17 +968,21 @@ export default function Home() {
             paddingTop: 'calc(1.5rem + env(safe-area-inset-top))'
           }}>
             <button 
-              onClick={() => setViewingSeller(null)} 
-              className="w-10 h-10 rounded-full font-bold transition-colors duration-300" style={{
+              onClick={() => {
+                setViewingSeller(null);
+              }} 
+              className="w-12 h-12 rounded-full flex items-center justify-center transition-all duration-300 hover:scale-110 active:scale-95 shadow-lg" style={{
                 backgroundColor: '#FF6B35',
                 color: 'white'
               }}
             >
-              ←
+              <span className="text-xl">←</span>
             </button>
             <h2 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>{viewingSeller.shop_name}</h2>
           </header>
-          <div className="flex-1 overflow-y-auto p-6 pb-20 animate-modal-content">
+          <div data-seller-modal className="flex-1 overflow-y-auto p-6 pb-20 animate-modal-content" style={{
+            animation: 'seller-modal-in 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94)'
+          }}>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {products.filter(p => p.seller_id === viewingSeller.id).map(p => {
                 const hasDiscount = p.discount > 0;
@@ -869,7 +1026,7 @@ export default function Home() {
                       </div>
                       <button 
                         onClick={() => handleBuyClick(p)}
-                        className={`p-1.5 rounded-lg transition-all duration-300 ${
+                        className={`w-8 h-8 rounded-full transition-all duration-300 flex items-center justify-center ${
                           socialUrl 
                             ? 'text-white hover:shadow-lg hover:scale-110' 
                             : 'cursor-not-allowed'
@@ -880,7 +1037,7 @@ export default function Home() {
                         }}
                         title={socialUrl ? 'Купить' : 'Нет в наличии'}
                       >
-                        {getSocialIcon(socialUrl)}
+                        <span className="text-xs">🛒</span>
                       </button>
                     </div>
                   </div>
@@ -904,26 +1061,22 @@ export default function Home() {
             // Плавное закрытие при клике вне окна
             const modal = document.querySelector('[data-category-modal]') as HTMLElement;
             if (modal && !modal.contains(e.target as Node)) {
-              modal.style.transition = 'transform 0.3s cubic-bezier(0.4, 0.0, 0.2, 1), opacity 0.3s cubic-bezier(0.4, 0.0, 0.2, 1)';
-              modal.style.transform = `translate(-50%, 50px) scale(0.98)`;
-              modal.style.opacity = '0';
-              
-              setTimeout(() => {
-                setShowCategoryCloud(false);
-                setCloudDragOffset(0);
-                modal.style.transition = '';
-                modal.style.transform = '';
-                modal.style.opacity = '';
-              }, 300);
+              setShowCategoryCloud(false);
+              setCloudDragOffset(0);
+              setCategorySearchQuery('');
             } else {
               setShowCategoryCloud(false);
+              setCategorySearchQuery('');
             }
           }}
         >
           <div 
-            className={`bg-white rounded-3xl p-6 max-w-4xl w-full shadow-2xl relative max-h-[70vh] overflow-y-auto scrollbar-hide ${
+            className={`rounded-3xl p-6 max-w-4xl w-full shadow-2xl relative max-h-[70vh] overflow-y-auto scrollbar-hide ${
               isCloudOpening ? 'animate-spring-in' : ''
             }`}
+            style={{
+              backgroundColor: isDarkTheme ? '#1f2937' : '#ffffff'
+            }}
             data-category-modal="true"
             onClick={(e) => e.stopPropagation()}
             onTouchStart={(e) => {
@@ -974,32 +1127,20 @@ export default function Home() {
             }}
             onTouchEnd={(touchEvent) => {
               if (cloudIsDragging && cloudDragOffset > 100) {
-                // Закрываем модальное окно с плавной анимацией
+                // Закрываем модальное окно мгновенно
                 haptics.notification('success');
-                
-                // Плавная анимация закрытия
-                const modal = touchEvent.currentTarget as HTMLElement;
-                modal.style.transition = 'transform 0.4s cubic-bezier(0.4, 0.0, 0.2, 1), opacity 0.4s cubic-bezier(0.4, 0.0, 0.2, 1)';
-                modal.style.transform = `translate(-50%, 100px) scale(0.95)`;
-                modal.style.opacity = '0';
-                
-                setTimeout(() => {
-                  setShowCategoryCloud(false);
-                  setCloudDragOffset(0);
-                  // Сбрасываем стили для следующего открытия
-                  modal.style.transition = '';
-                  modal.style.transform = '';
-                  modal.style.opacity = '';
-                }, 400);
+                setShowCategoryCloud(false);
+                setCloudDragOffset(0);
+                setCategorySearchQuery('');
               } else {
                 // Возвращаем на место с плавной анимацией
                 const modal = touchEvent.currentTarget as HTMLElement;
-                modal.style.transition = 'transform 0.3s cubic-bezier(0.4, 0.0, 0.2, 1)';
+                modal.style.transition = 'transform 0.2s cubic-bezier(0.4, 0.0, 0.2, 1)';
                 setCloudDragOffset(0);
                 
                 setTimeout(() => {
                   modal.style.transition = '';
-                }, 300);
+                }, 200);
               }
               
               // Сбрасываем состояния
@@ -1010,14 +1151,14 @@ export default function Home() {
               // Возвращаем черточку
               const swipeIndicator = document.getElementById('swipeIndicator');
               if (swipeIndicator) {
-                swipeIndicator.style.transition = 'width 0.3s cubic-bezier(0.4, 0.0, 0.2, 1), height 0.3s cubic-bezier(0.4, 0.0, 0.2, 1), background 0.3s cubic-bezier(0.4, 0.0, 0.2, 1)';
+                swipeIndicator.style.transition = 'width 0.2s cubic-bezier(0.4, 0.0, 0.2, 1), height 0.2s cubic-bezier(0.4, 0.0, 0.2, 1), background 0.2s cubic-bezier(0.4, 0.0, 0.2, 1)';
                 swipeIndicator.style.width = '48px';
                 swipeIndicator.style.height = '4px';
                 swipeIndicator.style.background = '#d1d5db';
                 
                 setTimeout(() => {
                   swipeIndicator.style.transition = '';
-                }, 300);
+                }, 200);
               }
             }}
             style={{
@@ -1036,53 +1177,132 @@ export default function Home() {
               className="absolute top-2 left-1/2 -translate-x-1/2 w-12 h-1 bg-gray-300 rounded-full transition-all duration-300"
             />
             
-            <h3 className="text-xl font-bold mb-6 text-gray-900 text-center mt-2">📂 Все категории</h3>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {allCategories.map((category, index) => (
+            <h3 className="text-xl font-bold mb-4 text-center mt-2" style={{ color: 'var(--text-primary)' }}>📂 Все категории</h3>
+            
+            {/* Поиск категорий */}
+            <div className="mb-6">
+              <input
+                type="text"
+                placeholder="🔍 Поиск категорий..."
+                value={categorySearchQuery}
+                onChange={(e) => setCategorySearchQuery(e.target.value)}
+                className="w-full px-4 py-3 rounded-xl border transition-colors duration-200"
+                style={{
+                  backgroundColor: 'var(--bg-secondary)',
+                  borderColor: 'var(--border-primary)',
+                  color: 'var(--text-primary)'
+                }}
+              />
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4" data-category-scroll>
+              {allCategories
+                .filter(category => 
+                  categorySearchQuery === '' || 
+                  category.name.toLowerCase().includes(categorySearchQuery.toLowerCase())
+                )
+                .map((category, index) => (
                 <button
                   key={category.id}
                   onClick={() => {
                     haptics.selection();
-                    // setActiveCategory(category.name);
+                    setActiveCategory(category.name);
                     setShowCategoryCloud(false);
+                    setCategorySearchQuery('');
                   }}
-                  className={`relative overflow-hidden rounded-2xl p-4 transition-all duration-300 transform hover:scale-105 hover:shadow-xl`}
+                  className={`relative overflow-hidden rounded-2xl p-6 transition-all duration-300 transform hover:scale-105 hover:shadow-xl category-scroll`}
                   style={{
                     background: (() => {
-                      if (!category.color) {
-                        return 'linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%)';
+                      if (isDarkTheme) {
+                        // Темная тема - используем темные градиенты
+                        const darkColors = [
+                          'linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%)', // dark blue
+                          'linear-gradient(135deg, #581c87 0%, #6b21a8 100%)', // dark purple
+                          'linear-gradient(135deg, #14532d 0%, #166534 100%)', // dark green
+                          'linear-gradient(135deg, #7f1d1d 0%, #991b1b 100%)', // dark red
+                          'linear-gradient(135deg, #312e81 0%, #3730a3 100%)', // dark indigo
+                          'linear-gradient(135deg, #831843 0%, #9f1239 100%)', // dark pink
+                          'linear-gradient(135deg, #713f12 0%, #854d0e 100%)', // dark yellow
+                          'linear-gradient(135deg, #7c2d12 0%, #9a3412 100%)', // dark orange
+                          'linear-gradient(135deg, #374151 0%, #4b5563 100%)', // dark gray
+                          'linear-gradient(135deg, #881337 0%, #9f1239 100%)', // dark rose
+                          'linear-gradient(135deg, #164e63 0%, #0e7490 100%)', // dark cyan
+                          'linear-gradient(135deg, #78350f 0%, #92400e 100%)', // dark amber
+                          'linear-gradient(135deg, #134e4a 0%, #115e59 100%)', // dark teal
+                          'linear-gradient(135deg, #581c87 0%, #6b21a8 100%)', // dark violet
+                          'linear-gradient(135deg, #44403c 0%, #57534e 100%)', // dark stone
+                          'linear-gradient(135deg, #18181b 0%, #27272a 100%)', // dark zinc
+                        ];
+                        return darkColors[index % darkColors.length];
+                      } else {
+                        // Светлая тема - используем яркие градиенты
+                        const lightColors = [
+                          'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)', // blue
+                          'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)', // purple
+                          'linear-gradient(135deg, #10b981 0%, #059669 100%)', // green
+                          'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)', // red
+                          'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)', // indigo
+                          'linear-gradient(135deg, #ec4899 0%, #db2777 100%)', // pink
+                          'linear-gradient(135deg, #eab308 0%, #ca8a04 100%)', // yellow
+                          'linear-gradient(135deg, #f97316 0%, #ea580c 100%)', // orange
+                          'linear-gradient(135deg, #6b7280 0%, #4b5563 100%)', // gray
+                          'linear-gradient(135deg, #f43f5e 0%, #e11d48 100%)', // rose
+                          'linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)', // cyan
+                          'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)', // amber
+                          'linear-gradient(135deg, #14b8a6 0%, #0d9488 100%)', // teal
+                          'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)', // violet
+                          'linear-gradient(135deg, #92400e 0%, #78350f 100%)', // brown
+                          'linear-gradient(135deg, #84cc16 0%, #65a30d 100%)', // lime
+                          'linear-gradient(135deg, #10b981 0%, #059669 100%)', // emerald
+                          'linear-gradient(135deg, #d946ef 0%, #c026d3 100%)', // fuchsia
+                        ];
+                        return lightColors[index % lightColors.length];
                       }
-                      const colors = category.color.split(' ');
-                      if (colors.length >= 3 && colors[0] && colors[2]) {
-                        const fromColor = colors[0].replace('from-', '').replace('400', 'a78bfa');
-                        const toColor = colors[2].replace('to-', '').replace('600', '7c3aed');
-                        return `linear-gradient(135deg, #${fromColor} 0%, #${toColor} 100%)`;
-                      }
-                      return 'linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%)';
                     })(),
                     animation: !isCloudOpening ? `cloud-item-in 0.4s ease-out ${index * 0.05}s both` : 'none'
                   }}
                 >
-                  <div className="relative z-10">
-                    <div className="text-3xl mb-2">{category.icon || '📦'}</div>
-                    <h4 className="text-white font-semibold text-sm mb-1">{category.name}</h4>
-                    <p className="text-white/80 text-xs">{category.count || 0} товаров</p>
+                  {/* Фоновое изображение */}
+                  <div className="absolute inset-0">
+                    <img 
+                      src={categoryImages[category.name] || 'https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=800&h=400&fit=crop'}
+                      alt={category.name}
+                      className="w-full h-full object-cover"
+                    />
+                    {/* Градиентный оверлей для читаемости текста */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/40 to-transparent" />
                   </div>
                   
-                  {/* Декоративный фон */}
-                  <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent" />
-                  <div className="absolute -top-2 -right-2 w-12 h-12 bg-white/10 rounded-full blur-xl" />
-                  <div className="absolute -bottom-2 -left-2 w-8 h-8 bg-white/5 rounded-full blur-lg" />
-                  
-                  {/* Hover эффект */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 hover:opacity-100 transition-opacity duration-300" />
+                  <div className="relative z-10 flex items-end h-32">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3">
+                        <div className="text-3xl bg-white/20 backdrop-blur-sm rounded-lg p-2">
+                          {category.icon || '📦'}
+                        </div>
+                        <div className="text-left">
+                          <h4 className="text-white font-bold text-lg mb-1">{category.name}</h4>
+                          <p className="text-white/90 text-sm">{category.count || 0} товаров</p>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-white/80 bg-white/10 backdrop-blur-sm rounded-full p-2">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                    </div>
+                  </div>
                 </button>
               ))}
             </div>
             <button
-              onClick={() => setShowCategoryCloud(false)}
-              className="mt-6 w-full py-3 bg-gray-100 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-200 transition-colors"
+              onClick={() => {
+                setShowCategoryCloud(false);
+                setCategorySearchQuery('');
+              }}
+              className="mt-6 w-full py-3 rounded-full text-sm font-medium transition-colors"
               style={{
+                backgroundColor: isDarkTheme ? '#374151' : '#f3f4f6',
+                color: 'var(--text-primary)',
                 animation: !isCloudOpening ? 'cloud-item-in 0.4s ease-out 0.5s both' : 'none'
               }}
             >
@@ -1148,42 +1368,32 @@ export default function Home() {
         >
           <div 
             data-product-modal
-            className="rounded-3xl p-6 max-w-md w-full shadow-2xl max-h-[85vh] overflow-y-auto scrollbar-hide animate-modal-content border"
+            className="rounded-3xl p-6 max-w-md w-full shadow-2xl max-h-[85vh] overflow-y-auto scrollbar-hide animate-modal-content border relative"
             style={{
               backgroundColor: 'var(--bg-primary)',
               borderColor: 'var(--border-primary)'
             }}
             onClick={(e) => e.stopPropagation()}
-            onTouchStart={(e) => {
-              const touch = e.touches[0];
-              setProductTouchStart(touch.clientY);
-              setProductDragStartY(touch.clientY);
-              setProductIsDragging(true);
-            }}
-            onTouchMove={handleProductModalTouchMove}
-            onTouchEnd={handleProductModalTouchEnd}
           >
             {/* Drag Handle */}
-            <div className="flex justify-center mb-4">
+            <div 
+              className="flex justify-center mb-4 py-2 -mx-2"
+              onTouchStart={(e) => {
+                const touch = e.touches[0];
+                setProductTouchStart(touch.clientY);
+                setProductDragStartY(touch.clientY);
+                setProductIsDragging(true);
+              }}
+              onTouchMove={handleProductModalTouchMove}
+              onTouchEnd={handleProductModalTouchEnd}
+            >
               <div className="w-12 h-1.5 bg-gray-300 rounded-full transition-all duration-300 hover:bg-gray-400" />
             </div>
 
             {/* Header */}
-            <div className="flex justify-between items-start mb-4">
-              <div>
-                <h2 className="text-xl font-bold mb-2" style={{ color: 'var(--text-primary)' }}>{touchProductModal.name}</h2>
-                <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>{touchProductModal.category || 'Без категории'}</p>
-              </div>
-              <button
-                onClick={() => setTouchProductModal(null)}
-                className="w-8 h-8 rounded-full flex items-center justify-center transition-colors"
-                style={{
-                  backgroundColor: 'var(--bg-tertiary)',
-                  color: 'var(--text-secondary)'
-                }}
-              >
-                ✕
-              </button>
+            <div className="mb-4">
+              <h2 className="text-xl font-bold mb-2" style={{ color: 'var(--text-primary)' }}>{touchProductModal.name}</h2>
+              <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>{touchProductModal.category || 'Без категории'}</p>
             </div>
 
             {/* Product Image */}
@@ -1204,31 +1414,34 @@ export default function Home() {
             <div className="mb-4">
               {touchProductModal.discount > 0 ? (
                 <>
-                  <div className="bg-yellow-400 text-gray-900 text-xs px-2 py-1 rounded inline-block mb-1">
-                    <del className="font-medium">{touchProductModal.price}₽</del>
+                  <div className="flex items-center gap-2 mb-1">
+                    <del className="text-sm" style={{ color: 'var(--text-secondary)' }}>{touchProductModal.price}₽</del>
+                    <span className="bg-red-500 text-white text-xs px-2 py-1 rounded font-bold">
+                      -{touchProductModal.discount}%
+                    </span>
                   </div>
-                  <div className="text-2xl font-bold text-gray-900">
+                  <div className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>
                     {Math.round(touchProductModal.price * (1 - touchProductModal.discount / 100))}₽
                   </div>
                 </>
               ) : (
-                <div className="text-2xl font-bold text-gray-900">{touchProductModal.price}₽</div>
+                <div className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>{touchProductModal.price}₽</div>
               )}
             </div>
 
             {/* Description */}
             <div className="mb-4">
-              <h3 className="text-sm font-semibold text-gray-700 mb-2">Описание</h3>
-              <p className="text-sm text-gray-600">
+              <h3 className="text-sm font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>Описание</h3>
+              <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
                 {touchProductModal.description || 'Описание отсутствует'}
               </p>
             </div>
 
             {/* Seller Info */}
             <div className="mb-4">
-              <h3 className="text-sm font-semibold text-gray-700 mb-2">Продавец</h3>
-              <div className="bg-gray-50 rounded-lg p-3">
-                <p className="font-medium text-gray-900 mb-2">
+              <h3 className="text-sm font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>Продавец</h3>
+              <div className="rounded-lg p-3" style={{ backgroundColor: 'var(--bg-secondary)' }}>
+                <p className="font-medium mb-2" style={{ color: 'var(--text-primary)' }}>
                   {touchProductModal.sellers?.shop_name || 'Не указано'}
                 </p>
                 
@@ -1245,9 +1458,9 @@ export default function Home() {
                         link.click();
                         document.body.removeChild(link);
                       }}
-                      className="flex items-center gap-1 px-3 py-2 bg-blue-500 text-white rounded-lg text-sm font-medium hover:bg-blue-600 transition-colors"
+                      className="w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 hover:scale-110 bg-blue-500 text-white hover:bg-blue-600 shadow-lg"
                     >
-                      📱 Telegram
+                      📱
                     </button>
                   )}
                   {touchProductModal.sellers?.vk && (
@@ -1261,9 +1474,9 @@ export default function Home() {
                         link.click();
                         document.body.removeChild(link);
                       }}
-                      className="flex items-center gap-1 px-3 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+                      className="w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 hover:scale-110 bg-blue-600 text-white hover:bg-blue-700 shadow-lg"
                     >
-                      💬 VK
+                      💬
                     </button>
                   )}
                   {touchProductModal.sellers?.whatsapp && (
@@ -1277,9 +1490,9 @@ export default function Home() {
                         link.click();
                         document.body.removeChild(link);
                       }}
-                      className="flex items-center gap-1 px-3 py-2 bg-green-500 text-white rounded-lg text-sm font-medium hover:bg-green-600 transition-colors"
+                      className="w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 hover:scale-110 bg-green-500 text-white hover:bg-green-600 shadow-lg"
                     >
-                      💬 WhatsApp
+                      💬
                     </button>
                   )}
                   {touchProductModal.sellers?.instagram && (
@@ -1293,9 +1506,9 @@ export default function Home() {
                         link.click();
                         document.body.removeChild(link);
                       }}
-                      className="flex items-center gap-1 px-3 py-2 bg-pink-500 text-white rounded-lg text-sm font-medium hover:bg-pink-600 transition-colors"
+                      className="w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 hover:scale-110 bg-pink-500 text-white hover:bg-pink-600 shadow-lg"
                     >
-                      📷 Instagram
+                      📷
                     </button>
                   )}
                   {touchProductModal.sellers?.phone && (
@@ -1308,28 +1521,26 @@ export default function Home() {
                         link.click();
                         document.body.removeChild(link);
                       }}
-                      className="flex items-center gap-1 px-3 py-2 bg-gray-500 text-white rounded-lg text-sm font-medium hover:bg-gray-600 transition-colors"
+                      className="w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 hover:scale-110 bg-gray-500 text-white hover:bg-gray-600 shadow-lg"
                     >
-                      📞 Позвонить
+                      📞
                     </button>
                   )}
                 </div>
               </div>
             </div>
 
-            {/* Action Buttons */}
-            <div className="flex gap-3 pb-8">
+            {/* Action Button */}
+            <div className="absolute bottom-6 right-6">
               <button
                 onClick={() => handleBuyClick(touchProductModal)}
-                className="flex-1 py-3 bg-orange-500 text-white rounded-xl font-medium hover:bg-orange-600 transition-colors"
+                className="w-14 h-14 rounded-full shadow-lg transition-all duration-300 flex items-center justify-center hover:scale-110"
+                style={{
+                  backgroundColor: '#FF6B35',
+                  color: 'white'
+                }}
               >
-                Купить
-              </button>
-              <button
-                onClick={() => setFullscreenImage(touchProductModal.image_url)}
-                className="flex-1 py-3 bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200 transition-colors"
-              >
-                🖼️ Фото
+                <span className="text-xl">🛒</span>
               </button>
             </div>
           </div>
@@ -1483,6 +1694,7 @@ export default function Home() {
           display: none;
         }
       `}</style>
-    </div>
+      </div>
+    </FastLoader>
   );
 }

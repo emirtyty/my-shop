@@ -2,7 +2,7 @@
   "name": "RA DELL Marketplace 2.0",
   "short_name": "RA DELL 2.0",
   "description": "Digital marketplace platform with 3D Touch and modern UI - Version 2.0",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0f172a",
@@ -11,13 +11,13 @@
   "scope": "/",
   "icons": [
     {
-      "src": "/icon-192x192.png",
+      "src": "/icon.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "/icon-512x512.png",
+      "src": "/icon.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
@@ -48,7 +48,7 @@
       "url": "/?search=true",
       "icons": [
         {
-          "src": "/icon-192x192.png",
+          "src": "/icon.png",
           "sizes": "192x192"
         }
       ]
@@ -63,5 +63,5 @@
     "client_mode": "focus-existing"
   },
   "update_url": "https://github.com/emirtyty/my-shop/releases",
-  "changelog": "Version 2.0: Major update with dark theme, performance optimizations, PWA features, and enhanced mobile UX"
+  "changelog": "Version 2.0.1: Updated app icon with monument design, performance improvements, and PWA enhancements"
 }

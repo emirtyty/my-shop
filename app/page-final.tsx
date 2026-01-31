@@ -137,7 +137,7 @@ export default function Home() {
   const fetchData = async () => {
     setLoading(true);
     const { data: productsData, error } = await supabase
-      .from('products')
+      .from('product_market')
       .select('*')
       .order('created_at', { ascending: false });
 

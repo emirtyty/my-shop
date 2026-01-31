@@ -3,7 +3,7 @@ import { CapacitorConfig } from '@capacitor/cli';
 const config: CapacitorConfig = {
   appId: 'com.ra.dell.marketplace',
   appName: 'RA DELL Marketplace',
-  webDir: 'out', 
+  webDir: 'out', // Используем статическую папку вместо .next
   server: {
     androidScheme: 'https'
   },

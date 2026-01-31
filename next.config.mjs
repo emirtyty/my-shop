@@ -1,10 +1,15 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  output: 'export', // Статический экспорт для мобильного
   trailingSlash: true,
+  distDir: 'out', // Папка для статического экспорта
   images: {
-    unoptimized: true
+    unoptimized: true,
+    formats: ['image/webp'],
+    deviceSizes: [640, 750, 828, 1080],
+    imageSizes: [16, 32, 64, 96, 128],
   },
-  // Disable all caching
+  // Disable all caching для уменьшения размера
   generateEtags: false,
   poweredByHeader: false,
   // Force revalidation
@@ -15,16 +20,19 @@ const nextConfig = {
     // Пустая конфигурация для Turbopack
   },
   webpack: (config, { dev, isServer }) => {
-    // Оптимизация для мобильных устройств
+    // Агрессивная оптимизация для мобильных устройств
     if (!dev && !isServer) {
       // Удаляем devtools и source maps в production
       config.devtool = false;
       
-      // Оптимизация размера бандла
+      // Агрессивная оптимизация размера бандла
       config.optimization = {
         ...config.optimization,
+        minimize: true,
         splitChunks: {
           chunks: 'all',
+          minSize: 10000,
+          maxSize: 150000, // 150KB chunks
           cacheGroups: {
             default: {
               minChunks: 2,
@@ -36,10 +44,16 @@ const nextConfig = {
               name: 'vendors',
               priority: -10,
               chunks: 'all',
+              maxSize: 200000, // 200KB для vendor
             },
           },
         },
       };
+      
+      // Удаляем неиспользуемые плагины
+      config.plugins = config.plugins.filter(plugin => 
+        plugin.constructor.name !== 'SourceMapDevToolPlugin'
+      );
     }
     
     return config;

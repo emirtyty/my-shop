@@ -5,3 +5,20 @@ build/
 .env*.local
 .DS_Store
 .aider*
+
+# APK файлы
+*.apk
+
+# Файлы кэша Supabase
+*.sst
+*.blob
+
+# Логи
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Temporary files
+*.tmp
+*.temp

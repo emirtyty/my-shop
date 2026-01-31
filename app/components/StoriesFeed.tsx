@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import useSounds from '../hooks/useSounds';
 
 // Haptic Feedback utilities
 declare global {
@@ -115,6 +116,7 @@ interface Story {
 export default function StoriesFeed() {
   console.log('=== StoriesFeed component mounted ===');
   const [stories, setStories] = useState<Story[]>([]);
+  const [groupedStories, setGroupedStories] = useState<Map<string, Story[]>>(new Map());
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -126,11 +128,55 @@ export default function StoriesFeed() {
   const [touchCurrentY, setTouchCurrentY] = useState(0);
   const [isDraggingDown, setIsDraggingDown] = useState(false);
   const [dragOffsetY, setDragOffsetY] = useState(0);
+  const [currentSellerId, setCurrentSellerId] = useState<string | null>(null);
+  
+  // Используем звуковые эффекты
+  const { click, swipe, modalOpen, modalClose, addToCart } = useSounds({ volume: 0.3, enabled: true });
+
+  // Группировка историй по продавцам
+  const groupStoriesBySeller = (storiesList: Story[]) => {
+    const grouped = new Map<string, Story[]>();
+    
+    storiesList.forEach(story => {
+      const sellerId = story.seller_id || 'unknown';
+      if (!grouped.has(sellerId)) {
+        grouped.set(sellerId, []);
+      }
+      grouped.get(sellerId)?.push(story);
+    });
+    
+    return grouped;
+  };
 
   useEffect(() => {
     console.log('=== StoriesFeed useEffect called ===');
     fetchStories();
   }, []);
+
+  // Обработка жеста назад
+  useEffect(() => {
+    const handleBackButton = (e: PopStateEvent) => {
+      if (isModalOpen) {
+        e.preventDefault();
+        handleCloseModal();
+      }
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isModalOpen) {
+        handleCloseModal();
+      }
+    };
+
+    // Добавляем обработчик для кнопки назад браузера
+    window.addEventListener('popstate', handleBackButton);
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      window.removeEventListener('popstate', handleBackButton);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isModalOpen]);
 
   // Блокировка pull-to-refresh для Stories
   useEffect(() => {
@@ -154,8 +200,9 @@ export default function StoriesFeed() {
 
   // Автопереход и прогресс-бар
   useEffect(() => {
-    if (!isModalOpen || isPaused || !stories.length) return;
+    if (!isModalOpen || isPaused || !currentSellerId) return;
 
+    const sellerStories = groupedStories.get(currentSellerId) || [];
     const interval = setInterval(() => {
       setProgress((prev) => {
         if (prev >= 100) {
@@ -167,7 +214,7 @@ export default function StoriesFeed() {
     }, 100);
 
     return () => clearInterval(interval);
-  }, [isModalOpen, isPaused, currentIndex, stories.length]);
+  }, [isModalOpen, isPaused, currentIndex, currentSellerId, groupedStories]);
 
   // Сброс прогресса при смене story
   useEffect(() => {
@@ -178,12 +225,29 @@ export default function StoriesFeed() {
     try {
       console.log('=== StoriesFeed fetchStories called ===');
       
-      // Check if Supabase is properly configured
-      if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-        console.warn('Supabase environment variables are missing in StoriesFeed');
-        setStories([]);
+      // Импортируем утилиты Supabase
+      const { isValid, checkSupabaseConnection } = await import('../lib/supabase');
+      
+      // Проверяем валидность конфигурации
+      if (!isValid) {
+        console.warn('⚠️ Supabase не сконфигурирован, используем demo stories');
+        setStories(getDemoStories());
+        setGroupedStories(groupStoriesBySeller(getDemoStories()));
+        setIsLoading(false);
         return;
       }
+      
+      // Проверяем соединение
+      const connectionCheck = await checkSupabaseConnection();
+      if (!connectionCheck.success) {
+        console.warn('⚠️ Проблемы с соединением Supabase, используем demo stories');
+        setStories(getDemoStories());
+        setGroupedStories(groupStoriesBySeller(getDemoStories()));
+        setIsLoading(false);
+        return;
+      }
+      
+      console.log('🔍 Загружаем stories из Supabase...');
       
       const { data, error } = await supabase
         .from('stories')
@@ -205,28 +269,124 @@ export default function StoriesFeed() {
       console.log('Supabase response:', { data, error });
 
       if (error) {
-        console.error('Supabase error in StoriesFeed:', error);
-        setStories([]);
+        console.error('❌ Supabase error в StoriesFeed:', error);
+        console.warn('⚠️ Используем demo stories из-за ошибки Supabase');
+        setStories(getDemoStories());
+        setGroupedStories(groupStoriesBySeller(getDemoStories()));
+      } else if (!data || data.length === 0) {
+        console.warn('⚠️ Stories не найдены в Supabase, используем demo stories');
+        setStories(getDemoStories());
+        setGroupedStories(groupStoriesBySeller(getDemoStories()));
       } else {
         const storiesData = data || [];
-        console.log('StoriesFeed fetched stories:', storiesData);
-        console.log('Stories count:', storiesData.length);
+        console.log('✅ StoriesFeed загружены:', storiesData.length, 'stories');
         setStories(storiesData);
+        
+        // Группируем истории по продавцам
+        const grouped = groupStoriesBySeller(storiesData);
+        setGroupedStories(grouped);
+        console.log('📦 Stories сгруппированы по продавцам:', Array.from(grouped.entries()));
       }
     } catch (error) {
-      console.error('Error loading stories in StoriesFeed:', error);
-      setStories([]);
+      console.error('❌ Критическая ошибка загрузки stories:', error);
+      console.warn('⚠️ Используем demo stories из-за критической ошибки');
+      setStories(getDemoStories());
+      setGroupedStories(groupStoriesBySeller(getDemoStories()));
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleStoryClick = (story: Story, index: number) => {
-    console.log('Opening story at index:', index);
-    setCurrentIndex(index);
+  // Demo stories для fallback
+  const getDemoStories = (): Story[] => [
+    {
+      id: 'demo-1',
+      product_id: 'demo-product-1',
+      seller_id: 'demo-seller-1',
+      image_url: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400&h=600&fit=crop',
+      title: 'iPhone 15 Pro Max',
+      price: 99990,
+      discount: 15,
+      description: 'Новейший флагман Apple с титановым корпусом',
+      link_url: '#',
+      is_active: true,
+      expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      view_count: 1250,
+      click_count: 89,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      sellers: {
+        id: 'demo-seller-1',
+        shop_name: 'Tech Store',
+        telegram_url: 'https://t.me/techstore',
+        vk_url: 'https://vk.com/techstore',
+        whatsapp_url: 'https://wa.me/1234567890',
+        instagram_url: 'https://instagram.com/techstore'
+      }
+    },
+    {
+      id: 'demo-2',
+      product_id: 'demo-product-2',
+      seller_id: 'demo-seller-2',
+      image_url: 'https://images.unsplash.com/photo-1572635196237-14b3f281509f?w=400&h=600&fit=crop',
+      title: 'Nike Air Max 270',
+      price: 12990,
+      discount: 30,
+      description: 'Стильные кроссовки с амортизацией Air',
+      link_url: '#',
+      is_active: true,
+      expires_at: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString(),
+      view_count: 890,
+      click_count: 67,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      sellers: {
+        id: 'demo-seller-2',
+        shop_name: 'Sport Shop',
+        telegram_url: 'https://t.me/sportshop',
+        vk_url: 'https://vk.com/sportshop',
+        whatsapp_url: 'https://wa.me/0987654321',
+        instagram_url: 'https://instagram.com/sportshop'
+      }
+    },
+    {
+      id: 'demo-3',
+      product_id: 'demo-product-3',
+      seller_id: 'demo-seller-1',
+      image_url: 'https://images.unsplash.com/photo-1541807084-5c52b6b3adef?w=400&h=600&fit=crop',
+      title: 'MacBook Pro 14"',
+      price: 149990,
+      discount: 10,
+      description: 'Профессиональный ноутбук с M3 Pro芯片',
+      link_url: '#',
+      is_active: true,
+      expires_at: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString(),
+      view_count: 2100,
+      click_count: 156,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      sellers: {
+        id: 'demo-seller-1',
+        shop_name: 'Tech Store',
+        telegram_url: 'https://t.me/techstore',
+        vk_url: 'https://vk.com/techstore',
+        whatsapp_url: 'https://wa.me/1234567890',
+        instagram_url: 'https://instagram.com/techstore'
+      }
+    }
+  ];
+
+  const handleStoryClick = (sellerId: string, storyIndex: number = 0) => {
+    const sellerStories = groupedStories.get(sellerId);
+    if (!sellerStories || sellerStories.length === 0) return;
+    
+    setCurrentIndex(storyIndex);
+    setCurrentSellerId(sellerId);
     setIsModalOpen(true);
     setIsPaused(false);
-    // Сбрасываем состояния перетаскивания при открытии
+    setProgress(0);
+    haptics.impact('medium');
+    modalOpen();
     setIsDraggingDown(false);
     setDragOffsetY(0);
     setTouchStartY(0);
@@ -240,6 +400,7 @@ export default function StoriesFeed() {
     setIsModalOpen(false);
     setIsPaused(false);
     setProgress(0);
+    modalClose();
     // Сбрасываем состояния перетаскивания
     setIsDraggingDown(false);
     setDragOffsetY(0);
@@ -250,7 +411,10 @@ export default function StoriesFeed() {
   };
 
   const handleNextStory = () => {
-    if (currentIndex < stories.length - 1) {
+    if (!currentSellerId) return;
+    
+    const sellerStories = groupedStories.get(currentSellerId) || [];
+    if (currentIndex < sellerStories.length - 1) {
       setCurrentIndex(currentIndex + 1);
       // Сбрасываем состояния перетаскивания при смене story
       setIsDraggingDown(false);
@@ -283,6 +447,7 @@ export default function StoriesFeed() {
     setTouchStart(e.touches[0].clientX);
     setTouchStartY(e.touches[0].clientY);
     setTouchCurrentY(e.touches[0].clientY);
+    click();
     // Легкая вибрация при начале жеста
     haptics.impact('light');
   };
@@ -299,6 +464,7 @@ export default function StoriesFeed() {
         setIsDraggingDown(true);
         console.log('Stories drag down started - adding haptic feedback');
         haptics.impact('medium');
+        swipe();
         e.preventDefault(); // Предотвращаем скролл только при начале жеста
       }
       
@@ -320,6 +486,7 @@ export default function StoriesFeed() {
       if (dragOffsetY > 120) { // Увеличим порог закрытия
         console.log('Stories closing - adding haptic feedback');
         haptics.notification('success');
+        modalClose();
         handleCloseModal();
         return;
       }
@@ -341,9 +508,11 @@ export default function StoriesFeed() {
 
     if (isLeftSwipe) {
       handleNextStory();
+      swipe();
     }
     if (isRightSwipe) {
       handlePrevStory();
+      swipe();
     }
   };
 
@@ -358,6 +527,7 @@ export default function StoriesFeed() {
       
       if (socialUrl) {
         window.open(socialUrl, '_blank');
+        addToCart();
         setIsModalOpen(false);
         return;
       }
@@ -366,20 +536,8 @@ export default function StoriesFeed() {
     // Если нет соцсетей, ищем товар по названию
     const productName = story.title;
     window.open(`/?search=${encodeURIComponent(productName)}`, '_blank');
+    addToCart();
     setIsModalOpen(false);
-  };
-
-  const handleStoryLinkClick = (linkUrl?: string) => {
-    if (linkUrl) {
-      // Ищем товар по ID и открываем его социальные сети
-      const product = stories.find(s => s.product_id === linkUrl);
-      if (product) {
-        // Здесь можно добавить логику для открытия товара или перехода по ссылке
-        window.open(`/#product-${linkUrl}`, '_blank');
-      } else {
-        window.open(linkUrl, '_blank');
-      }
-    }
   };
 
   if (isLoading) {
@@ -414,50 +572,54 @@ export default function StoriesFeed() {
         backgroundColor: 'var(--bg-secondary)'
       }}>
         <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
-          {stories.map((story, index) => (
-            <div 
-              key={story.id} 
-              className="flex-shrink-0 cursor-pointer group"
-              onClick={() => handleStoryClick(story, index)}
-            >
-              {/* Кружок с градиентной рамкой как в Instagram */}
-              <div className="relative">
-                <div className="w-16 h-16 rounded-full p-0.5" style={{
-                  background: 'linear-gradient(to top right, #facc15, #ec4899, #9333ea)'
-                }}>
-                  <div className="w-full h-full rounded-full p-0.5" style={{
-                    backgroundColor: 'var(--bg-primary)'
+          {Array.from(groupedStories.entries()).map(([sellerId, sellerStories], sellerIndex) => {
+            const firstStory = sellerStories[0];
+            return (
+              <div 
+                key={sellerId} 
+                className="shrink-0 cursor-pointer group"
+                onClick={() => handleStoryClick(sellerId, 0)}
+              >
+                {/* Кружок с градиентной рамкой как в Instagram */}
+                <div className="relative">
+                  <div className="w-16 h-16 rounded-full p-0.5" style={{
+                    background: 'linear-gradient(to top right, #facc15, #ec4899, #9333ea)'
                   }}>
-                    <img
-                      src={story.image_url}
-                      alt={story.title}
-                      className="w-full h-full rounded-full object-cover transition-transform duration-200 group-hover:scale-110"
-                    />
+                    <div className="w-full h-full rounded-full p-0.5" style={{
+                      backgroundColor: 'var(--bg-primary)'
+                    }}>
+                      <img
+                        src={firstStory.image_url}
+                        alt={firstStory.sellers?.shop_name || 'Seller'}
+                        className="w-full h-full rounded-full object-cover transition-transform duration-200 group-hover:scale-110"
+                      />
+                    </div>
                   </div>
+                  
+                  {/* Индикатор количества историй */}
+                  {sellerStories.length > 1 && (
+                    <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-orange-500 text-white text-xs flex items-center justify-center font-bold border-2" style={{
+                      borderColor: 'var(--bg-primary)'
+                    }}>
+                      {sellerStories.length}
+                    </div>
+                  )}
                 </div>
                 
-                {/* Индикатор просмотренной истории */}
-                {index === 0 && (
-                  <div className="absolute -top-1 -right-1 w-3 h-3 rounded-full border-2" style={{
-                    backgroundColor: '#dc2626',
-                    borderColor: 'var(--bg-primary)'
-                  }} />
-                )}
+                {/* Название продавца */}
+                <p className="text-xs text-center mt-1 max-w-[64px] truncate" style={{
+                  color: 'var(--text-secondary)'
+                }}>
+                  {firstStory.sellers?.shop_name || 'Seller'}
+                </p>
               </div>
-              
-              {/* Название сторис */}
-              <p className="text-xs text-center mt-1 max-w-[64px] truncate" style={{
-                color: 'var(--text-secondary)'
-              }}>
-                {story.title}
-              </p>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
       {/* Story Modal */}
-      {isModalOpen && stories[currentIndex] && (
+      {isModalOpen && currentSellerId && groupedStories.get(currentSellerId) && (
         <div data-modal-open="true" className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden" style={{
           backgroundColor: 'rgba(0, 0, 0, 0.95)'
         }}>
@@ -483,7 +645,7 @@ export default function StoriesFeed() {
 
             {/* Progress bars */}
             <div className="absolute top-12 left-4 right-12 z-10 flex gap-1">
-              {stories.map((_, index) => (
+              {groupedStories.get(currentSellerId)?.map((_, index) => (
                 <div
                   key={index}
                   className="flex-1 h-1 rounded-full overflow-hidden"
@@ -517,21 +679,21 @@ export default function StoriesFeed() {
                 overflow: 'hidden'
               }}
             >
-              {stories[currentIndex]?.image_url ? (
+              {groupedStories.get(currentSellerId)?.[currentIndex]?.image_url ? (
                 <img
-                  src={stories[currentIndex].image_url}
-                  alt={stories[currentIndex].title || 'Story'}
+                  src={groupedStories.get(currentSellerId)?.[currentIndex].image_url}
+                  alt={groupedStories.get(currentSellerId)?.[currentIndex].title || 'Story'}
                   className="max-w-full max-h-full object-contain"
                   style={{
                     maxHeight: 'calc(100vh - 100px)',
                     maxWidth: '100vw'
                   }}
                   onError={(e) => {
-                    console.log('Story image failed to load:', stories[currentIndex].image_url);
+                    console.log('Story image failed to load:', groupedStories.get(currentSellerId)?.[currentIndex].image_url);
                     e.currentTarget.style.display = 'none';
                   }}
                   onLoad={() => {
-                    console.log('Story image loaded:', stories[currentIndex].image_url);
+                    console.log('Story image loaded:', groupedStories.get(currentSellerId)?.[currentIndex].image_url);
                   }}
                 />
               ) : (
@@ -545,7 +707,7 @@ export default function StoriesFeed() {
                     <div className="text-xl" style={{ color: 'white' }}>Story #{currentIndex + 1}</div>
                     <div className="text-sm mt-2" style={{ 
                       color: 'rgba(255, 255, 255, 0.75)'
-                    }}>{stories[currentIndex]?.title || 'Loading...'}</div>
+                    }}>{groupedStories.get(currentSellerId)?.[currentIndex]?.title || 'Loading...'}</div>
                   </div>
                 </div>
               )}
@@ -565,72 +727,57 @@ export default function StoriesFeed() {
               }}>
                 <div className="absolute bottom-0 left-0 right-0 p-4">
                   <div className="flex items-center gap-2 mb-2">
-                    {stories[currentIndex].discount && (
+                    {groupedStories.get(currentSellerId)?.[currentIndex].discount && (
                       <span className="text-xs px-2 py-1 rounded-full font-bold" style={{
                         backgroundColor: '#dc2626',
                         color: 'white'
                       }}>
-                        -{stories[currentIndex].discount}%
+                        -{groupedStories.get(currentSellerId)?.[currentIndex].discount}%
                       </span>
                     )}
                     <span className="text-xs px-2 py-1 rounded-full backdrop-blur-sm" style={{
                       backgroundColor: 'rgba(255, 255, 255, 0.2)',
                       color: 'white'
-                      }}>
-                      {stories[currentIndex].price}₽
+                    }}>
+                      {groupedStories.get(currentSellerId)?.[currentIndex].price}₽
                     </span>
                   </div>
                   
                   <h3 className="font-bold text-lg mb-2" style={{
                     color: 'white'
                   }}>
-                    {stories[currentIndex].title}
+                    {groupedStories.get(currentSellerId)?.[currentIndex].title}
                   </h3>
                   
-                  {stories[currentIndex].sellers?.shop_name && (
+                  {groupedStories.get(currentSellerId)?.[currentIndex].sellers?.shop_name && (
                     <p className="text-sm mb-2" style={{
                       color: 'rgba(255, 255, 255, 0.9)'
                     }}>
-                      📍 {stories[currentIndex].sellers.shop_name}
+                      📍 {groupedStories.get(currentSellerId)?.[currentIndex].sellers.shop_name}
                     </p>
                   )}
                   
-                  {stories[currentIndex].description && (
+                  {groupedStories.get(currentSellerId)?.[currentIndex].description && (
                     <p className="text-sm mb-3" style={{
                       color: 'rgba(255, 255, 255, 0.8)'
                     }}>
-                      {stories[currentIndex].description}
+                      {groupedStories.get(currentSellerId)?.[currentIndex].description}
                     </p>
                   )}
 
                   <div className="flex gap-2">
-                    {stories[currentIndex].link_url && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleStoryLinkClick(stories[currentIndex].link_url);
-                        }}
-                        className="px-4 py-2 rounded-lg text-sm font-medium transition-colors" style={{
-                          backgroundColor: '#3b82f6',
-                          color: 'white'
-                        }}
-                      >
-                        Перейти →
-                      </button>
-                    )}
-                    
-                    {/* Экспресс-заказ */}
+                    {/* Круглая кнопка "Купить" как в карточках */}
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        handleExpressOrder(stories[currentIndex]);
+                        handleExpressOrder(groupedStories.get(currentSellerId)?.[currentIndex]!);
                       }}
-                      className="px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2" style={{
+                      className="w-12 h-12 rounded-full flex items-center justify-center transition-all duration-200 hover:scale-110 active:scale-95" style={{
                         backgroundColor: '#FF6B35',
                         color: 'white'
                       }}
                     >
-                      🛒 Купить сейчас
+                      🛒
                     </button>
                   </div>
                 </div>

@@ -3,7 +3,7 @@
 export const dynamic = 'force-dynamic';
 
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase, checkSupabaseConnection, getCurrentUser, refreshSession } from '../lib/supabase';
 
 // Временный интерфейс для категорий
 interface Category {
@@ -99,9 +99,10 @@ export default function AdminPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [stories, setStories] = useState<Story[]>([]);
   const [loading, setLoading] = useState(true);
+  const [connectionStatus, setConnectionStatus] = useState<'checking' | 'connected' | 'disconnected'>('checking');
   const [searchQuery, setSearchQuery] = useState('');
   const [toasts, setToasts] = useState<Toast[]>([]);
-  const [activeTab, setActiveTab] = useState<'products' | 'add-product' | 'social' | 'categories'>('products');
+  const [activeTab, setActiveTab] = useState<'products' | 'add-product' | 'social' | 'categories' | 'ai'>('products');
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [newProduct, setNewProduct] = useState({
@@ -128,6 +129,7 @@ export default function AdminPage() {
     outOfStock: 0,
     totalValue: 0
   });
+  
   const [sellerInfo, setSellerInfo] = useState<Seller>({
     id: '',
     login: '',
@@ -159,25 +161,85 @@ export default function AdminPage() {
   }, []);
 
   const checkUser = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      window.location.href = '/auth';
-      return;
-    }
-    setUser(user);
-    fetchProducts();
-    fetchStories();
-    fetchSellerInfo();
-    loadCategories();
-    
-    // Периодическая проверка автопополнения (каждые 5 минут)
-    const interval = setInterval(() => {
-      if (autoRestock) {
-        checkAutoRestock();
+    try {
+      // Проверяем подключение к Supabase
+      setConnectionStatus('checking');
+      const connectionResult = await checkSupabaseConnection();
+      
+      if (!connectionResult.success) {
+        console.error('❌ Проблема с подключением к Supabase:', connectionResult.error);
+        
+        if (connectionResult.type === 'no_session') {
+          addToast('Требуется авторизация. Перенаправляем на страницу входа...', 'warning');
+          setTimeout(() => {
+            window.location.href = '/auth';
+          }, 2000);
+          return;
+        } else if (connectionResult.type === 'session_error') {
+          // Пробуем обновить сессию
+          console.log('🔄 Пробуем обновить сессию...');
+          const refreshedSession = await refreshSession();
+          if (refreshedSession) {
+            // Повторная проверка после обновления сессии
+            const retryResult = await checkSupabaseConnection();
+            if (retryResult.success) {
+              setConnectionStatus('connected');
+              setUser(retryResult.session.user);
+              await loadData();
+              return;
+            }
+          }
+          addToast('Ошибка сессии. Требуется повторный вход.', 'error');
+          setTimeout(() => {
+            window.location.href = '/auth';
+          }, 2000);
+          return;
+        } else {
+          setConnectionStatus('disconnected');
+          addToast('Проблема с подключением к базе данных', 'error');
+          setLoading(false);
+          return;
+        }
       }
-    }, 300000); // 5 минут
-    
-    return () => clearInterval(interval);
+      
+      setConnectionStatus('connected');
+      console.log('✅ Пользователь авторизован:', connectionResult.session.user.email);
+      setUser(connectionResult.session.user);
+      
+      // Загружаем данные
+      await loadData();
+      
+      // Периодическая проверка автопополнения (каждые 5 минут)
+      const interval = setInterval(() => {
+        if (autoRestock) {
+          checkAutoRestock();
+        }
+      }, 300000); // 5 минут
+      
+      return () => clearInterval(interval);
+    } catch (error) {
+      console.error('❌ Критическая ошибка в checkUser:', error);
+      setConnectionStatus('disconnected');
+      addToast('Критическая ошибка при загрузке админки', 'error');
+      setLoading(false);
+    }
+  };
+
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      await Promise.all([
+        fetchProducts(),
+        fetchStories(),
+        fetchSellerInfo(),
+        loadCategories()
+      ]);
+    } catch (error) {
+      console.error('❌ Ошибка загрузки данных:', error);
+      addToast('Ошибка загрузки данных', 'error');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleLogout = async () => {
@@ -185,11 +247,29 @@ export default function AdminPage() {
     window.location.href = '/auth';
   };
 
+  const handleRecheckConnection = async () => {
+    setConnectionStatus('checking');
+    const connectionResult = await checkSupabaseConnection();
+    setConnectionStatus(connectionResult.success ? 'connected' : 'disconnected');
+    
+    if (connectionResult.success) {
+      addToast('Подключение к Supabase восстановлено', 'success');
+      // Повторно загружаем данные
+      fetchProducts();
+      fetchStories();
+    } else {
+      addToast('Ошибка подключения к Supabase', 'error');
+    }
+  };
+
   const fetchProducts = async () => {
     try {
+      console.log('🔍 Загрузка товаров...');
+      
       // Сначала проверяем кэш
       const cached = getCachedData();
       if (cached) {
+        console.log('📦 Используем кэшированные данные');
         setProducts(cached);
         calculateStats(cached);
       }
@@ -199,8 +279,14 @@ export default function AdminPage() {
         .select('*, sellers(shop_name, id, telegram_url, vk_url, whatsapp_url, instagram_url)')
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ Ошибка загрузки товаров:', error);
+        addToast(`Ошибка загрузки товаров: ${error.message}`, 'error');
+        throw error;
+      }
+      
       const products = data || [];
+      console.log(`✅ Загружено ${products.length} товаров`);
       
       // Отладка - проверяем ID товаров
       console.log('Fetched products:', products.map(p => ({ id: p.id, name: p.name, hasId: !!p.id })));
@@ -212,7 +298,8 @@ export default function AdminPage() {
       // Проверяем автопополнение
       await checkAutoRestock();
     } catch (error) {
-      console.error('Error loading products:', error);
+      console.error('❌ Критическая ошибка при загрузке товаров:', error);
+      addToast('Не удалось загрузить товары', 'error');
     } finally {
       setLoading(false);
     }
@@ -766,7 +853,7 @@ export default function AdminPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900/20 to-slate-900 text-white p-4 pb-24">
+    <div className="min-h-screen bg-linear-to-br from-slate-900 via-purple-900/20 to-slate-900 text-white p-4 pb-24">
       {/* Toast Notifications */}
       <div className="fixed top-4 right-4 z-50 space-y-2">
         {toasts.map(toast => (
@@ -786,7 +873,36 @@ export default function AdminPage() {
       {/* Header */}
       <div className="mb-6">
         <div className="flex justify-between items-center mb-4">
-          <h1 className="text-2xl font-bold text-white">📊 Админка</h1>
+          <div>
+            <h1 className="text-2xl font-bold text-white">📊 Админка</h1>
+            {/* Индикатор подключения к Supabase */}
+            <div className="flex items-center gap-2 mt-2">
+              {connectionStatus === 'checking' && (
+                <div className="flex items-center gap-2 text-yellow-400">
+                  <div className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></div>
+                  <span className="text-sm">Проверка подключения к Supabase...</span>
+                </div>
+              )}
+              {connectionStatus === 'connected' && (
+                <div className="flex items-center gap-2 text-green-400">
+                  <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+                  <span className="text-sm">✅ Подключено к Supabase</span>
+                </div>
+              )}
+              {connectionStatus === 'disconnected' && (
+                <div className="flex items-center gap-2 text-red-400">
+                  <div className="w-2 h-2 bg-red-400 rounded-full animate-pulse"></div>
+                  <span className="text-sm">❌ Нет подключения к Supabase</span>
+                  <button
+                    onClick={handleRecheckConnection}
+                    className="px-2 py-1 bg-red-600 hover:bg-red-700 text-white text-xs rounded transition-colors"
+                  >
+                    🔄 Повторить
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
           <button
             onClick={handleLogout}
             className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-2xl font-bold transition-colors"
@@ -815,7 +931,7 @@ export default function AdminPage() {
           <div className="w-full sm:w-auto">
             <button
               onClick={() => setShowCreateStoryModal(true)}
-              className="block w-full px-4 py-2 sm:py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-2xl font-bold hover:from-purple-700 hover:to-pink-700 cursor-pointer text-center text-sm sm:text-base flex items-center justify-center gap-2"
+              className="inline-flex w-full px-4 py-2 sm:py-3 bg-linear-to-r from-purple-600 to-pink-600 text-white rounded-2xl font-bold hover:from-purple-700 hover:to-pink-700 cursor-pointer text-center text-sm sm:text-base items-center justify-center gap-2"
             >
               <span>📸</span>
               <span>Выложить Stories</span>
@@ -1139,7 +1255,7 @@ export default function AdminPage() {
                   });
                   setShowCategoryModal(true);
                 }}
-                className="px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl hover:from-green-600 hover:to-emerald-700 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105"
+                className="px-4 py-2 bg-linear-to-r from-green-500 to-emerald-600 text-white rounded-xl hover:from-green-600 hover:to-emerald-700 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105"
               >
                 ➕ Добавить категорию
               </button>
@@ -1162,7 +1278,7 @@ export default function AdminPage() {
                   </div>
                   
                   <div className="flex items-center gap-2 mb-3">
-                    <div className={`h-2 w-full rounded-full bg-gradient-to-r ${category.color}`}></div>
+                    <div className={`h-2 w-full rounded-full bg-linear-to-r ${category.color}`}></div>
                   </div>
                   
                   <div className="flex gap-2">
@@ -1190,6 +1306,30 @@ export default function AdminPage() {
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+        )}
+
+        {/* AI Tab */}
+        {activeTab === 'ai' && (
+          <div className="space-y-6">
+            <div className="bg-white/5 backdrop-blur-2xl p-4 sm:p-6 rounded-3xl border border-white/10 shadow-2xl">
+              <div className="flex justify-between items-center mb-4 sm:mb-6">
+                <h2 className="text-xl sm:text-2xl font-bold text-white">
+                  🤖 AI Ассистент
+                </h2>
+                <div className="text-sm text-cyan-300">
+                  Умные инструменты для вашего бизнеса
+                </div>
+              </div>
+              
+              <div className="p-6">
+                <div className="text-center text-white">
+                  <div className="text-6xl mb-4">🤖</div>
+                  <h3 className="text-xl font-semibold mb-2">AI Ассистент временно отключен</h3>
+                  <p className="text-white/70">Функциональность будет доступна позже</p>
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -1228,6 +1368,16 @@ export default function AdminPage() {
               }`}
             >
               <span className="text-xl sm:text-2xl filter drop-shadow-sm">📂</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('ai')}
+              className={`flex items-center justify-center w-12 h-12 sm:w-14 sm:h-14 rounded-2xl transition-all duration-300 ${
+                activeTab === 'ai' 
+                  ? 'bg-white/30 shadow-lg scale-110' 
+                  : 'hover:bg-white/20 active:scale-95'
+              }`}
+            >
+              <span className="text-xl sm:text-2xl filter drop-shadow-sm">🤖</span>
             </button>
           </div>
         </div>
@@ -1407,7 +1557,7 @@ export default function AdminPage() {
 
       {/* Create Story Modal */}
       {showCreateStoryModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-9999 flex items-center justify-center p-4">
           <div className="bg-gray-800 rounded-3xl border border-gray-700 p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <h3 className="text-xl font-bold text-white mb-4">
               📸 Выложить Stories
@@ -1470,7 +1620,7 @@ export default function AdminPage() {
                 <button
                   onClick={createStoryFromGallery}
                   disabled={storyPreviews.length === 0}
-                  className="flex-1 px-4 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 disabled:from-gray-600 disabled:to-gray-700 disabled:cursor-not-allowed text-white rounded-2xl font-bold flex items-center justify-center gap-2"
+                  className="flex-1 px-4 py-3 bg-linear-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 disabled:from-gray-600 disabled:to-gray-700 disabled:cursor-not-allowed text-white rounded-2xl font-bold flex items-center justify-center gap-2"
                 >
                   <span>📸</span>
                   <span>Выложить Stories ({storyPreviews.length})</span>
@@ -1536,7 +1686,7 @@ export default function AdminPage() {
                     <button
                       key={color}
                       onClick={() => setNewCategory({...newCategory, color})}
-                      className={`p-3 rounded-lg bg-gradient-to-r ${color} transition-all ${
+                      className={`p-3 rounded-lg bg-linear-to-r ${color} transition-all ${
                         newCategory.color === color
                           ? 'ring-2 ring-white ring-offset-2 ring-offset-transparent'
                           : ''
@@ -1576,7 +1726,7 @@ export default function AdminPage() {
               </button>
               <button
                 onClick={handleSaveCategory}
-                className="flex-1 px-4 py-3 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-700 hover:to-blue-700 text-white rounded-2xl font-bold"
+                className="flex-1 px-4 py-3 bg-linear-to-r from-cyan-600 to-blue-600 hover:from-cyan-700 hover:to-blue-700 text-white rounded-2xl font-bold"
               >
                 {editingCategory ? '💾 Сохранить' : '➕ Создать'}
               </button>

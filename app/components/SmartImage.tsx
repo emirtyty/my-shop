@@ -1,21 +1,21 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { bundleOptimizer, performanceMonitor } from '../lib/performance';
+import { adaptiveLoading, preloadManager } from '../lib/advancedPerformance';
 
-interface OptimizedImageProps {
+interface SmartImageProps {
   src: string;
   alt: string;
   className?: string;
   width?: number;
   height?: number;
-  priority?: boolean; // Для важных изображений (hero, first images)
-  fallback?: string; // Fallback изображение
+  priority?: boolean;
+  fallback?: string;
   onLoad?: () => void;
   onError?: () => void;
 }
 
-export default function OptimizedImage({
+export default function SmartImage({
   src,
   alt,
   className = '',
@@ -25,16 +25,32 @@ export default function OptimizedImage({
   fallback,
   onLoad,
   onError
-}: OptimizedImageProps) {
+}: SmartImageProps) {
   const [isLoaded, setIsLoaded] = useState(false);
   const [isInView, setIsInView] = useState(priority);
   const [hasError, setHasError] = useState(false);
+  const [currentSrc, setCurrentSrc] = useState<string>('');
   const imgRef = useRef<HTMLImageElement>(null);
+
+  // Генерация адаптивного URL изображения
+  const getAdaptiveSrc = (originalSrc: string): string => {
+    const quality = adaptiveLoading.getImageQuality();
+    const optimalSize = adaptiveLoading.getOptimalImageSize();
+    
+    // Если это Supabase Storage, добавляем параметры качества
+    if (originalSrc.includes('supabase.co/storage/v1')) {
+      const separator = originalSrc.includes('?') ? '&' : '?';
+      return `${originalSrc}${separator}quality=${quality === 'low' ? 60 : quality === 'medium' ? 80 : 90}&width=${optimalSize}`;
+    }
+    
+    return originalSrc;
+  };
 
   // Preload для приоритетных изображений
   useEffect(() => {
     if (priority && src) {
-      bundleOptimizer.preloadResource(src, 'image');
+      const adaptiveSrc = getAdaptiveSrc(src);
+      preloadManager.preloadResource(adaptiveSrc);
     }
   }, [priority, src]);
 
@@ -52,36 +68,36 @@ export default function OptimizedImage({
         });
       },
       {
-        rootMargin: '50px 0px',
+        rootMargin: '100px 0px',
         threshold: 0.1
       }
     );
 
     observer.observe(imgRef.current);
-
     return () => observer.disconnect();
   }, [priority]);
 
-  // Загрузка изображения
+  // Загрузка изображения с адаптивным качеством
   useEffect(() => {
     if (!isInView || !src || isLoaded || hasError) return;
+
+    const adaptiveSrc = getAdaptiveSrc(src);
+    setCurrentSrc(adaptiveSrc);
 
     const img = imgRef.current;
     if (!img) return;
 
     const loadStartTime = performance.now();
     
-    const handleLoad = async () => {
+    const handleLoad = () => {
       const loadDuration = performance.now() - loadStartTime;
+      setIsLoaded(true);
+      onLoad?.();
       
-      // Логируем производительность загрузки
-      const result = await performanceMonitor.measure(`Image Load: ${src}`, async () => {
-        setIsLoaded(true);
-        onLoad?.();
-        return true;
-      });
-
-      console.log(`🖼️ Image loaded in ${loadDuration.toFixed(2)}ms: ${src}`);
+      // Логируем производительность
+      if (loadDuration > 1000) {
+        console.warn(`🐌 Slow image load: ${loadDuration.toFixed(2)}ms for ${src}`);
+      }
     };
 
     const handleError = () => {
@@ -92,15 +108,35 @@ export default function OptimizedImage({
 
     img.addEventListener('load', handleLoad);
     img.addEventListener('error', handleError);
-
-    // Устанавливаем src для начала загрузки
-    img.src = src;
+    img.src = adaptiveSrc;
 
     return () => {
       img.removeEventListener('load', handleLoad);
       img.removeEventListener('error', handleError);
     };
   }, [isInView, src, isLoaded, hasError, onLoad, onError]);
+
+  // Progressive enhancement - пробуем загрузить более высокое качество
+  useEffect(() => {
+    if (isLoaded && adaptiveLoading.getImageQuality() !== 'high') {
+      // Через 2 секунды пробуем загрузить оригинальное изображение
+      const timer = setTimeout(() => {
+        if (imgRef.current && src !== currentSrc) {
+          const highQualitySrc = getAdaptiveSrc(src);
+          if (highQualitySrc !== currentSrc) {
+            const tempImg = new Image();
+            tempImg.onload = () => {
+              imgRef.current!.src = highQualitySrc;
+              setCurrentSrc(highQualitySrc);
+            };
+            tempImg.src = highQualitySrc;
+          }
+        }
+      }, 2000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [isLoaded, src, currentSrc]);
 
   // Fallback при ошибке
   if (hasError && fallback) {
@@ -119,25 +155,18 @@ export default function OptimizedImage({
     );
   }
 
-  // Placeholder во время загрузки
+  // Skeleton loader
   if (!isLoaded) {
     return (
       <div
-        className={`${className} image-placeholder`}
+        className={`${className} loading-skeleton`}
         style={{
           width: width || '100%',
           height: height || 'auto',
           aspectRatio: width && height ? `${width}/${height}` : undefined,
           backgroundColor: '#f3f4f6',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: '#9ca3af',
-          fontSize: '14px'
         }}
-      >
-        <span>Loading...</span>
-      </div>
+      />
     );
   }
 
@@ -145,14 +174,13 @@ export default function OptimizedImage({
     <img
       ref={imgRef}
       alt={alt}
-      className={`${className} ${isLoaded ? 'loaded' : 'loading'}`}
+      className={`${className} fade-in`}
       width={width}
       height={height}
       loading={priority ? 'eager' : 'lazy'}
       decoding="async"
       style={{
         aspectRatio: width && height ? `${width}/${height}` : undefined,
-        backgroundColor: '#f3f4f6',
       }}
     />
   );

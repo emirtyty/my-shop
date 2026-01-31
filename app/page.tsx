@@ -1,8 +1,8 @@
 ﻿'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { supabase } from '../lib/supabase';
-import { logger } from '../lib/logger';
+import { supabase } from './lib/supabase';
+import { logger } from './lib/logger';
 import StoriesFeed from './components/StoriesFeed';
 import { useFavorites } from './hooks/useFavorites';
 import { logHealthStatus } from './lib/healthCheck';

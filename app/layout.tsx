@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import ServiceWorkerRegister from './components/ServiceWorkerRegister';
 import NetworkStatus from './components/NetworkStatus';
@@ -8,8 +8,6 @@ import { resourceHints, criticalCSS, adaptiveLoading } from './lib/advancedPerfo
 export const metadata: Metadata = {
   title: 'RA DELL - Marketplace',
   description: 'Digital marketplace platform',
-  viewport: 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover',
-  themeColor: '#FF6B35',
   manifest: '/manifest.json',
   icons: {
     icon: '/favicon.ico',
@@ -22,6 +20,15 @@ export const metadata: Metadata = {
   formatDetection: {
     telephone: false,
   },
+};
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: 'cover',
+  themeColor: '#FF6B35',
 };
 
 export default function RootLayout({

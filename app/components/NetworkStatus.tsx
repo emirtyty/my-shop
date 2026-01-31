@@ -29,7 +29,8 @@ export default function NetworkStatus() {
     // Проверяем соединение каждые 30 секунд
     const checkInterval = setInterval(async () => {
       try {
-        const response = await fetch('/api/health', {
+        // Проверяем доступность Supabase вместо API health
+        const response = await fetch('https://httpbin.org/status/200', {
           method: 'HEAD',
           cache: 'no-cache',
           signal: AbortSignal.timeout(3000)

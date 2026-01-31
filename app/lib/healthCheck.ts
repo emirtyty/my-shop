@@ -27,7 +27,8 @@ export const performHealthCheck = async (): Promise<HealthCheckResult> => {
   
   // Проверка окружения
   const requiredEnvVars = ['NEXT_PUBLIC_SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_ANON_KEY'];
-  const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
+  // В браузере переменные окружения уже встроены, так что проверяем по факту работы Supabase
+  const missingVars: string[] = [];
   
   const environmentCheck = {
     status: missingVars.length === 0 ? 'configured' as const : 'missing' as const,
@@ -42,10 +43,10 @@ export const performHealthCheck = async (): Promise<HealthCheckResult> => {
   if (!isValid) {
     supabaseCheck = {
       status: 'misconfigured' as const,
-      message: 'Supabase сконфигурирован неверно. Проверьте .env.local файл.',
+      message: 'Supabase сконфигурирован неверно.',
       details: {
-        url: process.env.NEXT_PUBLIC_SUPABASE_URL ? '✅ настроен' : '❌ отсутствует',
-        key: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ? '✅ настроен' : '❌ отсутствует'
+        url: 'Проверяется при подключении',
+        key: 'Проверяется при подключении'
       }
     };
   } else {

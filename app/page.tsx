@@ -1,7 +1,8 @@
 ﻿'use client';
 
-import { useEffect, useState, useMemo } from 'react';
-import { supabase } from './lib/supabase';
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { supabase } from '../lib/supabase';
+import { logger } from '../lib/logger';
 import StoriesFeed from './components/StoriesFeed';
 import { useFavorites } from './hooks/useFavorites';
 import { logHealthStatus } from './lib/healthCheck';
@@ -244,14 +245,14 @@ export default function Home() {
   async function fetchData() {
     setLoading(true);
     try {
-      console.log('🔄 Starting data fetch from Supabase...');
+      logger.log('🔄 Starting data fetch from Supabase...');
       
       // Добавляем таймаут для запросов
       const timeoutPromise = new Promise((_, reject) => {
         setTimeout(() => reject(new Error('Timeout')), 10000); // 10 секунд таймаут
       });
 
-      console.log('📡 Making requests to Supabase...');
+      logger.log('📡 Making requests to Supabase...');
       const dataPromise = Promise.all([
         supabase.from('product_market').select('*, sellers(shop_name, id, telegram_url, vk_url, whatsapp_url, instagram_url)'),
         supabase
@@ -279,27 +280,27 @@ export default function Home() {
 
       const [prodRes, storyRes, catRes] = await Promise.race([dataPromise, timeoutPromise]) as any;
       
-      console.log('📦 Products response:', prodRes);
-      console.log('📖 Stories response:', storyRes);
-      console.log('📂 Categories response:', catRes);
+      logger.log('📦 Products response:', prodRes);
+      logger.log('📖 Stories response:', storyRes);
+      logger.log('📂 Categories response:', catRes);
       
       setProducts(prodRes.data || []);
       setStories(storyRes.data || []);
       setCategories(catRes.data || []);
       
       if (prodRes.error) {
-        console.error('❌ Products error:', prodRes.error.message);
+        logger.error('❌ Products error:', prodRes.error.message);
       }
       if (storyRes.error) {
-        console.error('❌ Stories error:', storyRes.error.message);
+        logger.error('❌ Stories error:', storyRes.error.message);
       }
       if (catRes.error) {
-        console.error('❌ Categories error:', catRes.error.message);
+        logger.error('❌ Categories error:', catRes.error.message);
       }
       
-      console.log('✅ Data loaded successfully!');
+      logger.log('✅ Data loaded successfully!');
     } catch (err) {
-      console.error('💥 Error loading data:', err);
+      logger.error('💥 Error loading data:', err);
       // В случае ошибки просто показываем пустые данные
       setProducts([]);
       setStories([]);

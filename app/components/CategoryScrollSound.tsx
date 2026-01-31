@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
+import { logger } from '../lib/logger';
 
 interface CategoryScrollSoundProps {
   enabled?: boolean;
@@ -34,14 +35,14 @@ export default function CategoryScrollSound({
         target.closest('[data-category-modal="true"]') ||
         target.classList.contains('category-container');
 
-      console.log('CategoryScrollSound: isCategoryScroll =', isCategoryScroll, 'target =', target);
+      // console.log('CategoryScrollSound: isCategoryScroll =', isCategoryScroll, 'target =', target);
 
       if (!isCategoryScroll) return;
 
       const scrollDelta = Math.abs((event as WheelEvent).deltaY || 0);
       if (scrollDelta < scrollThreshold) return;
 
-      console.log('CategoryScrollSound: Playing sound');
+      // console.log('CategoryScrollSound: Playing sound');
       lastScrollTime.current = now;
       playScrollSound();
     };
@@ -80,7 +81,7 @@ export default function CategoryScrollSound({
           style: ImpactStyle.Light
         });
       } catch (error) {
-        console.log('Haptics error:', error);
+        logger.log('Haptics error:', error);
       }
     };
 
@@ -103,7 +104,7 @@ export function useCategoryScrollSound() {
         style: ImpactStyle.Light
       });
     } catch (error) {
-      console.log('Haptics not available');
+      logger.log('Haptics not available');
     }
   };
 

@@ -147,6 +147,7 @@ interface Story {
 export default function Home() {
   const [products, setProducts] = useState<Product[]>([]);
   const [stories, setStories] = useState<Story[]>([]);
+  const [categories, setCategories] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [viewingSeller, setViewingSeller] = useState<any>(null);
@@ -268,22 +269,32 @@ export default function Home() {
           .eq('is_active', true)
           .gte('expires_at', new Date().toISOString())
           .order('created_at', { ascending: false })
-          .limit(10)
+          .limit(10),
+        supabase
+          .from('categories')
+          .select('*')
+          .eq('is_active', true)
+          .order('sort_order', { ascending: true })
       ]);
 
-      const [prodRes, storyRes] = await Promise.race([dataPromise, timeoutPromise]) as any;
+      const [prodRes, storyRes, catRes] = await Promise.race([dataPromise, timeoutPromise]) as any;
       
       console.log('📦 Products response:', prodRes);
       console.log('📖 Stories response:', storyRes);
+      console.log('📂 Categories response:', catRes);
       
       setProducts(prodRes.data || []);
       setStories(storyRes.data || []);
+      setCategories(catRes.data || []);
       
       if (prodRes.error) {
         console.error('❌ Products error:', prodRes.error.message);
       }
       if (storyRes.error) {
         console.error('❌ Stories error:', storyRes.error.message);
+      }
+      if (catRes.error) {
+        console.error('❌ Categories error:', catRes.error.message);
       }
       
       console.log('✅ Data loaded successfully!');
@@ -292,6 +303,7 @@ export default function Home() {
       // В случае ошибки просто показываем пустые данные
       setProducts([]);
       setStories([]);
+      setCategories([]);
     } finally {
       setLoading(false);
     }
@@ -495,9 +507,17 @@ export default function Home() {
   };
 
   const allCategories = useMemo(() => {
+    // Если есть категории из Supabase, используем их
+    if (categories.length > 0) {
+      return categories.map(cat => ({
+        ...cat,
+        count: cat.count || 0
+      }));
+    }
+    
+    // Иначе извлекаем уникальные категории из товаров (fallback)
     const categoryMap = new Map();
     
-    // Извлекаем уникальные категории из товаров
     products.forEach(product => {
       if (product.category) {
         if (!categoryMap.has(product.category)) {
@@ -568,7 +588,7 @@ export default function Home() {
     });
     
     return Array.from(categoryMap.values()).sort((a, b) => b.count - a.count);
-  }, [products]);
+  }, [products, categories]);
 
   // Pull-to-refresh handlers
   const handlePullStart = (e: React.TouchEvent) => {

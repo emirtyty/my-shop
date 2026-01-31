@@ -488,11 +488,13 @@ export default function Home() {
   };
 
   const allCategories = useMemo(() => {
-    // Используем только категории из Supabase
-    return categories.map(cat => ({
-      ...cat,
-      count: cat.count || 0
-    }));
+    // Используем только категории из Supabase, но фильтруем те, у которых есть товары
+    return categories
+      .filter(cat => cat.count > 0) // Показываем только категории с товарами
+      .map(cat => ({
+        ...cat,
+        count: cat.count || 0
+      }));
   }, [categories]);
 
   // Pull-to-refresh handlers

@@ -488,14 +488,42 @@ export default function Home() {
   };
 
   const allCategories = useMemo(() => {
-    // Используем только категории из Supabase, но фильтруем те, у которых есть товары
-    return categories
-      .filter(cat => cat.count > 0) // Показываем только категории с товарами
-      .map(cat => ({
-        ...cat,
-        count: cat.count || 0
-      }));
-  }, [categories]);
+  const categoryMap = new Map();
+  
+  // Сначала извлекаем категории из товаров
+  products.forEach(product => {
+    if (product.category) {
+      if (!categoryMap.has(product.category)) {
+        categoryMap.set(product.category, {
+          id: categoryMap.size + 1,
+          name: product.category,
+          count: 0,
+          icon: '📦', // Иконка по умолчанию
+          color: 'from-blue-400 to-blue-600' // Цвет по умолчанию
+        });
+      }
+      categoryMap.get(product.category).count++;
+    }
+  });
+  
+  // Затем добавляем данные из Supabase для известных категорий
+  categories.forEach(supabaseCat => {
+    if (categoryMap.has(supabaseCat.name)) {
+      const existingCat = categoryMap.get(supabaseCat.name);
+      categoryMap.set(supabaseCat.name, {
+        ...existingCat,
+        icon: supabaseCat.icon || existingCat.icon,
+        color: supabaseCat.color || existingCat.color,
+        sort_order: supabaseCat.sort_order || 999
+      });
+    }
+  });
+  
+  // Сортируем по количеству товаров (сначала самые популярные)
+  return Array.from(categoryMap.values())
+    .filter(cat => cat.count > 0) // Только категории с товарами
+    .sort((a, b) => b.count - a.count);
+}, [products, categories]);
 
   // Pull-to-refresh handlers
   const handlePullStart = (e: React.TouchEvent) => {

@@ -487,109 +487,13 @@ export default function Home() {
     }, 600);
   };
 
-  // Динамические категории из товаров
-  const categoryImages = {
-    'Смартфоны': 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=800&h=400&fit=crop',
-    'Ноутбуки': 'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=800&h=400&fit=crop',
-    'Планшеты': 'https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?w=800&h=400&fit=crop',
-    'Телевизоры': 'https://images.unsplash.com/photo-1593784991095-a0d1fcc5a521?w=800&h=400&fit=crop',
-    'Наушники': 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=800&h=400&fit=crop',
-    'Часы': 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=800&h=400&fit=crop',
-    'Фотоаппараты': 'https://images.unsplash.com/photo-1516035065371-9e6e693b6318?w=800&h=400&fit=crop',
-    'Игровые консоли': 'https://images.unsplash.com/photo-1606144042614-b2417e99c4e3?w=800&h=400&fit=crop',
-    'Одежда': 'https://images.unsplash.com/photo-1445205170230-053b83016050?w=800&h=400&fit=crop',
-    'Обувь': 'https://images.unsplash.com/photo-1549298916-b41d501d3772?w=800&h=400&fit=crop',
-    'Мебель': 'https://images.unsplash.com/photo-1556228728-2a5d86e3d2a1?w=800&h=400&fit=crop',
-    'Книги': 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=800&h=400&fit=crop',
-    'Спорт': 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=800&h=400&fit=crop',
-    'Красота': 'https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=800&h=400&fit=crop',
-    'Автотовары': 'https://images.unsplash.com/photo-1552519507-da3b142c6e3d?w=800&h=400&fit=crop',
-    'Продукты': 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=800&h=400&fit=crop'
-  };
-
   const allCategories = useMemo(() => {
-    // Если есть категории из Supabase, используем их
-    if (categories.length > 0) {
-      return categories.map(cat => ({
-        ...cat,
-        count: cat.count || 0
-      }));
-    }
-    
-    // Иначе извлекаем уникальные категории из товаров (fallback)
-    const categoryMap = new Map();
-    
-    products.forEach(product => {
-      if (product.category) {
-        if (!categoryMap.has(product.category)) {
-          categoryMap.set(product.category, {
-            id: categoryMap.size + 1,
-            name: product.category,
-            count: 0,
-            icon: '📦', // Иконка по умолчанию
-            color: 'from-blue-400 to-blue-600' // Цвет по умолчанию
-          });
-        }
-        categoryMap.get(product.category).count++;
-      }
-    });
-    
-    // Добавляем иконки, цвета и фотографии для известных категорий
-    const categoryIcons = {
-      'Смартфоны': '📱',
-      'Ноутбуки': '💻',
-      'Планшеты': '📋',
-      'Телевизоры': '📺',
-      'Наушники': '🎧',
-      'Часы': '⌚',
-      'Фотоаппараты': '📷',
-      'Игровые консоли': '🎮',
-      'Одежда': '👔',
-      'Обувь': '👟',
-      'Мебель': '🪑',
-      'Книги': '📚',
-      'Спорт': '⚽',
-      'Красота': '💄',
-      'Автотовары': '🚗',
-      'Продукты': '🍎'
-    };
-    
-    const categoryColors = [
-      'from-blue-400 to-blue-600',
-      'from-purple-400 to-purple-600',
-      'from-green-400 to-green-600',
-      'from-red-400 to-red-600',
-      'from-indigo-400 to-indigo-600',
-      'from-pink-400 to-pink-600',
-      'from-yellow-400 to-yellow-600',
-      'from-orange-400 to-orange-600',
-      'from-gray-600 to-gray-800',
-      'from-rose-400 to-rose-600',
-      'from-cyan-400 to-cyan-600',
-      'from-amber-400 to-amber-600',
-      'from-teal-400 to-teal-600',
-      'from-violet-400 to-violet-600',
-      'from-brown-400 to-brown-600',
-      'from-lime-400 to-lime-600',
-      'from-emerald-400 to-emerald-600',
-      'from-fuchsia-400 to-fuchsia-600'
-    ];
-    
-    // Применяем иконки, цвета и изображения
-    let colorIndex = 0;
-    categoryMap.forEach(category => {
-      if (categoryIcons[category.name]) {
-        category.icon = categoryIcons[category.name];
-      }
-      if (categoryImages[category.name]) {
-        category.image = categoryImages[category.name];
-      }
-      category.color = categoryColors[colorIndex % categoryColors.length];
-      colorIndex++;
-    });
-    
-    return Array.from(categoryMap.values()).sort((a, b) => b.count - a.count);
-  }, [products, categories]);
+    // Используем только категории из Supabase
+    return categories.map(cat => ({
+      ...cat,
+      count: cat.count || 0
+    }));
+  }, [categories]);
 
   // Pull-to-refresh handlers
   const handlePullStart = (e: React.TouchEvent) => {
@@ -1286,7 +1190,7 @@ export default function Home() {
                   {/* Фоновое изображение */}
                   <div className="absolute inset-0">
                     <img 
-                      src={categoryImages[category.name] || 'https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=800&h=400&fit=crop'}
+                      src={category.image || 'https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=800&h=400&fit=crop'}
                       alt={category.name}
                       className="w-full h-full object-cover"
                     />

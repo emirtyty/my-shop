@@ -1,12 +1,9 @@
 import { createClient } from '@supabase/supabase-js'
-import { NextResponse } from 'next/server'
+import { NextResponse, NextRequest } from 'next/server'
 
-export async function middleware(request: Request) {
+export async function middleware(request: NextRequest) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  
-  console.log('Middleware: Checking route', request.url)
-  console.log('Middleware: Supabase URL', supabaseUrl ? '✅' : '❌')
   
   if (!supabaseUrl || !supabaseKey) {
     console.error('Missing Supabase configuration')
@@ -26,13 +23,15 @@ export async function middleware(request: Request) {
       
       if (error || !session) {
         console.log('Middleware: No session found, redirecting to auth/')
-        return NextResponse.redirect(new URL('/auth/', request.url))
+        const redirectUrl = new URL('/auth/', request.url)
+        return NextResponse.redirect(redirectUrl, 302)
       }
       
       console.log('Middleware: Session valid for user:', session.user.email)
     } catch (error) {
       console.error('Middleware error:', error)
-      return NextResponse.redirect(new URL('/auth/', request.url))
+      const redirectUrl = new URL('/auth/', request.url)
+      return NextResponse.redirect(redirectUrl, 302)
     }
   }
 

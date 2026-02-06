@@ -22,3 +22,10 @@ yarn-error.log*
 # Temporary files
 *.tmp
 *.temp
+
+# Android build files
+android/app/build/
+android/app/build/intermediates/
+android/app/build/generated/
+android/app/build/outputs/
+android/app/build/tmp/

@@ -1,1737 +1,520 @@
 'use client';
 
-export const dynamic = 'force-dynamic';
+import { useState, useEffect } from 'react';
+import { createClient } from '@supabase/supabase-js';
+import { Plus, X, Upload, ArrowRight, AlertCircle, CheckCircle, Package, ShoppingBag, Edit2, Trash2 } from 'lucide-react';
 
-import React, { useState, useEffect } from 'react';
-import { supabase, checkSupabaseConnection, getCurrentUser, refreshSession } from '../lib/supabase';
-
-// Временный интерфейс для категорий
-interface Category {
-  id: string;
-  name: string;
-  icon: string;
-  color: string;
-  count: number;
-  is_active: boolean;
-  sort_order: number;
-  created_at: string;
-  updated_at: string;
-}
-
-// Add CSS animations
-if (typeof window !== 'undefined') {
-  const style = document.createElement('style');
-  style.textContent = `
-    @keyframes bounce-in {
-      0% { transform: scale(0); opacity: 0; }
-      50% { transform: scale(1.1); }
-      100% { transform: scale(1); opacity: 1; }
-    }
-    .animate-bounce-in {
-      animation: bounce-in 0.5s ease-out;
-    }
-  `;
-  document.head.appendChild(style);
-}
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
 interface Product {
   id: string;
   name: string;
-  price: number;
-  image_url: string;
   category: string;
-  discount?: number;
-  stock_quantity?: number;
-  description?: string;
-  created_at?: string;
-  sellers?: {
-    shop_name: string;
-    id: string;
-    telegram_url?: string;
-    vk_url?: string;
-    whatsapp_url?: string;
-    instagram_url?: string;
-  };
-}
-
-interface Story {
-  id: string;
-  image_url: string;
-  title?: string;
-  price?: number;
-  discount?: number;
-  product_id?: string;
-  expires_at: string;
-  is_active: boolean;
+  price: number;
+  discount: number;
+  image_url?: string;
   created_at: string;
 }
 
-interface Toast {
-  id: string;
+interface Notification {
+  type: 'success' | 'error';
   message: string;
-  type: 'success' | 'error' | 'warning';
 }
 
-interface Stats {
-  totalProducts: number;
-  lowStock: number;
-  outOfStock: number;
-  totalValue: number;
-}
-
-interface Seller {
-  id: string;
-  login: string;
-  shop_name: string;
-  telegram_url?: string;
-  vk_url?: string;
-  whatsapp_url?: string;
-  instagram_url?: string;
-}
-
-interface ProductSize {
-  size: string;
-  stock_quantity: number;
-}
-
-export default function AdminPage() {
-  const [user, setUser] = useState<any>(null);
+export default function ProductsPage() {
+  const [showModal, setShowModal] = useState(false);
+  const [notification, setNotification] = useState<Notification | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [categories, setCategories] = useState<string[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
-  const [stories, setStories] = useState<Story[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [connectionStatus, setConnectionStatus] = useState<'checking' | 'connected' | 'disconnected'>('checking');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [toasts, setToasts] = useState<Toast[]>([]);
-  const [activeTab, setActiveTab] = useState<'products' | 'add-product' | 'social' | 'categories' | 'ai'>('products');
+  const [currentView, setCurrentView] = useState<'add' | 'list'>('add');
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [newProduct, setNewProduct] = useState({
+  const [formData, setFormData] = useState({
     name: '',
-    price: '',
     category: '',
-    customCategory: '',
+    price: '',
     discount: '',
-    stock_quantity: '',
-    description: '',
-    image_url: '',
-    has_sizes: false
+    image: null as File | null
   });
-  const [productSizes, setProductSizes] = useState<ProductSize[]>([]);
-  const [showSizeSelector, setShowSizeSelector] = useState(false);
-  const [selectedImages, setSelectedImages] = useState<File[]>([]);
-  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
-  const [cachedData, setCachedData] = useState<{products: Product[], lastUpdate: number} | null>(null);
-  const [autoRestock, setAutoRestock] = useState(false);
-  const [restockThreshold, setRestockThreshold] = useState(5);
-  const [stats, setStats] = useState<Stats>({
-    totalProducts: 0,
-    lowStock: 0,
-    outOfStock: 0,
-    totalValue: 0
-  });
-  
-  const [sellerInfo, setSellerInfo] = useState<Seller>({
-    id: '',
-    login: '',
-    shop_name: '',
-    telegram_url: '',
-    vk_url: '',
-    whatsapp_url: '',
-    instagram_url: ''
-  });
-  const [showSocialModal, setShowSocialModal] = useState(false);
-  const [showStoriesModal, setShowStoriesModal] = useState(false);
-  const [showCreateStoryModal, setShowCreateStoryModal] = useState(false);
-  
-  // Categories state
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
-  const [showCategoryModal, setShowCategoryModal] = useState(false);
-  const [newCategory, setNewCategory] = useState({
-    name: '',
-    icon: '📦',
-    color: 'from-gray-400 to-gray-600',
-    sort_order: 0
-  });
-  const [storyImages, setStoryImages] = useState<File[]>([]);
-  const [storyPreviews, setStoryPreviews] = useState<string[]>([]);
 
+  // Загрузка данных при монтировании
   useEffect(() => {
-    checkUser();
+    loadCategories();
+    loadProducts();
   }, []);
 
-  const checkUser = async () => {
-    try {
-      // Проверяем подключение к Supabase
-      setConnectionStatus('checking');
-      const connectionResult = await checkSupabaseConnection();
-      
-      if (!connectionResult.success) {
-        console.error('❌ Проблема с подключением к Supabase:', connectionResult.error);
-        
-        if (connectionResult.type === 'no_session') {
-          addToast('Требуется авторизация. Перенаправляем на страницу входа...', 'warning');
-          setTimeout(() => {
-            window.location.href = '/auth';
-          }, 2000);
-          return;
-        } else if (connectionResult.type === 'session_error') {
-          // Пробуем обновить сессию
-          console.log('🔄 Пробуем обновить сессию...');
-          const refreshedSession = await refreshSession();
-          if (refreshedSession) {
-            // Повторная проверка после обновления сессии
-            const retryResult = await checkSupabaseConnection();
-            if (retryResult.success) {
-              setConnectionStatus('connected');
-              setUser(retryResult.session.user);
-              await loadData();
-              return;
-            }
-          }
-          addToast('Ошибка сессии. Требуется повторный вход.', 'error');
-          setTimeout(() => {
-            window.location.href = '/auth';
-          }, 2000);
-          return;
-        } else {
-          setConnectionStatus('disconnected');
-          addToast('Проблема с подключением к базе данных', 'error');
-          setLoading(false);
-          return;
-        }
-      }
-      
-      setConnectionStatus('connected');
-      console.log('✅ Пользователь авторизован:', connectionResult.session.user.email);
-      setUser(connectionResult.session.user);
-      
-      // Загружаем данные
-      await loadData();
-      
-      // Периодическая проверка автопополнения (каждые 5 минут)
-      const interval = setInterval(() => {
-        if (autoRestock) {
-          checkAutoRestock();
-        }
-      }, 300000); // 5 минут
-      
-      return () => clearInterval(interval);
-    } catch (error) {
-      console.error('❌ Критическая ошибка в checkUser:', error);
-      setConnectionStatus('disconnected');
-      addToast('Критическая ошибка при загрузке админки', 'error');
-      setLoading(false);
-    }
-  };
-
-  const loadData = async () => {
-    try {
-      setLoading(true);
-      await Promise.all([
-        fetchProducts(),
-        fetchStories(),
-        fetchSellerInfo(),
-        loadCategories()
-      ]);
-    } catch (error) {
-      console.error('❌ Ошибка загрузки данных:', error);
-      addToast('Ошибка загрузки данных', 'error');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    window.location.href = '/auth';
-  };
-
-  const handleRecheckConnection = async () => {
-    setConnectionStatus('checking');
-    const connectionResult = await checkSupabaseConnection();
-    setConnectionStatus(connectionResult.success ? 'connected' : 'disconnected');
-    
-    if (connectionResult.success) {
-      addToast('Подключение к Supabase восстановлено', 'success');
-      // Повторно загружаем данные
-      fetchProducts();
-      fetchStories();
-    } else {
-      addToast('Ошибка подключения к Supabase', 'error');
-    }
-  };
-
-  const fetchProducts = async () => {
-    try {
-      console.log('🔍 Загрузка товаров...');
-      
-      // Сначала проверяем кэш
-      const cached = getCachedData();
-      if (cached) {
-        console.log('📦 Используем кэшированные данные');
-        setProducts(cached);
-        calculateStats(cached);
-      }
-
-      const { data, error } = await supabase
-        .from('product_market')
-        .select('*, sellers(shop_name, id, telegram_url, vk_url, whatsapp_url, instagram_url)')
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        console.error('❌ Ошибка загрузки товаров:', error);
-        addToast(`Ошибка загрузки товаров: ${error.message}`, 'error');
-        throw error;
-      }
-      
-      const products = data || [];
-      console.log(`✅ Загружено ${products.length} товаров`);
-      
-      // Отладка - проверяем ID товаров
-      console.log('Fetched products:', products.map(p => ({ id: p.id, name: p.name, hasId: !!p.id })));
-      
-      setProducts(products);
-      cacheData(products);
-      calculateStats(products);
-      
-      // Проверяем автопополнение
-      await checkAutoRestock();
-    } catch (error) {
-      console.error('❌ Критическая ошибка при загрузке товаров:', error);
-      addToast('Не удалось загрузить товары', 'error');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchStories = async () => {
+  const loadProducts = async () => {
     try {
       const { data, error } = await supabase
-        .from('stories')
+        .from('products')
         .select('*')
         .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      setStories(data || []);
-    } catch (error) {
-      console.error('Error loading stories:', error);
-    }
-  };
-
-  const fetchSellerInfo = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('sellers')
-        .select('*')
-        .limit(1)
-        .single();
-
-      if (error && error.code !== 'PGRST116') throw error;
       
-      if (data) {
-        setSellerInfo(data as Seller);
-      }
-    } catch (error) {
-      console.error('Error loading seller info:', error);
-    }
-  };
-
-  const calculateStats = (products: Product[]) => {
-    const totalProducts = products.length;
-    const lowStock = products.filter(p => (p.stock_quantity || 0) > 0 && (p.stock_quantity || 0) <= 5).length;
-    const outOfStock = products.filter(p => (p.stock_quantity || 0) === 0).length;
-    const totalValue = products.reduce((sum, p) => sum + p.price * (p.stock_quantity || 0), 0);
-
-    setStats({ totalProducts, lowStock, outOfStock, totalValue });
-  };
-
-  const updateProduct = async (product: Product) => {
-    try {
-      const { error } = await supabase
-        .from('product_market')
-        .update({
-          name: product.name,
-          price: product.price,
-          category: product.category,
-          discount: product.discount,
-          stock_quantity: product.stock_quantity,
-          image_url: product.image_url
-        })
-        .eq('id', product.id);
-
-      if (error) throw error;
-      
-      await fetchProducts();
-      setShowEditModal(false);
-      addToast('Товар успешно обновлен', 'success');
-    } catch (error) {
-      console.error('Error updating product:', error);
-      addToast('Ошибка при обновлении товара', 'error');
-    }
-  };
-
-  const createProduct = async () => {
-    try {
-      // Проверяем обязательные поля
-      if (!newProduct.name || !newProduct.category) {
-        addToast('Заполните название и категорию товара', 'error');
-        return;
-      }
-
-      // Валидация цены
-      const price = parseFloat(String(newProduct.price)) || 0;
-      if (price <= 0) {
-        addToast('Цена должна быть больше 0', 'error');
-        return;
-      }
-
-      // Валидация количества
-      const stockQuantity = parseInt(String(newProduct.stock_quantity)) || 0;
-      if (stockQuantity < 0) {
-        addToast('Количество не может быть отрицательным', 'error');
-        return;
-      }
-
-      // Используем первое изображение из галереи или заглушку
-      const imageUrl = imagePreviews.length > 0 ? imagePreviews[0] : 'https://via.placeholder.com/150';
-      
-      // Получаем seller_id
-      const sellerId = sellerInfo?.id || 'default-seller';
-      
-      // Определяем итоговую категорию
-      const finalCategory = newProduct.category === 'custom' 
-        ? newProduct.customCategory 
-        : newProduct.category;
-
-      // Конвертируем все числовые поля
-      const productData = {
-        name: newProduct.name,
-        price: price,
-        category: finalCategory,
-        discount: parseFloat(String(newProduct.discount)) || 0,
-        stock_quantity: stockQuantity,
-        description: newProduct.description || null,
-        image_url: imageUrl,
-        seller_id: sellerId,
-        has_sizes: newProduct.has_sizes
-      };
-      
-      console.log('Creating product with data:', productData);
-      
-      // Создаем товар
-      const { data: createdProduct, error } = await supabase
-        .from('product_market')
-        .insert(productData)
-        .select()
-        .single();
-
       if (error) {
-        console.error('Supabase error:', error);
-        throw error;
-      }
-
-      // Если у товара есть размеры, сохраняем их
-      if (newProduct.has_sizes && productSizes.length > 0) {
-        const sizeData = productSizes
-          .filter(size => size.stock_quantity > 0) // Сохраняем только размеры с количеством > 0
-          .map(size => ({
-            product_id: createdProduct.id,
-            size: size.size,
-            stock_quantity: size.stock_quantity
-          }));
-
-        if (sizeData.length > 0) {
-          const { error: sizeError } = await supabase
-            .from('product_sizes')
-            .insert(sizeData);
-
-          if (sizeError) {
-            console.error('Error saving sizes:', sizeError);
-            // Не прерываем процесс, но логируем ошибку
-            addToast('Товар создан, но размеры не сохранены', 'warning');
-          }
-        }
+        console.error('Ошибка загрузки товаров:', error);
+        return;
       }
       
-      await fetchProducts();
-      setNewProduct({
-        name: '',
-        price: '',
-        category: '',
-        customCategory: '',
-        discount: '',
-        stock_quantity: '',
-        description: '',
-        image_url: '',
-        has_sizes: false
-      });
-      setProductSizes([]);
-      setShowSizeSelector(false);
-      setSelectedImages([]);
-      setImagePreviews([]);
-      addToast('Товар успешно создан', 'success');
+      setProducts(data || []);
     } catch (error) {
-      console.error('Error creating product:', error);
-      addToast(`Ошибка при создании товара: ${error.message}`, 'error');
+      console.error('Ошибка загрузки товаров:', error);
     }
   };
 
-  // Categories functions
   const loadCategories = async () => {
     try {
-      // Временно заглушка, пока categories API не работает
-      const mockCategories = [
-        { id: '1', name: 'Смартфоны', icon: '📱', color: 'from-blue-400 to-blue-600', count: 156, is_active: true, sort_order: 1, created_at: '', updated_at: '' },
-        { id: '2', name: 'Ноутбуки', icon: '💻', color: 'from-purple-400 to-purple-600', count: 89, is_active: true, sort_order: 2, created_at: '', updated_at: '' },
-        { id: '3', name: 'Планшеты', icon: '📋', color: 'from-green-400 to-green-600', count: 67, is_active: true, sort_order: 3, created_at: '', updated_at: '' },
-        { id: '4', name: 'Продукты', icon: '🍎', color: 'from-red-500 to-red-700', count: 0, is_active: true, sort_order: 24, created_at: '', updated_at: '' }
-      ];
-      setCategories(mockCategories);
+      const { data, error } = await supabase
+        .from('products')
+        .select('category')
+        .not('category', 'is', null);
+      
+      if (!error && data) {
+        const uniqueCategories = [...new Set(data.map(item => item.category).filter(Boolean))];
+        setCategories(uniqueCategories);
+      }
     } catch (error) {
-      console.error('Error loading categories:', error);
-      addToast('Ошибка при загрузке категорий', 'error');
+      console.error('Ошибка загрузки категорий:', error);
     }
   };
 
-  const handleSaveCategory = async () => {
-    try {
-      if (!newCategory.name.trim()) {
-        addToast('Название категории не может быть пустым', 'error');
-        return;
-      }
-
-      if (editingCategory) {
-        // Update existing category
-        setCategories(prev => prev.map(cat => 
-          cat.id === editingCategory.id 
-            ? { ...cat, ...newCategory, updated_at: new Date().toISOString() }
-            : cat
-        ));
-        addToast('Категория обновлена', 'success');
-      } else {
-        // Create new category
-        const newCat: Category = {
-          id: Date.now().toString(),
-          ...newCategory,
-          count: 0,
-          is_active: true,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        };
-        setCategories(prev => [...prev, newCat]);
-        addToast('Категория создана', 'success');
-      }
-
-      setShowCategoryModal(false);
-      setEditingCategory(null);
-      setNewCategory({
-        name: '',
-        icon: '📦',
-        color: 'from-gray-400 to-gray-600',
-        sort_order: 0
-      });
-    } catch (error) {
-      console.error('Error saving category:', error);
-      addToast('Ошибка при сохранении категории', 'error');
-    }
+  const showNotification = (type: 'success' | 'error', message: string) => {
+    setNotification({ type, message });
+    setTimeout(() => setNotification(null), 3000);
   };
 
-  const handleDeleteCategory = async (id: string) => {
-    if (!confirm('Вы уверены, что хотите удалить эту категорию?')) {
+  const handleEdit = (product: Product) => {
+    setEditingProduct(product);
+    setFormData({
+      name: product.name,
+      category: product.category,
+      price: product.price.toString(),
+      discount: product.discount.toString(),
+      image: null
+    });
+    setShowModal(true);
+  };
+
+  const handleDelete = async (productId: string) => {
+    if (!confirm('Вы уверены, что хотите удалить этот товар?')) {
       return;
     }
 
     try {
-      setCategories(prev => prev.filter(cat => cat.id !== id));
-      addToast('Категория удалена', 'success');
-    } catch (error) {
-      console.error('Error deleting category:', error);
-      addToast('Ошибка при удалении категории', 'error');
-    }
-  };
-
-  const updateSellerSocials = async () => {
-    try {
       const { error } = await supabase
-        .from('sellers')
-        .update({
-          telegram_url: sellerInfo.telegram_url,
-          vk_url: sellerInfo.vk_url,
-          whatsapp_url: sellerInfo.whatsapp_url,
-          instagram_url: sellerInfo.instagram_url
-        })
-        .eq('id', sellerInfo.id);
-
-      if (error) throw error;
-      
-      addToast('Социальные сети обновлены', 'success');
-      setShowSocialModal(false);
-    } catch (error) {
-      console.error('Error updating socials:', error);
-      addToast('Ошибка при обновлении', 'error');
-    }
-  };
-
-  const addToast = (message: string, type: 'success' | 'error' | 'warning') => {
-    const id = Date.now().toString();
-    setToasts(prev => [...prev, { id, message, type }]);
-    setTimeout(() => {
-      setToasts(prev => prev.filter(toast => toast.id !== id));
-    }, 3000);
-  };
-
-  const filteredProducts = products.filter(p => 
-    p.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  const getStockStatus = (quantity?: number) => {
-    const qty = quantity || 0;
-    if (qty === 0) return { color: 'text-red-500', icon: '🔴', label: 'Нет в наличии' };
-    if (qty <= 5) return { color: 'text-yellow-500', icon: '🟡', label: 'Мало' };
-    return { color: 'text-green-500', icon: '🟢', label: 'В наличии' };
-  };
-
-  const getSocialIcon = (url: string) => {
-    if (url.includes('t.me') || url.includes('telegram')) return '📱';
-    if (url.includes('vk.com') || url.includes('vkontakte')) return '💬';
-    if (url.includes('wa.me') || url.includes('whatsapp')) return '💬';
-    if (url.includes('instagram')) return '📷';
-    return '🔗';
-  };
-
-  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-    setSelectedImages(prev => [...prev, ...files]);
-    
-    files.forEach(file => {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagePreviews(prev => [...prev, reader.result as string]);
-      };
-      reader.readAsDataURL(file);
-    });
-  };
-
-  const removeImage = (index: number) => {
-    setSelectedImages(prev => prev.filter((_, i) => i !== index));
-    setImagePreviews(prev => prev.filter((_, i) => i !== index));
-  };
-
-  // Stories функции для изображений
-  const handleStoryImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-    setStoryImages(prev => [...prev, ...files]);
-    
-    files.forEach(file => {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setStoryPreviews(prev => [...prev, reader.result as string]);
-      };
-      reader.readAsDataURL(file);
-    });
-  };
-
-  const removeStoryImage = (index: number) => {
-    setStoryImages(prev => prev.filter((_, i) => i !== index));
-    setStoryPreviews(prev => prev.filter((_, i) => i !== index));
-  };
-
-  // Функции для управления размерами
-  const getClothingSizes = () => ['XS', 'S', 'M', 'L', 'XL', 'XXL'];
-  const getShoeSizes = () => ['36', '37', '38', '39', '40', '41', '42', '43', '44', '45'];
-
-  const initializeSizes = (category: string) => {
-    if (category === 'Одежда') {
-      return getClothingSizes().map(size => ({ size, stock_quantity: 0 }));
-    } else if (category === 'Обувь') {
-      return getShoeSizes().map(size => ({ size, stock_quantity: 0 }));
-    }
-    return [];
-  };
-
-  const handleCategoryChange = (category: string) => {
-    setNewProduct({...newProduct, category});
-    
-    // Если категория одежда или обувь, показываем опцию размеров
-    if (category === 'Одежда' || category === 'Обувь') {
-      setShowSizeSelector(true);
-      if (productSizes.length === 0) {
-        setProductSizes(initializeSizes(category));
-      }
-    } else {
-      setShowSizeSelector(false);
-      setProductSizes([]);
-      setNewProduct({...newProduct, category, has_sizes: false});
-    }
-  };
-
-  const handleSizeQuantityChange = (size: string, quantity: number) => {
-    setProductSizes(prev => 
-      prev.map(s => s.size === size ? {...s, stock_quantity: quantity} : s)
-    );
-  };
-
-  const toggleHasSizes = () => {
-    const newHasSizes = !newProduct.has_sizes;
-    setNewProduct({...newProduct, has_sizes: newHasSizes});
-    
-    if (newHasSizes && newProduct.category) {
-      setProductSizes(initializeSizes(newProduct.category));
-    } else if (!newHasSizes) {
-      setProductSizes([]);
-    }
-  };
-
-  const createStoryFromGallery = async () => {
-    try {
-      console.log('storyPreviews:', storyPreviews);
-      
-      if (storyPreviews.length === 0) {
-        console.log('Validation failed: no images');
-        addToast('Выберите изображения для Stories', 'error');
-        return;
-      }
-
-      console.log('Creating stories for each image...');
-      
-      // Создаем Story для каждого изображения
-      const storyPromises = storyPreviews.map((imageUrl, index) => {
-        const storyData = {
-          image_url: imageUrl,
-          title: `Story ${index + 1}`,
-          price: 0,
-          discount: 0,
-          description: 'Новый Story',
-          link_url: '',
-          seller_id: sellerInfo?.id || null, // Добавляем ID текущего продавца
-          is_active: true,
-          expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() // 24 часа
-        };
-
-        console.log(`Story ${index + 1} data:`, storyData);
-
-        return supabase
-          .from('stories')
-          .insert(storyData);
-      });
-
-      console.log('Executing all story promises...');
-      const results = await Promise.all(storyPromises);
-      console.log('Story results:', results);
-      
-      const errors = results.filter(result => result.error);
-      console.log('Errors found:', errors);
-
-      if (errors.length > 0) {
-        console.log('Errors details:', errors.map(e => e.error));
-        throw new Error(`Ошибка при создании ${errors.length} Stories`);
-      }
-      
-      console.log('Stories created successfully, fetching stories...');
-      await fetchStories();
-      setShowCreateStoryModal(false);
-      addToast(`Создано ${storyPreviews.length} Stories`, 'success');
-    } catch (error) {
-      console.error('Error creating stories:', error);
-      addToast(`Ошибка при создании Stories: ${error.message}`, 'error');
-    }
-  };
-
-  // Stories функции
-  const createStory = async (productId: string) => {
-    try {
-      console.log('Attempting to create story for product ID:', productId);
-      console.log('Available products:', products.map(p => ({ id: p.id, name: p.name, hasId: !!p.id })));
-      
-      if (!productId) {
-        console.error('Product ID is undefined or null');
-        addToast('ID товара не указан', 'error');
-        return;
-      }
-      
-      const product = products.find(p => p.id === productId);
-      if (!product) {
-        console.error('Product not found with ID:', productId);
-        addToast('Товар не найден', 'error');
-        return;
-      }
-
-      console.log('Found product:', product);
-      
-      // Конвертируем все числовые поля
-      const storyData = {
-        image_url: product.image_url,
-        title: product.name,
-        price: parseFloat(String(product.price)) || 0,
-        discount: parseFloat(String(product.discount || 0)) || 0,
-        description: `Отличный товар из категории ${product.category}`,
-        link_url: productId,
-        seller_id: sellerInfo?.id || null, // Добавляем ID текущего продавца
-        is_active: true,
-        expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() // 24 часа
-      };
-
-      console.log('Story data to insert:', storyData);
-
-      const { data, error } = await supabase
-        .from('stories')
-        .insert(storyData)
-        .select();
+        .from('products')
+        .delete()
+        .eq('id', productId);
 
       if (error) {
-        console.error('Supabase error creating story:', error);
-        throw error;
+        showNotification('error', `Ошибка удаления: ${error.message}`);
+        return;
       }
-      
-      console.log('Story created successfully:', data);
-      await fetchStories();
-      addToast('Story успешно создан', 'success');
+
+      showNotification('success', 'Товар успешно удален');
+      setProducts(products.filter(p => p.id !== productId));
     } catch (error) {
-      console.error('Error creating story:', error);
-      addToast(`Ошибка при создании Story: ${error.message}`, 'error');
+      showNotification('error', `Неизвестная ошибка: ${error instanceof Error ? error.message : 'Произошла ошибка'}`);
     }
   };
 
-  const deleteStory = async (storyId: string) => {
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+
     try {
-      const { error } = await supabase
-        .from('stories')
-        .delete()
-        .eq('id', storyId);
-
-      if (error) throw error;
-      
-      await fetchStories();
-      addToast('Story удален', 'success');
-    } catch (error) {
-      console.error('Error deleting story:', error);
-      addToast('Ошибка при удалении Story', 'error');
-    }
-  };
-
-  // Кэширование данных
-  const cacheData = (products: Product[]) => {
-    const now = Date.now();
-    setCachedData({ products, lastUpdate: now });
-    localStorage.setItem('cached_products', JSON.stringify({ products, lastUpdate: now }));
-  };
-
-  const getCachedData = () => {
-    const cached = localStorage.getItem('cached_products');
-    if (cached) {
-      const data = JSON.parse(cached);
-      const now = Date.now();
-      // Кэш действителен 5 минут
-      if (now - data.lastUpdate < 300000) {
-        return data.products;
+      // Валидация
+      if (!formData.name.trim()) {
+        showNotification('error', 'Название товара обязательно');
+        return;
       }
-    }
-    return null;
-  };
 
-  // Автоматическое восполнение запасов
-  const checkAutoRestock = async () => {
-    if (!autoRestock) return;
-    
-    const lowStockProducts = products.filter(p => 
-      (p.stock_quantity || 0) <= restockThreshold && (p.stock_quantity || 0) > 0
-    );
-    
-    for (const product of lowStockProducts) {
-      const newQuantity = Math.min((product.stock_quantity || 0) * 2, 50); // Удваиваем, но не более 50
-      await supabase
-        .from('product_market')
-        .update({ stock_quantity: newQuantity })
-        .eq('id', product.id);
-    }
-    
-    if (lowStockProducts.length > 0) {
-      addToast(`Автоматически пополнено ${lowStockProducts.length} товаров`, 'success');
-      await fetchProducts();
+      if (!formData.category.trim()) {
+        showNotification('error', 'Категория обязательна');
+        return;
+      }
+
+      if (!formData.price || parseFloat(formData.price) <= 0) {
+        showNotification('error', 'Цена должна быть больше 0');
+        return;
+      }
+
+      let imageUrl = '';
+
+      // Загрузка изображения
+      if (formData.image) {
+        const fileExt = formData.image.name.split('.').pop();
+        const fileName = `${Date.now()}.${fileExt}`;
+        
+        const { error: uploadError } = await supabase.storage
+          .from('products')
+          .upload(fileName, formData.image);
+
+        if (uploadError) {
+          showNotification('error', `Ошибка загрузки изображения: ${uploadError.message}`);
+          return;
+        }
+
+        const { data: { publicUrl } } = supabase.storage
+          .from('products')
+          .getPublicUrl(fileName);
+
+        imageUrl = publicUrl;
+      }
+
+      // Сохранение товара (добавление или редактирование)
+      const productData = {
+        name: formData.name.trim(),
+        category: formData.category.trim(),
+        price: parseFloat(formData.price),
+        discount: formData.discount ? parseFloat(formData.discount) : 0,
+        image_url: imageUrl || null,
+      };
+
+      let error;
+      if (editingProduct) {
+        // Редактирование существующего товара
+        const result = await supabase
+          .from('products')
+          .update(productData)
+          .eq('id', editingProduct.id);
+        error = result.error;
+      } else {
+        // Добавление нового товара
+        const result = await supabase
+          .from('products')
+          .insert({
+            ...productData,
+            created_at: new Date().toISOString()
+          });
+        error = result.error;
+      }
+
+      if (error) {
+        showNotification('error', `Ошибка ${editingProduct ? 'обновления' : 'добавления'} товара: ${error.message}`);
+        return;
+      }
+
+      // Успешное сохранение
+      showNotification('success', `Товар успешно ${editingProduct ? 'обновлен' : 'добавлен'}`);
+      setFormData({
+        name: '',
+        category: '',
+        price: '',
+        discount: '',
+        image: null
+      });
+      setShowModal(false);
+      setEditingProduct(null);
+      
+      // Обновляем список категорий и товаров
+      await loadCategories();
+      await loadProducts();
+
+    } catch (error) {
+      showNotification('error', `Неизвестная ошибка: ${error instanceof Error ? error.message : 'Произошла ошибка'}`);
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-linear-to-br from-slate-900 via-purple-900/20 to-slate-900 text-white p-4 pb-24">
-      {/* Toast Notifications */}
-      <div className="fixed top-4 right-4 z-50 space-y-2">
-        {toasts.map(toast => (
-          <div
-            key={toast.id}
-            className={`px-6 py-3 rounded-2xl shadow-2xl backdrop-blur-xl border animate-pulse ${
-              toast.type === 'success' ? 'bg-green-500/20 border-green-500/30 text-green-100' :
-              toast.type === 'error' ? 'bg-red-500/20 border-red-500/30 text-red-100' :
-              'bg-yellow-500/20 border-yellow-500/30 text-yellow-100'
-            }`}
-          >
-            {toast.message}
-          </div>
-        ))}
-      </div>
-
-      {/* Header */}
-      <div className="mb-6">
-        <div className="flex justify-between items-center mb-4">
-          <div>
-            <h1 className="text-2xl font-bold text-white">📊 Админка</h1>
-            {/* Индикатор подключения к Supabase */}
-            <div className="flex items-center gap-2 mt-2">
-              {connectionStatus === 'checking' && (
-                <div className="flex items-center gap-2 text-yellow-400">
-                  <div className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></div>
-                  <span className="text-sm">Проверка подключения к Supabase...</span>
-                </div>
-              )}
-              {connectionStatus === 'connected' && (
-                <div className="flex items-center gap-2 text-green-400">
-                  <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-                  <span className="text-sm">✅ Подключено к Supabase</span>
-                </div>
-              )}
-              {connectionStatus === 'disconnected' && (
-                <div className="flex items-center gap-2 text-red-400">
-                  <div className="w-2 h-2 bg-red-400 rounded-full animate-pulse"></div>
-                  <span className="text-sm">❌ Нет подключения к Supabase</span>
-                  <button
-                    onClick={handleRecheckConnection}
-                    className="px-2 py-1 bg-red-600 hover:bg-red-700 text-white text-xs rounded transition-colors"
-                  >
-                    🔄 Повторить
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-          <button
-            onClick={handleLogout}
-            className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-2xl font-bold transition-colors"
-          >
-            🚪 Выйти
-          </button>
-        </div>
-        
-        <div className="flex flex-col sm:flex-row items-center gap-4 mb-4">
-          <div className="w-full sm:w-auto">
-            <button
-              onClick={() => setShowSocialModal(true)}
-              className="block w-full px-4 py-2 sm:py-3 bg-gray-800 text-white rounded-2xl font-bold hover:bg-gray-700 cursor-pointer text-center text-sm sm:text-base"
-            >
-              📱 Соцсети
-            </button>
-          </div>
-          <div className="w-full sm:w-auto">
-            <button
-              onClick={() => setShowStoriesModal(true)}
-              className="block w-full px-4 py-2 sm:py-3 bg-purple-600 text-white rounded-2xl font-bold hover:bg-purple-700 cursor-pointer text-center text-sm sm:text-base"
-            >
-              📱 Stories
-            </button>
-          </div>
-          <div className="w-full sm:w-auto">
-            <button
-              onClick={() => setShowCreateStoryModal(true)}
-              className="inline-flex w-full px-4 py-2 sm:py-3 bg-linear-to-r from-purple-600 to-pink-600 text-white rounded-2xl font-bold hover:from-purple-700 hover:to-pink-700 cursor-pointer text-center text-sm sm:text-base items-center justify-center gap-2"
-            >
-              <span>📸</span>
-              <span>Выложить Stories</span>
-              <span>→</span>
-            </button>
-          </div>
-          <div className="w-full sm:w-auto">
-            <button
-              onClick={() => setAutoRestock(!autoRestock)}
-              className={`block w-full px-4 py-2 sm:py-3 rounded-2xl font-bold cursor-pointer text-center text-sm sm:text-base transition-colors ${
-                autoRestock 
-                  ? 'bg-green-600 text-white hover:bg-green-700' 
-                  : 'bg-gray-600 text-white hover:bg-gray-700'
-              }`}
-            >
-              🔄 {autoRestock ? 'Автопополнение ВКЛ' : 'Автопополнение ВЫКЛ'}
-            </button>
-          </div>
-        </div>
-        {autoRestock && (
-          <div className="flex items-center gap-2 text-xs text-gray-400">
-            <span>Порог: {restockThreshold} шт.</span>
-            <button
-              onClick={() => setRestockThreshold(prev => Math.max(1, prev - 1))}
-              className="px-2 py-1 bg-gray-700 rounded hover:bg-gray-600"
-            >
-              -
-            </button>
-            <button
-              onClick={() => setRestockThreshold(prev => prev + 1)}
-              className="px-2 py-1 bg-gray-700 rounded hover:bg-gray-600"
-            >
-              +
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* Smart Notification Bell */}
-      {(stats.lowStock > 0 || stats.outOfStock > 0) && (
-        <div className="fixed top-20 right-4 z-50 animate-bounce-in">
-          <button className="relative p-3 bg-red-600 rounded-full border border-red-700 hover:bg-red-700 transition-all duration-300 shadow-lg hover:scale-105 animate-pulse">
-            <span className="text-2xl">🔔</span>
-            <span className="absolute -top-1 -right-1 bg-white text-red-600 text-xs rounded-full w-6 h-6 flex items-center justify-center font-bold shadow-lg">
-              {stats.lowStock + stats.outOfStock}
-            </span>
-          </button>
+    <div>
+      {/* Уведомления */}
+      {notification && (
+        <div className={`fixed top-4 right-4 z-50 flex items-center gap-2 px-4 py-3 rounded-lg shadow-lg ${
+          notification.type === 'success' 
+            ? 'bg-green-50 text-green-800 border border-green-200' 
+            : 'bg-red-50 text-red-800 border border-red-200'
+        }`}>
+          {notification.type === 'success' ? (
+            <CheckCircle className="w-5 h-5" />
+          ) : (
+            <AlertCircle className="w-5 h-5" />
+          )}
+          {notification.message}
         </div>
       )}
 
-      <div className="pb-24">
-        {/* Products Tab */}
-        {activeTab === 'products' && (
-          <div>
-            <div className="bg-white/5 backdrop-blur-2xl p-4 sm:p-6 rounded-3xl border border-white/10 shadow-2xl mb-6">
-              <div className="flex justify-between items-center mb-4 sm:mb-6">
-                <h2 className="text-xl sm:text-2xl font-bold text-white mb-4 sm:mb-6">
-                  Товары ({filteredProducts.length})
-                </h2>
-              </div>
-              
-              {loading ? (
-                <div className="flex items-center justify-center py-20">
-                  <div className="w-16 h-16 border-4 border-purple-500 rounded-full animate-spin"></div>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-                  {filteredProducts.map((product, index) => {
-                    const stockStatus = getStockStatus(product.stock_quantity);
-                    
-                    return (
-                      <div 
-                        key={product.id} 
-                        className="bg-white/10 backdrop-blur-xl rounded-2xl border border-white/20 shadow-2xl hover:shadow-3xl transition-all duration-300"
-                      >
-                        <div className="p-3 sm:p-4">
-                          <div className="flex flex-col sm:flex-row sm:items-start gap-3">
-                            <img 
-                              src={product.image_url} 
-                              alt={product.name}
-                              className="w-full sm:w-16 sm:h-16 h-32 object-cover rounded-2xl border border-white/20"
-                            />
-                            <div className="flex-1 min-w-0">
-                              <h3 className="font-bold text-white text-sm sm:text-base truncate">{product.name}</h3>
-                              <p className="text-xs sm:text-sm text-white/70">{product.sellers?.shop_name || 'Unknown'}</p>
-                              <div className="flex items-center gap-2 mt-2">
-                                <span className="text-base sm:text-lg font-bold text-cyan-400">{product.price}₽</span>
-                                {product.discount && (
-                                  <span className="text-xs px-2 py-1 bg-pink-500/20 text-pink-400 rounded-full">
-                                    -{product.discount}%
-                                  </span>
-                                )}
-                              </div>
-                              <div className="flex flex-wrap items-center gap-2 mt-1">
-                                <span className="text-sm">{stockStatus.icon}</span>
-                                <span className={`text-xs sm:text-sm font-medium ${stockStatus.color}`}>
-                                  {product.stock_quantity || 0} шт
-                                </span>
-                                <span className="text-xs px-2 py-1 bg-white/10 rounded-full text-cyan-300">
-                                  {product.category}
-                                </span>
-                              </div>
-                              <div className="flex gap-2 mt-3">
-                                <button
-                                  onClick={() => {
-                                    setEditingProduct(product);
-                                    setShowEditModal(true);
-                                  }}
-                                  className="flex-1 px-2 py-1 sm:px-3 bg-blue-600/80 hover:bg-blue-700/80 text-white text-xs rounded-xl backdrop-blur-xl border border-white/20"
-                                >
-                                  ✏️ Изменить
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
+      {/* Заголовок и кнопки */}
+      <div className="flex items-center justify-between mb-8">
+        <div>
+          <h1 className="text-2xl font-semibold text-gray-900">Товары</h1>
+          <p className="text-gray-600 mt-1">Управление товарами магазина</p>
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setCurrentView('list')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+              currentView === 'list'
+                ? 'bg-gray-900 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            <ShoppingBag className="w-5 h-5" />
+            Мои товары
+          </button>
+          <button
+            onClick={() => setCurrentView('add')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+              currentView === 'add'
+                ? 'bg-gray-900 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            <Plus className="w-5 h-5" />
+            Добавить товар
+          </button>
+        </div>
+      </div>
 
-        {/* Add Product Tab */}
-        {activeTab === 'add-product' && (
-          <div className="bg-white/5 backdrop-blur-2xl p-4 sm:p-6 rounded-3xl border border-white/10 shadow-2xl">
-            <h2 className="text-xl sm:text-2xl font-bold text-white mb-4 sm:mb-6">
-              Добавить новый товар
-            </h2>
-            <div className="max-w-full sm:max-w-md">
-              <div className="space-y-3 sm:space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-cyan-300 mb-2">Название товара</label>
-                  <input
-                    type="text"
-                    value={newProduct.name}
-                    onChange={(e) => setNewProduct({...newProduct, name: e.target.value})}
-                    className="w-full px-3 py-2 sm:px-4 sm:py-3 bg-white/10 backdrop-blur-xl rounded-2xl outline-none focus:ring-2 focus:ring-cyan-500 border border-white/20 text-white text-sm sm:text-base placeholder-white/50"
-                    placeholder="Введите название"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-cyan-300 mb-2">Цена (₽)</label>
-                  <input
-                    type="number"
-                    value={newProduct.price}
-                    onChange={(e) => setNewProduct({...newProduct, price: e.target.value})}
-                    className="w-full px-3 py-2 sm:px-4 sm:py-3 bg-white/10 backdrop-blur-xl rounded-2xl outline-none focus:ring-2 focus:ring-cyan-500 border border-white/20 text-white text-sm sm:text-base placeholder-white/50"
-                    placeholder="0"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-cyan-300 mb-2">Скидка (%)</label>
-                  <input
-                    type="number"
-                    value={newProduct.discount}
-                    onChange={(e) => setNewProduct({...newProduct, discount: e.target.value})}
-                    className="w-full px-3 py-2 sm:px-4 sm:py-3 bg-white/10 backdrop-blur-xl rounded-2xl outline-none focus:ring-2 focus:ring-cyan-500 border border-white/20 text-white text-sm sm:text-base placeholder-white/50"
-                    placeholder="0"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-cyan-300 mb-2">Количество</label>
-                  <input
-                    type="number"
-                    value={newProduct.stock_quantity}
-                    onChange={(e) => setNewProduct({...newProduct, stock_quantity: e.target.value})}
-                    className="w-full px-3 py-2 sm:px-4 sm:py-3 bg-white/10 backdrop-blur-xl rounded-2xl outline-none focus:ring-2 focus:ring-cyan-500 border border-white/20 text-white text-sm sm:text-base placeholder-white/50"
-                    placeholder="0"
-                  />
-                </div>
-                <div className="sm:col-span-2">
-                  <label className="block text-sm font-medium text-cyan-300 mb-2">Описание товара (по желанию)</label>
-                  <textarea
-                    value={newProduct.description}
-                    onChange={(e) => setNewProduct({...newProduct, description: e.target.value})}
-                    className="w-full px-3 py-2 sm:px-4 sm:py-3 bg-white/10 backdrop-blur-xl rounded-2xl outline-none focus:ring-2 focus:ring-cyan-500 border border-white/20 text-white text-sm sm:text-base placeholder-white/50 resize-none"
-                    placeholder="Расскажите о товаре..."
-                    rows={3}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-cyan-300 mb-2">Категория</label>
-                  <select
-                    value={newProduct.category}
-                    onChange={(e) => handleCategoryChange(e.target.value)}
-                    className="w-full px-3 py-2 sm:px-4 sm:py-3 bg-white/10 backdrop-blur-xl rounded-2xl outline-none focus:ring-2 focus:ring-cyan-500 border border-white/20 text-white text-sm sm:text-base"
-                  >
-                    <option value="">Выберите категорию</option>
-                    <option value="Одежда">Одежда</option>
-                    <option value="Обувь">Обувь</option>
-                    <option value="Аксессуары">Аксессуары</option>
-                    <option value="Электроника">Электроника</option>
-                    <option value="Другое">Другое</option>
-                    <option value="custom">✏️ Своя категория</option>
-                  </select>
-                  
-                  {/* Поле для ввода своей категории */}
-                  {newProduct.category === 'custom' && (
-                    <input
-                      type="text"
-                      value={newProduct.customCategory || ''}
-                      onChange={(e) => {
-                        setNewProduct({...newProduct, customCategory: e.target.value});
-                        handleCategoryChange(e.target.value);
-                      }}
-                      className="w-full mt-2 px-3 py-2 sm:px-4 sm:py-3 bg-white/10 backdrop-blur-xl rounded-2xl outline-none focus:ring-2 focus:ring-cyan-500 border border-white/20 text-white text-sm sm:text-base placeholder-white/50"
-                      placeholder="Введите свою категорию"
-                    />
-                  )}
-                </div>
-
-                {/* Опция размеров для одежды и обуви */}
-                {showSizeSelector && (
-                  <div>
-                    <div className="flex items-center gap-2 mb-3">
-                      <input
-                        type="checkbox"
-                        id="has_sizes"
-                        checked={newProduct.has_sizes}
-                        onChange={toggleHasSizes}
-                        className="w-4 h-4 rounded"
-                      />
-                      <label htmlFor="has_sizes" className="text-sm font-medium text-cyan-300">
-                        Этот товар имеет размеры
-                      </label>
-                    </div>
-
-                    {newProduct.has_sizes && (
-                      <div className="bg-white/5 backdrop-blur-xl rounded-2xl p-4 border border-white/10">
-                        <h4 className="text-sm font-medium text-cyan-300 mb-3">
-                          📏 Доступные размеры ({newProduct.category})
-                        </h4>
-                        <div className="grid grid-cols-3 gap-2 max-h-40 overflow-y-auto">
-                          {productSizes.map((size) => (
-                            <div key={size.size} className="flex items-center gap-2 bg-white/10 rounded-lg p-2">
-                              <span className="text-xs text-white font-medium min-w-[30px]">
-                                {size.size}
-                              </span>
-                              <input
-                                type="number"
-                                min="0"
-                                value={size.stock_quantity}
-                                onChange={(e) => handleSizeQuantityChange(size.size, parseInt(e.target.value) || 0)}
-                                className="w-16 px-2 py-1 bg-white/20 rounded text-white text-xs text-center placeholder-white/50"
-                                placeholder="0"
-                              />
-                            </div>
-                          ))}
-                        </div>
-                        <p className="text-xs text-gray-400 mt-2">
-                          Укажите количество для каждого размера
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                )}
-                <div>
-                  <label className="block text-sm font-medium text-cyan-300 mb-2">Изображения товара</label>
-                  <div className="space-y-3">
-                    <label className="block w-full px-4 py-8 bg-gray-800 rounded-2xl border-2 border-dashed border-gray-600 text-center cursor-pointer hover:border-cyan-500 hover:bg-gray-700 transition-colors">
-                      <span className="text-3xl mb-2 block">📸</span>
-                      <span className="text-gray-300 text-sm">Выберите изображения</span>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        multiple
-                        onChange={handleImageSelect}
-                        className="hidden"
-                      />
-                    </label>
-                    {imagePreviews.length > 0 && (
-                      <div className="grid grid-cols-3 gap-2">
-                        {imagePreviews.map((preview, index) => (
-                          <div key={index} className="relative group">
-                            <img 
-                              src={preview} 
-                              alt={`Предпросмотр ${index + 1}`}
-                              className="w-full h-20 object-cover rounded-lg border border-gray-600"
-                            />
-                            <button
-                              onClick={() => removeImage(index)}
-                              className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs hover:bg-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
-                            >
-                              ×
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <button
-                  onClick={createProduct}
-                  className="w-full px-4 py-2 sm:px-6 sm:py-3 bg-green-600 text-white rounded-2xl font-bold hover:bg-green-700 text-sm sm:text-base"
-                >
-                  ➕ Добавить товар
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Categories Tab */}
-        {activeTab === 'categories' && (
-          <div className="bg-white/5 backdrop-blur-2xl p-4 sm:p-6 rounded-3xl border border-white/10 shadow-2xl">
-            <div className="flex justify-between items-center mb-4 sm:mb-6">
-              <h2 className="text-xl sm:text-2xl font-bold text-white">
-                📂 Категории ({categories.length})
+      {/* Модальное окно */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-40">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4">
+            {/* Заголовок модального окна */}
+            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+              <h2 className="text-xl font-semibold text-gray-900">
+                {editingProduct ? 'Редактировать товар' : 'Новый товар'}
               </h2>
               <button
-                onClick={() => {
-                  setEditingCategory(null);
-                  setNewCategory({
-                    name: '',
-                    icon: '📦',
-                    color: 'from-gray-400 to-gray-600',
-                    sort_order: categories.length + 1
-                  });
-                  setShowCategoryModal(true);
-                }}
-                className="px-4 py-2 bg-linear-to-r from-green-500 to-emerald-600 text-white rounded-xl hover:from-green-600 hover:to-emerald-700 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105"
+                onClick={() => setShowModal(false)}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
               >
-                ➕ Добавить категорию
+                <X className="w-5 h-5 text-gray-500" />
               </button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {categories.map((category) => (
-                <div
-                  key={category.id}
-                  className="bg-white/10 backdrop-blur-xl rounded-2xl p-4 border border-white/20 hover:bg-white/15 transition-all duration-300"
+            {/* Форма */}
+            <form onSubmit={handleSubmit} className="p-6 space-y-4">
+              {/* Название товара */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Название товара
+                </label>
+                <input
+                  type="text"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                  placeholder="Введите название товара"
+                />
+              </div>
+
+              {/* Категория */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Категория
+                </label>
+                <div className="space-y-2">
+                  <select
+                    value={formData.category}
+                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                  >
+                    <option value="">Выберите категорию</option>
+                    {categories.map((category) => (
+                      <option key={category} value={category}>
+                        {category}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    type="text"
+                    value={formData.category}
+                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                    placeholder="или введите новую категорию"
+                  />
+                </div>
+              </div>
+
+              {/* Цена */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Цена (₽)
+                </label>
+                <input
+                  type="number"
+                  value={formData.price}
+                  onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                  placeholder="0"
+                  min="0"
+                  step="0.01"
+                />
+              </div>
+
+              {/* Скидка */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Скидка (%)
+                </label>
+                <input
+                  type="number"
+                  value={formData.discount}
+                  onChange={(e) => setFormData({ ...formData, discount: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                  placeholder="0"
+                  min="0"
+                  max="100"
+                />
+              </div>
+
+              {/* Фото товара */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Фото товара
+                </label>
+                <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-gray-400 transition-colors">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => setFormData({ ...formData, image: e.target.files?.[0] || null })}
+                    className="hidden"
+                    id="image-upload"
+                  />
+                  <label
+                    htmlFor="image-upload"
+                    className="cursor-pointer flex flex-col items-center"
+                  >
+                    <Upload className="w-8 h-8 text-gray-400 mb-2" />
+                    <span className="text-sm text-gray-600">
+                      {formData.image ? formData.image.name : 'Нажмите для загрузки фото'}
+                    </span>
+                  </label>
+                </div>
+              </div>
+
+              {/* Кнопки */}
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowModal(false)}
+                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
                 >
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-3">
-                      <div className="text-3xl">{category.icon}</div>
-                      <div>
-                        <h3 className="text-white font-semibold">{category.name}</h3>
-                        <p className="text-white/70 text-sm">{category.count} товаров</p>
-                      </div>
+                  Отмена
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50"
+                >
+                  {loading ? (
+                    'Сохранение...'
+                  ) : (
+                    <>
+                      {editingProduct ? 'Сохранить' : 'Добавить'}
+                      <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Основной контент */}
+      {currentView === 'add' ? (
+        /* Режим добавления товара */
+        <div>
+          {/* Кнопка быстрого добавления */}
+          <div className="text-center py-12">
+            <div className="inline-flex items-center justify-center w-16 h-16 bg-gray-100 rounded-full mb-4">
+              <Package className="w-8 h-8 text-gray-400" />
+            </div>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">Добавление товара</h3>
+            <p className="text-gray-600 mb-6">Заполните форму для добавления нового товара</p>
+            <button
+              onClick={() => setShowModal(true)}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors"
+            >
+              <Plus className="w-5 h-5" />
+              Открыть форму
+            </button>
+          </div>
+        </div>
+      ) : (
+        /* Режим списка товаров */
+        <div>
+          {products.length === 0 ? (
+            <div className="text-center py-12">
+              <div className="inline-flex items-center justify-center w-16 h-16 bg-gray-100 rounded-full mb-4">
+                <Package className="w-8 h-8 text-gray-400" />
+              </div>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">Нет товаров</h3>
+              <p className="text-gray-600">У вас пока нет добавленных товаров</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {products.map((product) => (
+                <div key={product.id} className="bg-white border border-gray-200 rounded-xl p-6 hover:shadow-lg transition-shadow">
+                  {/* Изображение товара */}
+                  {product.image_url ? (
+                    <div className="aspect-square bg-gray-100 rounded-lg mb-4 overflow-hidden">
+                      <img
+                        src={product.image_url}
+                        alt={product.name}
+                        className="w-full h-full object-cover"
+                      />
                     </div>
-                  </div>
+                  ) : (
+                    <div className="aspect-square bg-gray-100 rounded-lg mb-4 flex items-center justify-center">
+                      <Package className="w-12 h-12 text-gray-400" />
+                    </div>
+                  )}
+
+                  {/* Информация о товаре */}
+                  <h3 className="font-semibold text-gray-900 mb-2">{product.name}</h3>
+                  <p className="text-sm text-gray-600 mb-3">{product.category}</p>
                   
-                  <div className="flex items-center gap-2 mb-3">
-                    <div className={`h-2 w-full rounded-full bg-linear-to-r ${category.color}`}></div>
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      {product.discount > 0 ? (
+                        <div>
+                          <span className="text-lg font-bold text-red-600">
+                            {(product.price * (1 - product.discount / 100)).toLocaleString()} ₽
+                          </span>
+                          <span className="text-sm text-gray-500 line-through ml-2">
+                            {product.price.toLocaleString()} ₽
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-lg font-bold text-gray-900">
+                          {product.price.toLocaleString()} ₽
+                        </span>
+                      )}
+                    </div>
+                    {product.discount > 0 && (
+                      <span className="bg-red-100 text-red-800 text-xs px-2 py-1 rounded-full">
+                        -{product.discount}%
+                      </span>
+                    )}
                   </div>
-                  
+
+                  {/* Кнопки действий */}
                   <div className="flex gap-2">
                     <button
-                      onClick={() => {
-                        setEditingCategory(category);
-                        setNewCategory({
-                          name: category.name,
-                          icon: category.icon,
-                          color: category.color,
-                          sort_order: category.sort_order
-                        });
-                        setShowCategoryModal(true);
-                      }}
-                      className="flex-1 px-3 py-2 bg-blue-500/20 text-blue-300 rounded-lg hover:bg-blue-500/30 transition-colors text-sm"
+                      onClick={() => handleEdit(product)}
+                      className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors"
                     >
-                      ✏️ Редактировать
+                      <Edit2 className="w-4 h-4" />
+                      Изменить
                     </button>
                     <button
-                      onClick={() => handleDeleteCategory(category.id)}
-                      className="flex-1 px-3 py-2 bg-red-500/20 text-red-300 rounded-lg hover:bg-red-500/30 transition-colors text-sm"
+                      onClick={() => handleDelete(product.id)}
+                      className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                     >
-                      🗑️ Удалить
+                      <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
                 </div>
               ))}
             </div>
-          </div>
-        )}
-
-        {/* AI Tab */}
-        {activeTab === 'ai' && (
-          <div className="space-y-6">
-            <div className="bg-white/5 backdrop-blur-2xl p-4 sm:p-6 rounded-3xl border border-white/10 shadow-2xl">
-              <div className="flex justify-between items-center mb-4 sm:mb-6">
-                <h2 className="text-xl sm:text-2xl font-bold text-white">
-                  🤖 AI Ассистент
-                </h2>
-                <div className="text-sm text-cyan-300">
-                  Умные инструменты для вашего бизнеса
-                </div>
-              </div>
-              
-              <div className="p-6">
-                <div className="text-center text-white">
-                  <div className="text-6xl mb-4">🤖</div>
-                  <h3 className="text-xl font-semibold mb-2">AI Ассистент временно отключен</h3>
-                  <p className="text-white/70">Функциональность будет доступна позже</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Liquid Glass Bottom Navigation */}
-      <div className="fixed bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 z-40">
-        <div className="bg-white/10 backdrop-blur-2xl rounded-3xl border border-white/20 shadow-2xl p-2">
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setActiveTab('products')}
-              className={`flex items-center justify-center w-12 h-12 sm:w-14 sm:h-14 rounded-2xl transition-all duration-300 ${
-                activeTab === 'products' 
-                  ? 'bg-white/30 shadow-lg scale-110' 
-                  : 'hover:bg-white/20 active:scale-95'
-              }`}
-            >
-              <span className="text-xl sm:text-2xl filter drop-shadow-sm">📦</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('add-product')}
-              className={`flex items-center justify-center w-12 h-12 sm:w-14 sm:h-14 rounded-2xl transition-all duration-300 ${
-                activeTab === 'add-product' 
-                  ? 'bg-white/30 shadow-lg scale-110' 
-                  : 'hover:bg-white/20 active:scale-95'
-              }`}
-            >
-              <span className="text-xl sm:text-2xl filter drop-shadow-sm">➕</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('categories')}
-              className={`flex items-center justify-center w-12 h-12 sm:w-14 sm:h-14 rounded-2xl transition-all duration-300 ${
-                activeTab === 'categories' 
-                  ? 'bg-white/30 shadow-lg scale-110' 
-                  : 'hover:bg-white/20 active:scale-95'
-              }`}
-            >
-              <span className="text-xl sm:text-2xl filter drop-shadow-sm">📂</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('ai')}
-              className={`flex items-center justify-center w-12 h-12 sm:w-14 sm:h-14 rounded-2xl transition-all duration-300 ${
-                activeTab === 'ai' 
-                  ? 'bg-white/30 shadow-lg scale-110' 
-                  : 'hover:bg-white/20 active:scale-95'
-              }`}
-            >
-              <span className="text-xl sm:text-2xl filter drop-shadow-sm">🤖</span>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Edit Modal */}
-      {showEditModal && editingProduct && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white/10 backdrop-blur-2xl rounded-3xl border border-white/20 p-4 sm:p-6 max-w-md w-full shadow-2xl">
-            <h3 className="text-lg sm:text-xl font-bold text-white mb-4">Редактировать товар</h3>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-cyan-300 mb-2">Название товара</label>
-                <input
-                  type="text"
-                  value={editingProduct.name}
-                  onChange={(e) => setEditingProduct({...editingProduct, name: e.target.value})}
-                  className="w-full px-3 py-2 sm:px-4 sm:py-3 bg-white/10 backdrop-blur-xl rounded-2xl outline-none focus:ring-2 focus:ring-cyan-500 border border-white/20 text-white text-sm sm:text-base"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-cyan-300 mb-2">Цена (₽)</label>
-                <input
-                  type="number"
-                  value={editingProduct.price}
-                  onChange={(e) => setEditingProduct({...editingProduct, price: Number(e.target.value)})}
-                  className="w-full px-3 py-2 sm:px-4 sm:py-3 bg-white/10 backdrop-blur-xl rounded-2xl outline-none focus:ring-2 focus:ring-cyan-500 border border-white/20 text-white text-sm sm:text-base"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-cyan-300 mb-2">Скидка (%)</label>
-                <input
-                  type="number"
-                  value={editingProduct.discount || 0}
-                  onChange={(e) => setEditingProduct({...editingProduct, discount: Number(e.target.value)})}
-                  className="w-full px-3 py-2 sm:px-4 sm:py-3 bg-white/10 backdrop-blur-xl rounded-2xl outline-none focus:ring-2 focus:ring-cyan-500 border border-white/20 text-white text-sm sm:text-base"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-cyan-300 mb-2">Количество</label>
-                <input
-                  type="number"
-                  value={editingProduct.stock_quantity || 0}
-                  onChange={(e) => setEditingProduct({...editingProduct, stock_quantity: Number(e.target.value)})}
-                  className="w-full px-3 py-2 sm:px-4 sm:py-3 bg-white/10 backdrop-blur-xl rounded-2xl outline-none focus:ring-2 focus:ring-cyan-500 border border-white/20 text-white text-sm sm:text-base"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-cyan-300 mb-2">Категория</label>
-                <input
-                  type="text"
-                  value={editingProduct.category}
-                  onChange={(e) => setEditingProduct({...editingProduct, category: e.target.value})}
-                  className="w-full px-3 py-2 sm:px-4 sm:py-3 bg-white/10 backdrop-blur-xl rounded-2xl outline-none focus:ring-2 focus:ring-cyan-500 border border-white/20 text-white text-sm sm:text-base"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-cyan-300 mb-2">URL изображения</label>
-                <input
-                  type="text"
-                  value={editingProduct.image_url}
-                  onChange={(e) => setEditingProduct({...editingProduct, image_url: e.target.value})}
-                  className="w-full px-3 py-2 sm:px-4 sm:py-3 bg-white/10 backdrop-blur-xl rounded-2xl outline-none focus:ring-2 focus:ring-cyan-500 border border-white/20 text-white text-sm sm:text-base"
-                />
-              </div>
-              <div className="flex gap-3 pt-4">
-                <button
-                  onClick={() => updateProduct(editingProduct)}
-                  className="flex-1 px-3 py-2 sm:px-4 sm:py-3 bg-green-600 text-white rounded-2xl font-bold hover:bg-green-700 text-sm sm:text-base"
-                >
-                  💾 Сохранить
-                </button>
-                <button
-                  onClick={() => {
-                    setShowEditModal(false);
-                    setEditingProduct(null);
-                  }}
-                  className="flex-1 px-3 py-2 sm:px-4 sm:py-3 bg-white/10 hover:bg-white/20 text-white rounded-2xl font-bold text-sm sm:text-base backdrop-blur-xl border border-white/20"
-                >
-                  ❌ Отмена
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Social Networks Modal */}
-      {showSocialModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white/10 backdrop-blur-2xl rounded-3xl border border-white/20 p-4 sm:p-6 max-w-md w-full shadow-2xl">
-            <h3 className="text-lg sm:text-xl font-bold text-white mb-6">Социальные сети</h3>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-cyan-300 mb-2">📱 Telegram</label>
-                <input
-                  type="text"
-                  value={sellerInfo.telegram_url || ''}
-                  onChange={(e) => setSellerInfo({...sellerInfo, telegram_url: e.target.value})}
-                  className="w-full px-4 py-3 bg-white/10 backdrop-blur-xl rounded-2xl outline-none focus:ring-2 focus:ring-cyan-500 border border-white/20 text-white placeholder-white/50"
-                  placeholder="https://t.me/username"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-cyan-300 mb-2">💬 VK</label>
-                <input
-                  type="text"
-                  value={sellerInfo.vk_url || ''}
-                  onChange={(e) => setSellerInfo({...sellerInfo, vk_url: e.target.value})}
-                  className="w-full px-4 py-3 bg-white/10 backdrop-blur-xl rounded-2xl outline-none focus:ring-2 focus:ring-cyan-500 border border-white/20 text-white placeholder-white/50"
-                  placeholder="https://vk.com/username"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-cyan-300 mb-2">💬 WhatsApp</label>
-                <input
-                  type="text"
-                  value={sellerInfo.whatsapp_url || ''}
-                  onChange={(e) => setSellerInfo({...sellerInfo, whatsapp_url: e.target.value})}
-                  className="w-full px-4 py-3 bg-white/10 backdrop-blur-xl rounded-2xl outline-none focus:ring-2 focus:ring-cyan-500 border border-white/20 text-white placeholder-white/50"
-                  placeholder="https://wa.me/phone"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-cyan-300 mb-2">📷 Instagram</label>
-                <input
-                  type="text"
-                  value={sellerInfo.instagram_url || ''}
-                  onChange={(e) => setSellerInfo({...sellerInfo, instagram_url: e.target.value})}
-                  className="w-full px-4 py-3 bg-white/10 backdrop-blur-xl rounded-2xl outline-none focus:ring-2 focus:ring-cyan-500 border border-white/20 text-white placeholder-white/50"
-                  placeholder="https://instagram.com/username"
-                />
-              </div>
-              <div className="flex gap-3 pt-4">
-                <button
-                  onClick={updateSellerSocials}
-                  className="flex-1 px-4 py-3 bg-purple-600 text-white rounded-2xl font-bold hover:bg-purple-700"
-                >
-                  💾 Сохранить
-                </button>
-                <button
-                  onClick={() => setShowSocialModal(false)}
-                  className="flex-1 px-4 py-3 bg-white/10 hover:bg-white/20 text-white rounded-2xl font-bold backdrop-blur-xl border border-white/20"
-                >
-                  ❌ Отмена
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-    {/* Stories Modal */}
-      {showStoriesModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-gray-800 rounded-3xl border border-gray-700 p-6 max-w-md w-full">
-            <h3 className="text-xl font-bold text-white mb-6">📱 Stories</h3>
-            <div className="space-y-4">
-              <div className="text-gray-300 text-sm">
-                <p className="mb-2">Stories - это временные карточки товаров, которые исчезают через 24 часа.</p>
-                <p className="mb-2">• Горизонтальная навигация (свайп влево/вправо)</p>
-                <p className="mb-2">• Автовоспроизведение каждые 5 секунд</p>
-                <p className="mb-2">• Статистика просмотров и кликов</p>
-                <p>• Автоматическое удаление через 24 часа</p>
-              </div>
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setShowStoriesModal(false)}
-                  className="flex-1 px-4 py-3 bg-gray-600 hover:bg-gray-700 text-white rounded-2xl font-bold"
-                >
-                  Закрыть
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Create Story Modal */}
-      {showCreateStoryModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-9999 flex items-center justify-center p-4">
-          <div className="bg-gray-800 rounded-3xl border border-gray-700 p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <h3 className="text-xl font-bold text-white mb-4">
-              📸 Выложить Stories
-            </h3>
-            
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Выберите изображения для Stories
-                </label>
-                <div className="space-y-3">
-                  <label className="block w-full px-4 py-8 bg-gray-700 rounded-2xl border-2 border-dashed border-gray-600 text-center cursor-pointer hover:border-purple-500 hover:bg-gray-600 transition-colors">
-                    <span className="text-3xl mb-2 block">📸</span>
-                    <span className="text-gray-300 text-sm">Нажмите чтобы выбрать изображения</span>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      multiple
-                      onChange={handleStoryImageSelect}
-                      className="hidden"
-                    />
-                  </label>
-                  {storyPreviews.length > 0 && (
-                    <div className="grid grid-cols-3 gap-2">
-                      {storyPreviews.map((preview, index) => (
-                        <div key={index} className="relative group">
-                          <img 
-                            src={preview} 
-                            alt={`Story ${index + 1}`}
-                            className="w-full h-20 object-cover rounded-lg border border-gray-600"
-                          />
-                          <button
-                            onClick={() => removeStoryImage(index)}
-                            className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs hover:bg-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
-                          >
-                            ×
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-              
-              <div className="text-sm text-gray-400">
-                <p>• Выберите до 10 изображений</p>
-                <p>• Stories будут автоматически удалены через 24 часа</p>
-                <p>• Каждое изображение создаст отдельный Story</p>
-              </div>
-              
-              <div className="flex gap-3">
-                <button
-                  onClick={() => {
-                    setShowCreateStoryModal(false);
-                  }}
-                  className="flex-1 px-4 py-3 bg-gray-600 hover:bg-gray-700 text-white rounded-2xl font-bold"
-                >
-                  Отмена
-                </button>
-                <button
-                  onClick={createStoryFromGallery}
-                  disabled={storyPreviews.length === 0}
-                  className="flex-1 px-4 py-3 bg-linear-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 disabled:from-gray-600 disabled:to-gray-700 disabled:cursor-not-allowed text-white rounded-2xl font-bold flex items-center justify-center gap-2"
-                >
-                  <span>📸</span>
-                  <span>Выложить Stories ({storyPreviews.length})</span>
-                  <span>→</span>
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Category Modal */}
-      {showCategoryModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white/10 backdrop-blur-2xl rounded-3xl border border-white/20 p-4 sm:p-6 max-w-md w-full shadow-2xl">
-            <h3 className="text-lg sm:text-xl font-bold text-white mb-4">
-              {editingCategory ? '✏️ Редактировать категорию' : '➕ Добавить категорию'}
-            </h3>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-cyan-300 mb-2">Название категории</label>
-                <input
-                  type="text"
-                  value={newCategory.name}
-                  onChange={(e) => setNewCategory({...newCategory, name: e.target.value})}
-                  className="w-full px-3 py-2 sm:px-4 sm:py-3 bg-white/10 backdrop-blur-xl rounded-2xl outline-none focus:ring-2 focus:ring-cyan-500 border border-white/20 text-white text-sm sm:text-base"
-                  placeholder="Например: Смартфоны"
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-cyan-300 mb-2">Иконка</label>
-                <div className="grid grid-cols-6 gap-2">
-                  {['📱', '💻', '📋', '📺', '🎧', '⌚', '📷', '🎮', '👔', '👗', '👟', '👜', '💍', '🪑', '🍳', '⚽', '💄', '🚗', '📚', '🐾', '🌱', '🔧', '🍎', '📦'].map((icon) => (
-                    <button
-                      key={icon}
-                      onClick={() => setNewCategory({...newCategory, icon})}
-                      className={`p-2 rounded-lg text-xl transition-all ${
-                        newCategory.icon === icon
-                          ? 'bg-cyan-500/30 border border-cyan-400'
-                          : 'bg-white/10 border border-white/20 hover:bg-white/20'
-                      }`}
-                    >
-                      {icon}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-cyan-300 mb-2">Цвет градиента</label>
-                <div className="grid grid-cols-2 gap-2">
-                  {[
-                    'from-blue-400 to-blue-600',
-                    'from-purple-400 to-purple-600',
-                    'from-green-400 to-green-600',
-                    'from-red-400 to-red-600',
-                    'from-yellow-400 to-yellow-600',
-                    'from-pink-400 to-pink-600',
-                    'from-gray-600 to-gray-800',
-                    'from-orange-400 to-orange-600'
-                  ].map((color) => (
-                    <button
-                      key={color}
-                      onClick={() => setNewCategory({...newCategory, color})}
-                      className={`p-3 rounded-lg bg-linear-to-r ${color} transition-all ${
-                        newCategory.color === color
-                          ? 'ring-2 ring-white ring-offset-2 ring-offset-transparent'
-                          : ''
-                      }`}
-                    />
-                  ))}
-                </div>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-cyan-300 mb-2">Порядок сортировки</label>
-                <input
-                  type="number"
-                  value={newCategory.sort_order}
-                  onChange={(e) => setNewCategory({...newCategory, sort_order: parseInt(e.target.value) || 0})}
-                  className="w-full px-3 py-2 sm:px-4 sm:py-3 bg-white/10 backdrop-blur-xl rounded-2xl outline-none focus:ring-2 focus:ring-cyan-500 border border-white/20 text-white text-sm sm:text-base"
-                  placeholder="1, 2, 3..."
-                />
-              </div>
-            </div>
-            
-            <div className="flex gap-3 mt-6">
-              <button
-                onClick={() => {
-                  setShowCategoryModal(false);
-                  setEditingCategory(null);
-                  setNewCategory({
-                    name: '',
-                    icon: '📦',
-                    color: 'from-gray-400 to-gray-600',
-                    sort_order: 0
-                  });
-                }}
-                className="flex-1 px-4 py-3 bg-gray-600 hover:bg-gray-700 text-white rounded-2xl font-bold"
-              >
-                Отмена
-              </button>
-              <button
-                onClick={handleSaveCategory}
-                className="flex-1 px-4 py-3 bg-linear-to-r from-cyan-600 to-blue-600 hover:from-cyan-700 hover:to-blue-700 text-white rounded-2xl font-bold"
-              >
-                {editingCategory ? '💾 Сохранить' : '➕ Создать'}
-              </button>
-            </div>
-          </div>
+          )}
         </div>
       )}
     </div>

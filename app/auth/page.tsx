@@ -180,6 +180,7 @@ export default function AuthPage() {
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                   className="pl-10 pr-10 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                   placeholder="•••••••••"
+                  autoComplete="current-password"
                   required
                 />
                 <button

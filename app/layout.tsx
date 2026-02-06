@@ -48,9 +48,6 @@ export default function RootLayout({
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="format-detection" content="telephone=no" />
         <meta name="color-scheme" content="light dark" />
-        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
-        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.5.1/css/all.min.css" />
-        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/uicons/3.0.0/uicons-regular-rounded/css/uicons-regular-rounded.min.css" />
       </head>
       <body className="antialiased transition-colors duration-300" style={{
         backgroundColor: 'var(--bg-primary)',

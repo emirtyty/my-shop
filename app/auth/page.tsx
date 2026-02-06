@@ -1,245 +1,252 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
+import { useState } from 'react';
+import { createClient } from '@supabase/supabase-js';
+import { Mail, Lock, User, Eye, EyeOff, CheckCircle, AlertCircle } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
+
+interface Notification {
+  type: 'success' | 'error';
+  message: string;
+}
 
 export default function AuthPage() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [shopName, setShopName] = useState('');
   const [isLogin, setIsLogin] = useState(true);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [checkingSession, setCheckingSession] = useState(true);
+  const [showPassword, setShowPassword] = useState(false);
+  const [notification, setNotification] = useState<Notification | null>(null);
+  const router = useRouter();
 
-  useEffect(() => {
-    // Проверяем, есть ли уже активная сессия
-    const checkSession = async () => {
-      try {
-        const { data: { session }, error } = await supabase.auth.getSession();
-        
-        if (error) {
-          console.error('Ошибка проверки сессии:', error);
-        } else if (session) {
-          console.log('Найдена активная сессия, перенаправляем в админку...');
-          window.location.href = '/admin';
-          return;
-        }
-        
-        setCheckingSession(false);
-      } catch (error) {
-        console.error('Критическая ошибка проверки сессии:', error);
-        setCheckingSession(false);
-      }
-    };
+  const [formData, setFormData] = useState({
+    email: '',
+    password: '',
+    confirmPassword: ''
+  });
 
-    checkSession();
-  }, []);
+  const showNotification = (type: 'success' | 'error', message: string) => {
+    setNotification({ type, message });
+    setTimeout(() => setNotification(null), 3000);
+  };
 
-  const handleAuth = async () => {
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     setLoading(true);
-    setError('');
 
     try {
       if (isLogin) {
-        // Вход - пробуем оба варианта
-        let emailToUse = email;
-        
-        // Если ввели просто "admin", преобразуем в email
-        if (email === 'admin') {
-          emailToUse = 'admin@marketplace.com';
-        }
-
-        console.log('Пробуем войти с:', emailToUse, password);
-
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email: emailToUse,
-          password,
+        // Вход
+        const { error } = await supabase.auth.signInWithPassword({
+          email: formData.email,
+          password: formData.password
         });
 
-        console.log('Результат входа:', { data, error });
-
         if (error) {
-          console.log('Ошибка входа:', error.message);
-          
-          // Если пользователь не существует, пробуем создать его
-          if (error.message.includes('Invalid login credentials')) {
-            console.log('Пробуем создать пользователя...');
-            const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-              email: emailToUse,
-              password,
-            });
-
-            console.log('Регистрация:', { signUpData, signUpError });
-
-            if (signUpError) {
-              console.log('Ошибка регистрации:', signUpError.message);
-              throw new Error(`Ошибка регистрации: ${signUpError.message}`);
-            }
-
-            if (signUpData.user) {
-              console.log('Пользователь создан, добавляем в sellers...');
-              
-              // Создаем запись продавца
-              const { error: sellerError } = await supabase
-                .from('sellers')
-                .insert({
-                  id: signUpData.user.id,
-                  login: email === 'admin' ? 'admin' : email,
-                  shop_name: shopName || 'My Store',
-                });
-
-              if (sellerError) {
-                console.log('Ошибка добавления в sellers:', sellerError.message);
-                throw new Error(`Ошибка создания профиля: ${sellerError.message}`);
-              }
-
-              console.log('Профиль создан, пробуем войти...');
-              
-              // Пробуем войти снова
-              const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({
-                email: emailToUse,
-                password,
-              });
-
-              if (loginError) {
-                throw new Error(`Ошибка повторного входа: ${loginError.message}`);
-              }
-
-              console.log('Вход успешен!');
-            }
-          } else {
-            throw error;
-          }
+          showNotification('error', `Ошибка входа: ${error.message}`);
+          return;
         }
 
-        // Перенаправляем в админку
-        window.location.href = '/admin';
+        showNotification('success', 'Вход выполнен успешно');
+        setTimeout(() => {
+          router.push('/admin');
+        }, 1000);
+
       } else {
         // Регистрация
-        console.log('Регистрация нового пользователя:', email);
-        
-        const { data, error } = await supabase.auth.signUp({
-          email,
-          password,
+        if (!formData.email || !formData.password || !formData.confirmPassword) {
+          showNotification('error', 'Заполните все поля');
+          return;
+        }
+
+        if (formData.password.length < 6) {
+          showNotification('error', 'Пароль должен содержать минимум 6 символов');
+          return;
+        }
+
+        if (formData.password !== formData.confirmPassword) {
+          showNotification('error', 'Пароли не совпадают');
+          return;
+        }
+
+        const { error } = await supabase.auth.signUp({
+          email: formData.email,
+          password: formData.password,
+          options: {
+            emailRedirectTo: `${window.location.origin}/admin`
+          }
         });
 
-        console.log('Результат регистрации:', { data, error });
-
         if (error) {
-          throw new Error(`Ошибка регистрации: ${error.message}`);
+          showNotification('error', `Ошибка регистрации: ${error.message}`);
+          return;
         }
 
-        // Создаем запись продавца
-        if (data.user) {
-          console.log('Создаем профиль продавца...');
-          
-          const { error: sellerError } = await supabase
-            .from('sellers')
-            .insert({
-              id: data.user.id,
-              login: email,
-              shop_name: shopName,
-            });
-
-          if (sellerError) {
-            console.log('Ошибка создания профиля:', sellerError.message);
-            throw new Error(`Ошибка создания профиля: ${sellerError.message}`);
-          }
-        }
-
-        alert('Регистрация успешна! Теперь войдите.');
+        showNotification('success', 'Регистрация успешна. Проверьте почту для подтверждения.');
+        setFormData({ email: '', password: '', confirmPassword: '' });
         setIsLogin(true);
       }
-    } catch (error: any) {
-      console.error('Ошибка аутентификации:', error);
-      setError(error.message || 'Произошла ошибка при аутентификации');
+
+    } catch (error) {
+      showNotification('error', `Неизвестная ошибка: ${error instanceof Error ? error.message : 'Произошла ошибка'}`);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-linear-to-br from-slate-900 via-purple-900/20 to-slate-900 flex items-center justify-center p-4">
-      {checkingSession ? (
-        <div className="bg-white/10 backdrop-blur-2xl rounded-3xl border border-white/20 p-8 max-w-md w-full text-center">
-          <div className="w-16 h-16 border-4 border-purple-500 rounded-full animate-spin mx-auto mb-4"></div>
-          <h2 className="text-xl font-bold text-white mb-2">Проверка сессии...</h2>
-          <p className="text-gray-300">Проверяем наличие активной сессии</p>
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+      {/* Уведомления */}
+      {notification && (
+        <div className={`fixed top-4 right-4 z-50 flex items-center gap-2 px-4 py-3 rounded-lg shadow-lg ${
+          notification.type === 'success' 
+            ? 'bg-green-50 text-green-800 border border-green-200' 
+            : 'bg-red-50 text-red-800 border border-red-200'
+        }`}>
+          {notification.type === 'success' ? (
+            <CheckCircle className="w-5 h-5" />
+          ) : (
+            <AlertCircle className="w-5 h-5" />
+          )}
+          {notification.message}
         </div>
-      ) : (
-        <div className="bg-white/10 backdrop-blur-2xl rounded-3xl border border-white/20 p-8 max-w-md w-full">
-          <h1 className="text-3xl font-bold text-white mb-8 text-center">
-            {isLogin ? 'Вход в админку' : 'Регистрация продавца'}
+      )}
+
+      <div className="max-w-md w-full space-y-8">
+        {/* Заголовок */}
+        <div className="text-center">
+          <h1 className="text-3xl font-bold text-gray-900">
+            {isLogin ? 'Вход в админку' : 'Регистрация'}
           </h1>
+          <p className="mt-2 text-sm text-gray-600">
+            {isLogin 
+              ? 'Войдите для управления вашим магазином' 
+              : 'Создайте аккаунт для вашего магазина'
+            }
+          </p>
+        </div>
 
-        <div className="space-y-4">
-          {!isLogin && (
+        {/* Форма */}
+        <div className="bg-white py-8 px-6 shadow-lg rounded-xl">
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Email */}
             <div>
-              <label className="block text-sm font-medium text-cyan-300 mb-2">
-                Название магазина
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Email
               </label>
-              <input
-                type="text"
-                value={shopName}
-                onChange={(e) => setShopName(e.target.value)}
-                className="w-full px-4 py-3 bg-white/10 backdrop-blur-xl rounded-2xl outline-none focus:ring-2 focus:ring-cyan-500 border border-white/20 text-white placeholder-white/50"
-                placeholder="My Store"
-              />
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Mail className="h-5 w-5 text-gray-400" />
+                </div>
+                <input
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  className="pl-10 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                  placeholder="your@email.com"
+                  required
+                />
+              </div>
             </div>
-          )}
 
-          <div>
-            <label className="block text-sm font-medium text-cyan-300 mb-2">
-              Email
-            </label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-4 py-3 bg-white/10 backdrop-blur-xl rounded-2xl outline-none focus:ring-2 focus:ring-cyan-500 border border-white/20 text-white placeholder-white/50"
-              placeholder="admin или admin@example.com"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-cyan-300 mb-2">
-              Пароль
-            </label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-3 bg-white/10 backdrop-blur-xl rounded-2xl outline-none focus:ring-2 focus:ring-cyan-500 border border-white/20 text-white placeholder-white/50"
-              placeholder="••••••••"
-            />
-          </div>
-
-          {error && (
-            <div className="bg-red-500/20 border border-red-500/30 text-red-100 px-4 py-3 rounded-2xl">
-              {error}
+            {/* Пароль */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Пароль
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Lock className="h-5 w-5 text-gray-400" />
+                </div>
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={formData.password}
+                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  className="pl-10 pr-10 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                  placeholder="•••••••••"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                >
+                  {showPassword ? (
+                    <EyeOff className="h-5 w-5 text-gray-400 hover:text-gray-600" />
+                  ) : (
+                    <Eye className="h-5 w-5 text-gray-400 hover:text-gray-600" />
+                  )}
+                </button>
+              </div>
             </div>
-          )}
 
-          <button
-            onClick={handleAuth}
-            disabled={loading || !email || !password || (!isLogin && !shopName)}
-            className="w-full px-4 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 disabled:from-gray-600 disabled:to-gray-700 disabled:cursor-not-allowed text-white rounded-2xl font-bold transition-all duration-300"
-          >
-            {loading ? 'Загрузка...' : (isLogin ? 'Войти' : 'Зарегистрироваться')}
-          </button>
+            {/* Подтверждение пароля (только для регистрации) */}
+            {!isLogin && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Подтвердите пароль
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Lock className="h-5 w-5 text-gray-400" />
+                  </div>
+                  <input
+                    type="password"
+                    value={formData.confirmPassword}
+                    onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+                    className="pl-10 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                    placeholder="•••••••••"
+                    required
+                  />
+                </div>
+              </div>
+            )}
 
-          <div className="text-center">
+            {/* Кнопка отправки */}
             <button
-              onClick={() => setIsLogin(!isLogin)}
-              className="text-cyan-300 hover:text-cyan-200 transition-colors"
+              type="submit"
+              disabled={loading}
+              className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-gray-900 hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-900 disabled:opacity-50 transition-colors"
             >
-              {isLogin ? 'Нет аккаунта? Зарегистрироваться' : 'Есть аккаунт? Войти'}
+              {loading ? (
+                'Загрузка...'
+              ) : (
+                isLogin ? 'Войти' : 'Зарегистрироваться'
+              )}
+            </button>
+          </form>
+
+          {/* Переключение между входом и регистрацией */}
+          <div className="mt-6 text-center">
+            <button
+              type="button"
+              onClick={() => {
+                setIsLogin(!isLogin);
+                setFormData({ email: '', password: '', confirmPassword: '' });
+              }}
+              className="text-sm text-gray-600 hover:text-gray-900 transition-colors"
+            >
+              {isLogin 
+                ? 'Нет аккаунта? Зарегистрируйтесь' 
+                : 'Уже есть аккаунт? Войдите'
+              }
             </button>
           </div>
         </div>
+
+        {/* Информация */}
+        <div className="text-center text-sm text-gray-500">
+          <p>
+            {isLogin 
+              ? 'Войдите для доступа к панели управления' 
+              : 'После регистрации проверьте почту для подтверждения'
+            }
+          </p>
         </div>
-      )}
+      </div>
     </div>
   );
 }

@@ -3,12 +3,9 @@
 buildscript {
     
     repositories {
-        maven { url 'https://maven.aliyun.com/repository/google' }
-        maven { url 'https://maven.aliyun.com/repository/central' }
         google()
         mavenCentral()
         maven { url 'https://jitpack.io' }
-        maven { url 'https://maven.google.com' }
         gradlePluginPortal()
     }
     dependencies {
@@ -24,13 +21,9 @@ apply from: "variables.gradle"
 
 allprojects {
     repositories {
-        maven { url 'https://maven.aliyun.com/repository/google' }
-        maven { url 'https://maven.aliyun.com/repository/central' }
         google()
         mavenCentral()
         maven { url 'https://jitpack.io' }
-        maven { url 'https://maven.google.com' }
-        gradlePluginPortal()
     }
 }
 

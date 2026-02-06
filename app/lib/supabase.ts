@@ -41,7 +41,7 @@ const validateSupabaseConfig = () => {
 // Валидация при импорте
 const isValid = validateSupabaseConfig();
 
-export const supabase = createClient(
+export const supabase = isValid ? createClient(
   supabaseUrl || 'https://vklustrbpajwfuoldnxu.supabase.co',
   supabaseKey || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZrbHVzdHJicGFqd2Z1b2xkbnh1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg1NTk1NTgsImV4cCI6MjA4NDEzNTU1OH0.w7m-F-bHewTw9PnRpo1VICCIrDyefxHhn4yW2uJ9wIU',
   {
@@ -56,7 +56,7 @@ export const supabase = createClient(
       }
     }
   }
-);
+) : null;
 
 // Утилиты для проверки соединения
 export const checkSupabaseConnection = async () => {

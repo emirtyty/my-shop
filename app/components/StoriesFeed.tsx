@@ -224,15 +224,16 @@ export default function StoriesFeed() {
   const fetchStories = async () => {
     try {
       console.log('=== StoriesFeed fetchStories called ===');
+      setIsLoading(true);
       
       // Импортируем утилиты Supabase
       const { isValid, checkSupabaseConnection } = await import('../lib/supabase');
       
       // Проверяем валидность конфигурации
       if (!isValid) {
-        console.warn('⚠️ Supabase не сконфигурирован, используем demo stories');
-        setStories(getDemoStories());
-        setGroupedStories(groupStoriesBySeller(getDemoStories()));
+        console.warn('⚠️ Supabase не сконфигурирован');
+        setStories([]);
+        setGroupedStories(new Map());
         setIsLoading(false);
         return;
       }
@@ -240,14 +241,38 @@ export default function StoriesFeed() {
       // Проверяем соединение
       const connectionCheck = await checkSupabaseConnection();
       if (!connectionCheck.success) {
-        console.warn('⚠️ Проблемы с соединением Supabase, используем demo stories');
-        setStories(getDemoStories());
-        setGroupedStories(groupStoriesBySeller(getDemoStories()));
+        console.warn('⚠️ Проблемы с соединением Supabase');
+        setStories([]);
+        setGroupedStories(new Map());
         setIsLoading(false);
         return;
       }
       
       console.log('🔍 Загружаем stories из Supabase...');
+      
+      // Сначала проверим, существует ли таблица stories
+      try {
+        const { data: tableCheck, error: tableError } = await supabase
+          .from('stories')
+          .select('id')
+          .limit(1);
+        
+        if (tableError) {
+          console.error('❌ Таблица stories не существует или недоступна:', tableError);
+          setStories([]);
+          setGroupedStories(new Map());
+          setIsLoading(false);
+          return;
+        }
+        
+        console.log('✅ Таблица stories существует, продолжаем загрузку...');
+      } catch (tableCheckError) {
+        console.error('❌ Ошибка проверки таблицы stories:', tableCheckError);
+        setStories([]);
+        setGroupedStories(new Map());
+        setIsLoading(false);
+        return;
+      }
       
       const { data, error } = await supabase
         .from('stories')
@@ -270,13 +295,12 @@ export default function StoriesFeed() {
 
       if (error) {
         console.error('❌ Supabase error в StoriesFeed:', error);
-        console.warn('⚠️ Используем demo stories из-за ошибки Supabase');
-        setStories(getDemoStories());
-        setGroupedStories(groupStoriesBySeller(getDemoStories()));
+        setStories([]);
+        setGroupedStories(new Map());
       } else if (!data || data.length === 0) {
-        console.warn('⚠️ Stories не найдены в Supabase, используем demo stories');
-        setStories(getDemoStories());
-        setGroupedStories(groupStoriesBySeller(getDemoStories()));
+        console.log('ℹ️ Stories не найдены в Supabase - это нормально, если еще ни кто не создавал');
+        setStories([]);
+        setGroupedStories(new Map());
       } else {
         const storiesData = data || [];
         console.log('✅ StoriesFeed загружены:', storiesData.length, 'stories');
@@ -289,92 +313,12 @@ export default function StoriesFeed() {
       }
     } catch (error) {
       console.error('❌ Критическая ошибка загрузки stories:', error);
-      console.warn('⚠️ Используем demo stories из-за критической ошибки');
-      setStories(getDemoStories());
-      setGroupedStories(groupStoriesBySeller(getDemoStories()));
+      setStories([]);
+      setGroupedStories(new Map());
     } finally {
       setIsLoading(false);
     }
   };
-
-  // Demo stories для fallback
-  const getDemoStories = (): Story[] => [
-    {
-      id: 'demo-1',
-      product_id: 'demo-product-1',
-      seller_id: 'demo-seller-1',
-      image_url: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400&h=600&fit=crop',
-      title: 'iPhone 15 Pro Max',
-      price: 99990,
-      discount: 15,
-      description: 'Новейший флагман Apple с титановым корпусом',
-      link_url: '#',
-      is_active: true,
-      expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-      view_count: 1250,
-      click_count: 89,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      sellers: {
-        id: 'demo-seller-1',
-        shop_name: 'Tech Store',
-        telegram_url: 'https://t.me/techstore',
-        vk_url: 'https://vk.com/techstore',
-        whatsapp_url: 'https://wa.me/1234567890',
-        instagram_url: 'https://instagram.com/techstore'
-      }
-    },
-    {
-      id: 'demo-2',
-      product_id: 'demo-product-2',
-      seller_id: 'demo-seller-2',
-      image_url: 'https://images.unsplash.com/photo-1572635196237-14b3f281509f?w=400&h=600&fit=crop',
-      title: 'Nike Air Max 270',
-      price: 12990,
-      discount: 30,
-      description: 'Стильные кроссовки с амортизацией Air',
-      link_url: '#',
-      is_active: true,
-      expires_at: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString(),
-      view_count: 890,
-      click_count: 67,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      sellers: {
-        id: 'demo-seller-2',
-        shop_name: 'Sport Shop',
-        telegram_url: 'https://t.me/sportshop',
-        vk_url: 'https://vk.com/sportshop',
-        whatsapp_url: 'https://wa.me/0987654321',
-        instagram_url: 'https://instagram.com/sportshop'
-      }
-    },
-    {
-      id: 'demo-3',
-      product_id: 'demo-product-3',
-      seller_id: 'demo-seller-1',
-      image_url: 'https://images.unsplash.com/photo-1541807084-5c52b6b3adef?w=400&h=600&fit=crop',
-      title: 'MacBook Pro 14"',
-      price: 149990,
-      discount: 10,
-      description: 'Профессиональный ноутбук с M3 Pro芯片',
-      link_url: '#',
-      is_active: true,
-      expires_at: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString(),
-      view_count: 2100,
-      click_count: 156,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      sellers: {
-        id: 'demo-seller-1',
-        shop_name: 'Tech Store',
-        telegram_url: 'https://t.me/techstore',
-        vk_url: 'https://vk.com/techstore',
-        whatsapp_url: 'https://wa.me/1234567890',
-        instagram_url: 'https://instagram.com/techstore'
-      }
-    }
-  ];
 
   const handleStoryClick = (sellerId: string, storyIndex: number = 0) => {
     const sellerStories = groupedStories.get(sellerId);

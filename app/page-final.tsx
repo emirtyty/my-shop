@@ -154,16 +154,16 @@ export default function Home() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
-      <header className="sticky top-0 z-[100] bg-slate-900/80 backdrop-blur-xl border-b border-purple-500/20 p-4">
+    <div className="min-h-screen bg-linear-to-br from-slate-900 via-purple-900 to-slate-900">
+      <header className="sticky top-0 z-100 bg-slate-900/80 backdrop-blur-xl border-b border-purple-500/20 p-4">
         <div className="max-w-6xl mx-auto">
           <div className="flex justify-between items-center mb-4">
-            <h1 className="text-4xl font-black italic bg-gradient-to-r from-cyan-400 via-purple-500 to-pink-500 bg-clip-text text-transparent drop-shadow-lg">RA DELL</h1>
+            <h1 className="text-4xl font-black italic bg-linear-to-r from-cyan-400 via-purple-500 to-pink-500 bg-clip-text text-transparent drop-shadow-lg">RA DELL</h1>
             <div className="flex gap-4">
               <button onClick={() => setIsStatusModalOpen(true)} className="text-3xl hover:scale-125 transition-transform duration-300 drop-shadow-lg">📦</button>
               <button onClick={() => setIsCartOpen(true)} className="relative text-3xl hover:scale-125 transition-transform duration-300 drop-shadow-lg">
                 🛒
-                {totalItems > 0 && <span className="absolute -top-2 -right-2 bg-gradient-to-r from-cyan-500 to-pink-500 text-white w-7 h-7 rounded-full text-xs font-black flex items-center justify-center shadow-lg">{totalItems}</span>}
+                {totalItems > 0 && <span className="absolute -top-2 -right-2 bg-linear-to-r from-cyan-500 to-pink-500 text-white w-7 h-7 rounded-full text-xs font-black flex items-center justify-center shadow-lg">{totalItems}</span>}
               </button>
             </div>
             <div className="relative">
@@ -184,7 +184,7 @@ export default function Home() {
                 onClick={() => setActiveCategory(cat)} 
                 className={`px-6 py-3 rounded-xl text-sm font-bold whitespace-nowrap transition-all ${
                   activeCategory === cat 
-                    ? 'bg-gradient-to-r from-cyan-500 to-purple-500 text-white shadow-xl scale-105' 
+                    ? 'bg-linear-to-r from-cyan-500 to-purple-500 text-white shadow-xl scale-105' 
                     : 'bg-slate-800/50 border border-purple-500/20 text-slate-200 hover:bg-slate-800'
                 }`}
               >
@@ -207,7 +207,7 @@ export default function Home() {
               const displayPrice = hasDiscount ? Math.round(p.price * (1 - p.discount / 100)) : p.price;
               
               return (
-                <div key={p.id} className="bg-gradient-to-br from-slate-800/50 to-slate-900/50 rounded-2xl overflow-hidden shadow-xl hover:shadow-2xl transition-all">
+                <div key={p.id} className="bg-linear-to-br from-slate-800/50 to-slate-900/50 rounded-2xl overflow-hidden shadow-xl hover:shadow-2xl transition-all">
                   <div className="relative aspect-square overflow-hidden bg-slate-800">
                     <img 
                       src={p.image_url} 
@@ -215,7 +215,7 @@ export default function Home() {
                       alt={p.name} 
                     />
                     {hasDiscount && (
-                      <div className="absolute top-4 left-4 bg-gradient-to-r from-red-500 to-pink-500 text-white px-3 py-1 rounded-full text-xs font-black shadow-lg">
+                      <div className="absolute top-4 left-4 bg-linear-to-r from-red-500 to-pink-500 text-white px-3 py-1 rounded-full text-xs font-black shadow-lg">
                         -{p.discount}%
                       </div>
                     )}
@@ -235,7 +235,7 @@ export default function Home() {
                     {count === 0 ? (
                       <button 
                         onClick={() => addToCart(p)} 
-                        className="w-full py-3 bg-gradient-to-r from-cyan-500 to-purple-500 text-white rounded-xl text-sm font-bold hover:shadow-xl transition-all"
+                        className="w-full py-3 bg-linear-to-r from-cyan-500 to-purple-500 text-white rounded-xl text-sm font-bold hover:shadow-xl transition-all"
                       >
                         🛒 В корзину
                       </button>
@@ -265,8 +265,8 @@ export default function Home() {
       </div>
 
       {isCartOpen && (
-        <div className="fixed inset-0 z-[1500] bg-black/60 backdrop-blur-md flex items-end justify-center">
-          <div className="w-full max-w-md bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-t-3xl shadow-2xl flex flex-col p-6 max-h-[90vh]">
+        <div className="fixed inset-0 z-1500 bg-black/60 backdrop-blur-md flex items-end justify-center">
+          <div className="w-full max-w-md bg-linear-to-br from-slate-900 via-slate-800 to-slate-900 rounded-t-3xl shadow-2xl flex flex-col p-6 max-h-[90vh]">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-xl font-black text-white">Корзина</h2>
               <button onClick={() => setIsCartOpen(false)} className="text-2xl text-slate-400 hover:text-slate-200">×</button>
@@ -332,7 +332,7 @@ export default function Home() {
                 </div>
                 <button 
                   onClick={handleCheckout} 
-                  className="w-full bg-gradient-to-r from-cyan-500 to-purple-500 text-white py-4 rounded-xl font-bold text-lg hover:shadow-xl transition-all"
+                  className="w-full bg-linear-to-r from-cyan-500 to-purple-500 text-white py-4 rounded-xl font-bold text-lg hover:shadow-xl transition-all"
                 >
                   Оформить заказ
                 </button>
@@ -343,7 +343,7 @@ export default function Home() {
       )}
 
       {isStatusModalOpen && (
-        <div className="fixed inset-0 z-[2000] bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex flex-col">
+        <div className="fixed inset-0 z-2000 bg-linear-to-br from-slate-900 via-purple-900 to-slate-900 flex flex-col">
           <div className="flex-1 flex flex-col px-4 pt-12">
             <div className="flex justify-between items-center mb-8">
               <button onClick={() => setIsStatusModalOpen(false)} className="text-2xl text-cyan-400 hover:text-pink-400">←</button>
@@ -359,7 +359,7 @@ export default function Home() {
                 onKeyDown={e => e.key === 'Enter' && handleCheckOrder()} 
                 autoFocus 
               />
-              <button onClick={() => { setIsStatusModalOpen(false); setIsCartOpen(true); }} className="w-14 h-14 bg-gradient-to-r from-cyan-500 to-purple-500 rounded-xl text-xl hover:shadow-lg">🛒</button>
+              <button onClick={() => { setIsStatusModalOpen(false); setIsCartOpen(true); }} className="w-14 h-14 bg-linear-to-r from-cyan-500 to-purple-500 rounded-xl text-xl hover:shadow-lg">🛒</button>
             </div>
             {isSearchingOrders && (
               <div className="flex-1 flex items-center justify-center">
@@ -369,7 +369,7 @@ export default function Home() {
             {userOrders.length > 0 && (
               <div className="flex-1 overflow-y-auto space-y-4 pb-20">
                 {userOrders.map(order => (
-                  <div key={order.id} className="bg-gradient-to-br from-slate-800/50 to-slate-900/50 p-6 rounded-2xl border border-purple-500/20">
+                  <div key={order.id} className="bg-linear-to-br from-slate-800/50 to-slate-900/50 p-6 rounded-2xl border border-purple-500/20">
                     <p className="text-xs font-bold text-purple-400 mb-2">Заказ #{String(order.id).slice(0, 8)}</p>
                     <p className="font-black text-4xl text-cyan-400 mb-3">{order.total_price}₽</p>
                     <p className="text-sm text-slate-200 mb-2">{order.product_name}</p>

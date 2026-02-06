@@ -29,6 +29,13 @@
 
         </activity>
 
+        <activity
+            android:name=".ProductsActivity"
+            android:label="Товары"
+            android:exported="true"
+            android:parentActivityName=".MainActivity">
+        </activity>
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

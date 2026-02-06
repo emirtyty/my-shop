@@ -7,18 +7,141 @@ import android.view.Window;
 import android.view.WindowManager;
 import android.view.WindowInsets;
 import android.view.WindowInsetsController;
+import android.util.Log;
 import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
 import com.getcapacitor.BridgeActivity;
+import java.util.List;
 
 public class MainActivity extends BridgeActivity {
+    private static final String TAG = "MainActivity";
+    private ApiService apiService;
+    
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         
         // Настраиваем edge-to-edge с прозрачным статус-баром
         setupEdgeToEdge();
+        
+        // Инициализируем API сервис
+        apiService = new ApiService();
+        
+        // Тестируем API
+        testApiConnection();
+    }
+    
+    private void testApiConnection() {
+        Log.d(TAG, "Testing API connection...");
+        
+        // Проверяем здоровье API
+        apiService.checkHealth(new ApiService.ApiCallback<String>() {
+            @Override
+            public void onSuccess(String result) {
+                Log.d(TAG, "API Health Check: " + result);
+                // Загружаем товары
+                loadProducts();
+            }
+            
+            @Override
+            public void onError(String error) {
+                Log.e(TAG, "API Health Check Failed: " + error);
+            }
+        });
+    }
+    
+    private void loadProducts() {
+        Log.d(TAG, "Loading products...");
+        
+        apiService.getProducts(new ApiService.ApiCallback<List<ApiService.Product>>() {
+            @Override
+            public void onSuccess(List<ApiService.Product> products) {
+                Log.d(TAG, "Products loaded successfully: " + products.size() + " items");
+                
+                // Выводим информацию о товарах
+                for (ApiService.Product product : products) {
+                    Log.d(TAG, String.format("Product: %s, Price: %.2f, Discount: %d%%", 
+                        product.name, product.price, product.discount != null ? product.discount : 0));
+                }
+                
+                // Загружаем истории
+                loadStories();
+            }
+            
+            @Override
+            public void onError(String error) {
+                Log.e(TAG, "Failed to load products: " + error);
+            }
+        });
+    }
+    
+    private void loadStories() {
+        Log.d(TAG, "Loading stories...");
+        
+        apiService.getStories(new ApiService.ApiCallback<List<ApiService.Story>>() {
+            @Override
+            public void onSuccess(List<ApiService.Story> stories) {
+                Log.d(TAG, "Stories loaded successfully: " + stories.size() + " items");
+                
+                // Выводим информацию о историях
+                for (ApiService.Story story : stories) {
+                    Log.d(TAG, String.format("Story: %s, Link: %s", story.title, story.link));
+                }
+                
+                // Загружаем продавцов
+                loadSellers();
+            }
+            
+            @Override
+            public void onError(String error) {
+                Log.e(TAG, "Failed to load stories: " + error);
+            }
+        });
+    }
+    
+    private void loadSellers() {
+        Log.d(TAG, "Loading sellers...");
+        
+        apiService.getSellers(new ApiService.ApiCallback<List<ApiService.Seller>>() {
+            @Override
+            public void onSuccess(List<ApiService.Seller> sellers) {
+                Log.d(TAG, "Sellers loaded successfully: " + sellers.size() + " items");
+                
+                // Выводим информацию о продавцах
+                for (ApiService.Seller seller : sellers) {
+                    Log.d(TAG, String.format("Seller: %s, Telegram: %s", seller.name, seller.telegram_url));
+                }
+                
+                // Тестируем поиск
+                testSearch();
+            }
+            
+            @Override
+            public void onError(String error) {
+                Log.e(TAG, "Failed to load sellers: " + error);
+            }
+        });
+    }
+    
+    private void testSearch() {
+        Log.d(TAG, "Testing search...");
+        
+        apiService.searchProducts("iPhone", new ApiService.ApiCallback<List<ApiService.Product>>() {
+            @Override
+            public void onSuccess(List<ApiService.Product> products) {
+                Log.d(TAG, "Search results: " + products.size() + " items found");
+                
+                for (ApiService.Product product : products) {
+                    Log.d(TAG, String.format("Found: %s, Price: %.2f", product.name, product.price));
+                }
+            }
+            
+            @Override
+            public void onError(String error) {
+                Log.e(TAG, "Search failed: " + error);
+            }
+        });
     }
     
     private void setupEdgeToEdge() {
@@ -78,5 +201,14 @@ public class MainActivity extends BridgeActivity {
         super.onWindowFocusChanged(hasFocus);
         // НЕ скрываем системные бары - отключаем immersive mode
         // Пользователи должны видеть статус-бар и навигацию всегда
+    }
+    
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+        // Закрываем API сервис
+        if (apiService != null) {
+            apiService.shutdown();
+        }
     }
 }

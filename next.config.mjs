@@ -1,8 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: 'export', // Статический экспорт для мобильного
-  trailingSlash: true,
-  distDir: 'out', // Папка для статического экспорта
+  // Убираем output: 'export' для Vercel
   images: {
     unoptimized: true,
     formats: ['image/webp'],

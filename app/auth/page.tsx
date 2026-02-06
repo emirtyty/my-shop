@@ -5,10 +5,16 @@ import { createClient } from '@supabase/supabase-js';
 import { Mail, Lock, User, Eye, EyeOff, CheckCircle, AlertCircle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+if (!supabaseUrl || !supabaseKey) {
+  console.error('Missing Supabase environment variables');
+  // Временно для тестирования
+  throw new Error('Отсутствуют переменные окружения Supabase. Настройте их в Vercel Dashboard.');
+}
+
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 interface Notification {
   type: 'success' | 'error';

@@ -32,6 +32,7 @@ export default function ProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [currentView, setCurrentView] = useState<'add' | 'list'>('add');
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [dataError, setDataError] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     category: '',
@@ -42,8 +43,16 @@ export default function ProductsPage() {
 
   // Загрузка данных при монтировании
   useEffect(() => {
-    loadCategories();
-    loadProducts();
+    const loadData = async () => {
+      try {
+        await Promise.all([loadCategories(), loadProducts()]);
+      } catch (error) {
+        console.error('Error loading data:', error);
+        setDataError('Не удалось загрузить данные. Проверьте подключение к Supabase.');
+      }
+    };
+    
+    loadData();
   }, []);
 
   const loadProducts = async () => {
@@ -269,6 +278,19 @@ export default function ProductsPage() {
           </button>
         </div>
       </div>
+
+      {/* Отображение ошибки */}
+      {dataError && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+          <div className="flex items-center gap-3">
+            <AlertCircle className="w-5 h-5 text-red-600" />
+            <div>
+              <h3 className="font-medium text-red-900">Ошибка загрузки данных</h3>
+              <p className="text-red-700 text-sm">{dataError}</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Модальное окно */}
       {showModal && (

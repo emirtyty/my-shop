@@ -57,9 +57,16 @@ export default function AuthPage() {
         }
 
         showNotification('success', 'Вход выполнен успешно');
-        setTimeout(() => {
-          router.push('/admin');
-        }, 1000);
+        
+        // Проверяем сессию перед редиректом
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          setTimeout(() => {
+            router.push('/admin');
+          }, 1000);
+        } else {
+          showNotification('error', 'Сессия не установлена');
+        }
 
       } else {
         // Регистрация
@@ -244,13 +251,17 @@ export default function AuthPage() {
         </div>
 
         {/* Информация */}
-        <div className="text-center text-sm text-gray-500">
+        <div className="text-center text-sm text-gray-500 space-y-2">
           <p>
             {isLogin 
               ? 'Войдите для доступа к панели управления' 
               : 'После регистрации проверьте почту для подтверждения'
             }
           </p>
+          <div className="text-xs text-gray-400">
+            <p>Supabase URL: {supabaseUrl ? '✅' : '❌'}</p>
+            <p>Supabase Key: {supabaseKey ? '✅' : '❌'}</p>
+          </div>
         </div>
       </div>
     </div>

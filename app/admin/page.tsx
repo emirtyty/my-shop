@@ -528,7 +528,7 @@ export default function ProductsPage() {
                     <div className="aspect-square bg-gray-100 rounded-lg mb-4 overflow-hidden">
                       <img
                         src={product.image_url}
-                        alt={product.name}
+                        alt={product.name || 'Товар'}
                         className="w-full h-full object-cover"
                       />
                     </div>
@@ -539,8 +539,8 @@ export default function ProductsPage() {
                   )}
 
                   {/* Информация о товаре */}
-                  <h3 className="font-semibold text-gray-900 mb-2">{product.name}</h3>
-                  <p className="text-sm text-gray-600 mb-3">{product.category}</p>
+                  <h3 className="font-semibold text-gray-900 mb-2">{product.name || 'Без названия'}</h3>
+                  <p className="text-sm text-gray-600 mb-3">{product.category || 'Без категории'}</p>
                   
                   <div className="flex items-center justify-between mb-4">
                     <div>

@@ -50,6 +50,17 @@ export default function ProductsPage() {
   useEffect(() => {
     const loadData = async () => {
       try {
+        // Проверяем подключение к Supabase
+        console.log('🔍 Checking Supabase connection...');
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        console.log('👤 Auth session:', { session: !!session, error: !!sessionError, user: session?.user?.email });
+        
+        // Проверяем переменные окружения
+        console.log('🔧 Environment variables:', {
+          supabaseUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
+          supabaseKey: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+        });
+        
         await Promise.all([loadCategories(), loadProducts()]);
       } catch (error) {
         console.error('Error loading data:', error);
@@ -63,21 +74,36 @@ export default function ProductsPage() {
   const loadProducts = async () => {
     try {
       console.log('🔄 Loading products from product_market...');
+      
+      // Пробуем простой запрос
       const { data, error } = await supabase
         .from('product_market')
-        .select('*')
-        .order('created_at', { ascending: false });
+        .select('id, name, category, price')
+        .limit(5);
       
-      console.log('📊 Products query result:', { data, error });
+      console.log('📊 Simple products query result:', { data, error });
       
-      if (error) {
-        console.error('❌ Ошибка загрузки товаров:', error);
-        showNotification('error', `Ошибка загрузки товаров: ${error.message}`);
-        return;
+      // Если простой запрос сработал, пробуем полный
+      if (!error && data) {
+        const { data: fullData, error: fullError } = await supabase
+          .from('product_market')
+          .select('*')
+          .order('created_at', { ascending: false });
+        
+        console.log('📊 Full products query result:', { data: fullData, error: fullError });
+        
+        if (fullError) {
+          console.error('❌ Ошибка полного запроса:', fullError);
+          showNotification('error', `Ошибка загрузки товаров: ${fullError.message}`);
+          setProducts(data); // Используем данные из простого запроса
+        } else {
+          console.log('✅ Products loaded:', fullData?.length || 0);
+          setProducts(fullData || []);
+        }
+      } else {
+        console.error('❌ Ошибка простого запроса:', error);
+        showNotification('error', `Ошибка загрузки товаров: ${error?.message || 'Неизвестная ошибка'}`);
       }
-      
-      console.log('✅ Products loaded:', data?.length || 0);
-      setProducts(data || []);
     } catch (error) {
       console.error('❌ Ошибка загрузки товаров:', error);
       showNotification('error', 'Не удалось загрузить товары');

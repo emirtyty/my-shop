@@ -98,7 +98,16 @@ export default function ProductsPage() {
         if (fullError) {
           console.error('❌ Ошибка полного запроса:', fullError);
           showNotification('error', `Ошибка загрузки товаров: ${fullError.message}`);
-          setProducts(data); // Используем данные из простого запроса
+          // Преобразуем данные из простого запроса в полный формат Product
+          const formattedProducts = data?.map(item => ({
+            ...item,
+            discount: 0,
+            created_at: new Date().toISOString(),
+            seller_id: null,
+            description: null,
+            stock: 0
+          })) || [];
+          setProducts(formattedProducts);
         } else {
           console.log('✅ Products loaded:', fullData?.length || 0);
           setProducts(fullData || []);

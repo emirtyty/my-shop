@@ -58,34 +58,43 @@ export default function ProductsPage() {
   const loadProducts = async () => {
     try {
       const { data, error } = await supabase
-        .from('products')
+        .from('product_market')
         .select('*')
         .order('created_at', { ascending: false });
       
       if (error) {
         console.error('Ошибка загрузки товаров:', error);
+        showNotification('error', `Ошибка загрузки товаров: ${error.message}`);
         return;
       }
       
       setProducts(data || []);
     } catch (error) {
       console.error('Ошибка загрузки товаров:', error);
+      showNotification('error', 'Не удалось загрузить товары');
     }
   };
 
   const loadCategories = async () => {
     try {
       const { data, error } = await supabase
-        .from('products')
+        .from('product_market')
         .select('category')
         .not('category', 'is', null);
       
-      if (!error && data) {
+      if (error) {
+        console.error('Ошибка загрузки категорий:', error);
+        showNotification('error', `Ошибка загрузки категорий: ${error.message}`);
+        return;
+      }
+      
+      if (data) {
         const uniqueCategories = [...new Set(data.map(item => item.category).filter(Boolean))];
         setCategories(uniqueCategories);
       }
     } catch (error) {
       console.error('Ошибка загрузки категорий:', error);
+      showNotification('error', 'Не удалось загрузить категории');
     }
   };
 
@@ -113,7 +122,7 @@ export default function ProductsPage() {
 
     try {
       const { error } = await supabase
-        .from('products')
+        .from('product_market')
         .delete()
         .eq('id', productId);
 
@@ -186,14 +195,14 @@ export default function ProductsPage() {
       if (editingProduct) {
         // Редактирование существующего товара
         const result = await supabase
-          .from('products')
+          .from('product_market')
           .update(productData)
           .eq('id', editingProduct.id);
         error = result.error;
       } else {
         // Добавление нового товара
         const result = await supabase
-          .from('products')
+          .from('product_market')
           .insert({
             ...productData,
             created_at: new Date().toISOString()

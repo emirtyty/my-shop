@@ -8,6 +8,9 @@ export default function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
+  alert('Admin layout loaded!');
+  console.log('🎨 Admin layout loaded!');
+  
   const [activeTab, setActiveTab] = useState<'products' | 'social' | 'settings'>('products');
 
   const menuItems = [

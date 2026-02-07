@@ -49,7 +49,6 @@ export default function AdminLayout({
   const pathname = usePathname();
   
   const [activeTab, setActiveTab] = useState<'products' | 'social' | 'settings'>('products');
-  const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
 
   // Синхронизируем activeTab с текущим URL
   useEffect(() => {
@@ -60,8 +59,6 @@ export default function AdminLayout({
     } else if (pathname === '/admin/settings') {
       setActiveTab('settings');
     }
-    // Закрываем мобильную навигацию при смене страницы
-    setIsMobileNavOpen(false);
   }, [pathname]);
 
   const menuItems = [
@@ -137,23 +134,12 @@ export default function AdminLayout({
       </nav>
 
       {/* Основной контент */}
-      <main 
-        className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-20 md:pb-8"
-        onClick={() => setIsMobileNavOpen(false)} // Закрываем навигацию при клике на контент
-      >
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-20 md:pb-8">
         {children}
       </main>
 
-      {/* Область для открытия мобильной навигации */}
-      <div 
-        className="md:hidden fixed bottom-0 left-0 right-0 h-16 z-40"
-        onClick={() => setIsMobileNavOpen(true)}
-      />
-
-      {/* Мобильная навигация внизу */}
-      <div className={`md:hidden fixed bottom-0 left-0 right-0 bg-gradient-to-t from-white via-white to-transparent z-50 transition-all duration-300 ${
-        isMobileNavOpen ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-full pointer-events-none'
-      }`}>
+      {/* Мобильная навигация внизу - всегда видима */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-gradient-to-t from-white via-white to-transparent z-50">
         {/* Облако с градиентом и эффектами */}
         <div className="absolute -top-8 left-1/2 transform -translate-x-1/2">
           <div className="relative animate-bounce-slow">
@@ -170,10 +156,7 @@ export default function AdminLayout({
         </div>
         
         {/* Панель навигации с эффектами */}
-        <div 
-          className="bg-white/95 backdrop-blur-lg border-t border-gray-100 shadow-2xl"
-          onClick={(e) => e.stopPropagation()} // Предотвращаем закрытие при клике на навигацию
-        >
+        <div className="bg-white/95 backdrop-blur-lg border-t border-gray-100 shadow-2xl">
           <div className="flex justify-around items-center py-2">
             {menuItems.map((item, index) => {
               const Icon = item.icon;
@@ -189,9 +172,6 @@ export default function AdminLayout({
                   }`}
                   style={{
                     animationDelay: `${index * 100}ms`
-                  }}
-                  onClick={() => {
-                    setIsMobileNavOpen(false); // Закрываем навигацию после клика
                   }}
                 >
                   <div className={`relative ${isActive ? 'animate-bounce-slow' : ''}`}>

@@ -27,6 +27,24 @@ interface Notification {
   message: string;
 }
 
+// Кастомные анимации для модального окна
+const modalStyles = `
+  @keyframes slide-up {
+    0% { transform: translateY(100%); }
+    100% { transform: translateY(0); }
+  }
+  
+  .animate-slide-up {
+    animation: slide-up 0.3s ease-out;
+  }
+`;
+
+if (typeof window !== 'undefined') {
+  const style = document.createElement('style');
+  style.textContent = modalStyles;
+  document.head.appendChild(style);
+}
+
 export default function ProductsPage() {
   console.log('🚀 Admin component loaded!');
   

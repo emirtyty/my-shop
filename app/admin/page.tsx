@@ -17,6 +17,9 @@ interface Product {
   discount: number;
   image_url?: string;
   created_at: string;
+  seller_id?: string;
+  description?: string;
+  stock?: number;
 }
 
 interface Notification {
@@ -38,6 +41,8 @@ export default function ProductsPage() {
     category: '',
     price: '',
     discount: '',
+    description: '',
+    stock: '',
     image: null as File | null
   });
 
@@ -110,6 +115,8 @@ export default function ProductsPage() {
       category: product.category,
       price: product.price.toString(),
       discount: product.discount.toString(),
+      description: product.description || '',
+      stock: (product.stock || 0).toString(),
       image: null
     });
     setShowModal(true);
@@ -188,6 +195,8 @@ export default function ProductsPage() {
         category: formData.category.trim(),
         price: parseFloat(formData.price),
         discount: formData.discount ? parseFloat(formData.discount) : 0,
+        description: formData.description.trim(),
+        stock: formData.stock ? parseInt(formData.stock) : 0,
         image_url: imageUrl || null,
       };
 
@@ -222,6 +231,8 @@ export default function ProductsPage() {
         category: '',
         price: '',
         discount: '',
+        description: '',
+        stock: '',
         image: null
       });
       setShowModal(false);
@@ -391,6 +402,35 @@ export default function ProductsPage() {
                   placeholder="0"
                   min="0"
                   max="100"
+                />
+              </div>
+
+              {/* Описание товара */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Описание товара
+                </label>
+                <textarea
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                  placeholder="Описание товара..."
+                  rows={3}
+                />
+              </div>
+
+              {/* Количество на складе */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Количество на складе
+                </label>
+                <input
+                  type="number"
+                  value={formData.stock}
+                  onChange={(e) => setFormData({ ...formData, stock: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                  placeholder="0"
+                  min="0"
                 />
               </div>
 

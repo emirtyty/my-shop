@@ -46,7 +46,7 @@ const ShareButton: React.FC<ShareButtonProps> = ({ product, className = "" }) =>
         try {
           await navigator.clipboard.writeText(shareData.url);
           success();
-          alert('Ссылка скопирована!');
+          console.log('Ссылка скопирована!');
         } catch (error) {
           console.error('Failed to copy:', error);
         }

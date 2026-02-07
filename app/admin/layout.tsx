@@ -1,7 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { usePathname } from 'next/navigation';
 import { Package, Plus, Settings, Home, MessageCircle } from 'lucide-react';
+import Link from 'next/link';
 
 export default function AdminLayout({
   children,
@@ -9,8 +11,20 @@ export default function AdminLayout({
   children: React.ReactNode;
 }) {
   console.log('🎨 Admin layout loaded!');
+  const pathname = usePathname();
   
   const [activeTab, setActiveTab] = useState<'products' | 'social' | 'settings'>('products');
+
+  // Синхронизируем activeTab с текущим URL
+  useEffect(() => {
+    if (pathname === '/admin') {
+      setActiveTab('products');
+    } else if (pathname === '/admin/social') {
+      setActiveTab('social');
+    } else if (pathname === '/admin/settings') {
+      setActiveTab('settings');
+    }
+  }, [pathname]);
 
   const menuItems = [
     { id: 'products', icon: Package, href: '/admin' },
@@ -35,7 +49,7 @@ export default function AdminLayout({
                   {menuItems.map((item) => {
                     const Icon = item.icon;
                     return (
-                      <a
+                      <Link
                         key={item.id}
                         href={item.href}
                         className={`flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors ${
@@ -43,14 +57,9 @@ export default function AdminLayout({
                             ? 'bg-gray-100 text-gray-900'
                             : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
                         }`}
-                        onClick={(e) => {
-                          e.preventDefault();
-                          setActiveTab(item.id as any);
-                          window.history.pushState({}, '', item.href);
-                        }}
                       >
                         <Icon className="w-5 h-5" />
-                      </a>
+                      </Link>
                     );
                   })}
                 </div>
@@ -58,12 +67,12 @@ export default function AdminLayout({
             </div>
             
             <div className="flex items-center">
-              <a
+              <Link
                 href="/"
                 className="flex items-center px-3 py-2 rounded-md text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-50 transition-colors"
               >
                 <Home className="w-5 h-5" />
-              </a>
+              </Link>
             </div>
           </div>
         </div>

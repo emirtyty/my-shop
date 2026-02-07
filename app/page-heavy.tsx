@@ -997,7 +997,7 @@ export default function Home() {
             <h2 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>{viewingSeller.shop_name}</h2>
           </header>
           <div data-seller-modal className="flex-1 overflow-y-auto p-6 pb-20 animate-modal-content" style={{
-            animation: 'seller-modal-in 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94)'
+            animation: "seller-modal-in 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94)"
           }}>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {products.filter(p => p.seller_id === viewingSeller.id).map(p => {
@@ -1263,7 +1263,7 @@ export default function Home() {
                         return lightColors[index % lightColors.length];
                       }
                     })(),
-                    animation: !isCloudOpening ? `cloud-item-in 0.4s ease-out ${index * 0.05}s both` : 'none'
+                    animation: !isCloudOpening ? `cloud-item-in 0.4s ease-out ${index * 0.05}s both` : "none"
                   }}
                 >
                   {/* Фоновое изображение */}
@@ -1307,7 +1307,7 @@ export default function Home() {
               style={{
                 backgroundColor: isDarkTheme ? '#374151' : '#f3f4f6',
                 color: 'var(--text-primary)',
-                animation: !isCloudOpening ? 'cloud-item-in 0.4s ease-out 0.5s both' : 'none'
+                animation: !isCloudOpening ? "cloud-item-in 0.4s ease-out 0.5s both" : "none"
               }}
             >
               ✖ Закрыть

@@ -62,43 +62,51 @@ export default function ProductsPage() {
 
   const loadProducts = async () => {
     try {
+      console.log('🔄 Loading products from product_market...');
       const { data, error } = await supabase
         .from('product_market')
         .select('*')
         .order('created_at', { ascending: false });
       
+      console.log('📊 Products query result:', { data, error });
+      
       if (error) {
-        console.error('Ошибка загрузки товаров:', error);
+        console.error('❌ Ошибка загрузки товаров:', error);
         showNotification('error', `Ошибка загрузки товаров: ${error.message}`);
         return;
       }
       
+      console.log('✅ Products loaded:', data?.length || 0);
       setProducts(data || []);
     } catch (error) {
-      console.error('Ошибка загрузки товаров:', error);
+      console.error('❌ Ошибка загрузки товаров:', error);
       showNotification('error', 'Не удалось загрузить товары');
     }
   };
 
   const loadCategories = async () => {
     try {
+      console.log('🔄 Loading categories from product_market...');
       const { data, error } = await supabase
         .from('product_market')
         .select('category')
         .not('category', 'is', null);
       
+      console.log('📊 Categories query result:', { data, error });
+      
       if (error) {
-        console.error('Ошибка загрузки категорий:', error);
+        console.error('❌ Ошибка загрузки категорий:', error);
         showNotification('error', `Ошибка загрузки категорий: ${error.message}`);
         return;
       }
       
       if (data) {
         const uniqueCategories = [...new Set(data.map(item => item.category).filter(Boolean))];
+        console.log('✅ Categories loaded:', uniqueCategories);
         setCategories(uniqueCategories);
       }
     } catch (error) {
-      console.error('Ошибка загрузки категорий:', error);
+      console.error('❌ Ошибка загрузки категорий:', error);
       showNotification('error', 'Не удалось загрузить категории');
     }
   };

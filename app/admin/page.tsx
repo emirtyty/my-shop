@@ -28,7 +28,6 @@ interface Notification {
 }
 
 export default function ProductsPage() {
-  alert('Admin page loaded!');
   console.log('🚀 Admin component loaded!');
   
   const [showModal, setShowModal] = useState(false);

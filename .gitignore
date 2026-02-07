@@ -35,3 +35,4 @@ node_modules/@capacitor/android/
 node_modules/@capacitor/*/android/
 node_modules/native-run/assets/android/
 node_modules/native-run/dist/android/
+.vercel

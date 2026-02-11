@@ -191,7 +191,11 @@ export default function HomePage() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const shop = params.get('shop');
+    const category = params.get('category');
     setIsSellerStorefront(Boolean(shop && shop.trim()));
+    if (category && category.trim()) {
+      setSelectedCategory(category.trim());
+    }
     if (shop && shop.trim()) {
       setSelectedShop(shop.trim());
     }
@@ -620,89 +624,24 @@ export default function HomePage() {
 
       {!isSellerStorefront && (
         <>
-          {(isCategoryOpen || isShopOpen) && <button type="button" className="lux-mobile-sheet-backdrop" onClick={() => { setIsCategoryOpen(false); setIsShopOpen(false); }} aria-label="Закрыть меню" />}
-
-          {isCategoryOpen && (
-            <section className="lux-mobile-sheet" aria-label="Категории">
-              <h3>Категории</h3>
-              <div className="lux-mobile-sheet__list">
-                {categoryOptions.map((category) => (
-                  <button
-                    key={`m-cat-${category}`}
-                    type="button"
-                    className={`lux-mobile-sheet__item ${selectedCategory === category ? 'is-active' : ''}`}
-                    onClick={() => {
-                      setSelectedCategory(category);
-                      setIsCategoryOpen(false);
-                    }}
-                  >
-                    {category}
-                  </button>
-                ))}
-              </div>
-            </section>
-          )}
-
-          {isShopOpen && (
-            <section className="lux-mobile-sheet" aria-label="Продавцы">
-              <h3>Продавцы</h3>
-              <div className="lux-mobile-sheet__list">
-                {shopOptions.map((shop) => (
-                  <button
-                    key={`m-shop-${shop}`}
-                    type="button"
-                    className={`lux-mobile-sheet__item ${selectedShop === shop ? 'is-active' : ''}`}
-                    onClick={() => {
-                      setSelectedShop(shop);
-                      setIsShopOpen(false);
-                    }}
-                  >
-                    {shop}
-                  </button>
-                ))}
-              </div>
-            </section>
-          )}
-
           <nav className="lux-mobile-nav" aria-label="Нижняя навигация">
-            <button
-              type="button"
+            <Link
+              href="/"
               className={`lux-mobile-nav__item ${selectedCategory === 'Все категории' && selectedShop === 'Все магазины' ? 'is-active' : ''}`}
-              onClick={() => {
-                setSelectedCategory('Все категории');
-                setSelectedShop('Все магазины');
-                setShowFavoritesOnly(false);
-                setIsCategoryOpen(false);
-                setIsShopOpen(false);
-              }}
             >
               <House size={17} />
               <span>Главная</span>
-            </button>
+            </Link>
 
-            <button
-              type="button"
-              className={`lux-mobile-nav__item ${selectedCategory !== 'Все категории' || isCategoryOpen ? 'is-active' : ''}`}
-              onClick={() => {
-                setIsCategoryOpen((prev) => !prev);
-                setIsShopOpen(false);
-              }}
-            >
+            <Link href="/categories" className="lux-mobile-nav__item">
               <Grid2x2 size={17} />
               <span>Категории</span>
-            </button>
+            </Link>
 
-            <button
-              type="button"
-              className={`lux-mobile-nav__item ${selectedShop !== 'Все магазины' || isShopOpen ? 'is-active' : ''}`}
-              onClick={() => {
-                setIsShopOpen((prev) => !prev);
-                setIsCategoryOpen(false);
-              }}
-            >
+            <Link href="/sellers" className="lux-mobile-nav__item">
               <Store size={17} />
               <span>Продавцы</span>
-            </button>
+            </Link>
           </nav>
         </>
       )}

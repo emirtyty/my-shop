@@ -1666,6 +1666,47 @@ body {
   color: #ffd5d5;
 }
 
+.lux-directory-head {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin: 6px 0 16px;
+}
+
+.lux-directory-head h1 {
+  margin: 0;
+  font-size: 28px;
+  line-height: 1.1;
+}
+
+.lux-directory-list {
+  display: grid;
+  gap: 10px;
+}
+
+.lux-directory-item {
+  min-height: 54px;
+  border: 1px solid var(--lux-line);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--app-bg) 92%, transparent);
+  color: var(--app-text);
+  text-decoration: none;
+  padding: 0 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+.lux-directory-item:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--app-text) 38%, var(--lux-line));
+}
+
+.lux-directory-item b {
+  font-weight: 700;
+}
+
 .lux-card--skeleton {
   min-height: 380px;
   background: linear-gradient(120deg, rgba(20, 31, 52, 0.95), rgba(30, 42, 67, 0.95), rgba(20, 31, 52, 0.95));

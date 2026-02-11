@@ -905,7 +905,7 @@ body {
   margin-top: 8px;
   padding: 12px;
   border-radius: 22px;
-  border: 1px solid var(--lux-line);
+  border: none;
   background: transparent;
   backdrop-filter: none;
   display: flex;
@@ -922,22 +922,21 @@ body {
 }
 
 .lux-nav-trigger {
-  min-height: 50px;
-  border-radius: 14px;
-  border: 1px solid rgba(196, 211, 240, 0.24);
+  min-height: 44px;
+  border-radius: 0;
+  border: none;
   background: transparent;
   color: var(--lux-text);
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 0 14px;
+  padding: 0 4px;
   cursor: pointer;
-  transition: border-color 0.2s ease, transform 0.2s ease, filter 0.2s ease;
+  transition: transform 0.2s ease, opacity 0.2s ease;
 }
 
 .lux-nav-trigger:hover {
-  border-color: rgba(212, 169, 95, 0.55);
-  filter: brightness(1.06);
+  opacity: 0.85;
 }
 
 .lux-nav-trigger:active {
@@ -945,12 +944,12 @@ body {
 }
 
 .lux-search-wrap.is-open .lux-nav-trigger {
-  border-color: rgba(137, 224, 255, 0.55);
+  opacity: 0.85;
 }
 
 .lux-popover {
   position: absolute;
-  top: calc(100% + 8px);
+  top: 100%;
   left: 0;
   min-width: 240px;
   max-height: min(56vh, 420px);

@@ -186,7 +186,11 @@ export default function HomePage() {
           <button
             type="button"
             className="lux-nav-trigger"
-            onClick={() => setIsSearchOpen((prev) => !prev)}
+            onClick={() => {
+              setIsSearchOpen((prev) => !prev);
+              setIsCategoryOpen(false);
+              setIsShopOpen(false);
+            }}
             aria-expanded={isSearchOpen}
           >
             <Search size={18} />
@@ -236,16 +240,15 @@ export default function HomePage() {
           )}
         </div>
 
-        <div
-          className="lux-menu"
-          ref={categoryRef}
-          onMouseEnter={() => setIsCategoryOpen(true)}
-          onMouseLeave={() => setIsCategoryOpen(false)}
-        >
+        <div className="lux-menu" ref={categoryRef}>
           <button
             type="button"
             className="lux-nav-trigger"
-            onClick={() => setIsCategoryOpen((prev) => !prev)}
+            onClick={() => {
+              setIsCategoryOpen((prev) => !prev);
+              setIsShopOpen(false);
+              setIsSearchOpen(false);
+            }}
             aria-expanded={isCategoryOpen}
           >
             <span>Categories</span>
@@ -271,16 +274,15 @@ export default function HomePage() {
           )}
         </div>
 
-        <div
-          className="lux-menu"
-          ref={shopRef}
-          onMouseEnter={() => setIsShopOpen(true)}
-          onMouseLeave={() => setIsShopOpen(false)}
-        >
+        <div className="lux-menu" ref={shopRef}>
           <button
             type="button"
             className="lux-nav-trigger"
-            onClick={() => setIsShopOpen((prev) => !prev)}
+            onClick={() => {
+              setIsShopOpen((prev) => !prev);
+              setIsCategoryOpen(false);
+              setIsSearchOpen(false);
+            }}
             aria-expanded={isShopOpen}
           >
             <span>Shops</span>

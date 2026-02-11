@@ -62,11 +62,12 @@ const SEARCH_HISTORY_KEY = 'marketplace_search_history';
 export default function HomePage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [search, setSearch] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('All categories');
-  const [selectedShop, setSelectedShop] = useState('All shops');
+  const [selectedCategory, setSelectedCategory] = useState('Все категории');
+  const [selectedShop, setSelectedShop] = useState('Все магазины');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isCategoryOpen, setIsCategoryOpen] = useState(false);
   const [isShopOpen, setIsShopOpen] = useState(false);
+  const [isNavHidden, setIsNavHidden] = useState(false);
   const [searchHistory, setSearchHistory] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -128,16 +129,38 @@ export default function HomePage() {
     return () => document.removeEventListener('mousedown', onMouseDown);
   }, []);
 
+  useEffect(() => {
+    let lastY = window.scrollY;
+
+    const onScroll = () => {
+      const currentY = window.scrollY;
+      const delta = currentY - lastY;
+
+      if (currentY <= 24) {
+        setIsNavHidden(false);
+      } else if (delta > 8) {
+        setIsNavHidden(true);
+      } else if (delta < -8) {
+        setIsNavHidden(false);
+      }
+
+      lastY = currentY;
+    };
+
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
   const categoryOptions = useMemo(() => {
     const items = Array.from(new Set(products.map((product) => product.category?.trim()).filter(Boolean) as string[]));
     items.sort((a, b) => a.localeCompare(b, 'ru'));
-    return ['All categories', ...items];
+    return ['Все категории', ...items];
   }, [products]);
 
   const shopOptions = useMemo(() => {
     const items = Array.from(new Set(products.map((product) => product.sellers?.shop_name?.trim()).filter(Boolean) as string[]));
     items.sort((a, b) => a.localeCompare(b, 'ru'));
-    return ['All shops', ...items];
+    return ['Все магазины', ...items];
   }, [products]);
 
   const saveSearchToHistory = (query: string) => {
@@ -155,10 +178,10 @@ export default function HomePage() {
     const normalizedQuery = search.trim().toLowerCase();
 
     const filtered = products.filter((product) => {
-      const categoryMatch = selectedCategory === 'All categories' || (product.category || '').trim() === selectedCategory;
+      const categoryMatch = selectedCategory === 'Все категории' || (product.category || '').trim() === selectedCategory;
       if (!categoryMatch) return false;
 
-      const shopMatch = selectedShop === 'All shops' || (product.sellers?.shop_name || '').trim() === selectedShop;
+      const shopMatch = selectedShop === 'Все магазины' || (product.sellers?.shop_name || '').trim() === selectedShop;
       if (!shopMatch) return false;
 
       if (!normalizedQuery) return true;
@@ -181,7 +204,7 @@ export default function HomePage() {
       <div className="lux-bg-orb lux-bg-orb-a" aria-hidden />
       <div className="lux-bg-orb lux-bg-orb-b" aria-hidden />
 
-      <section className="lux-shell lux-nav lux-reveal">
+      <section className={`lux-shell lux-nav lux-reveal ${isNavHidden ? 'is-hidden' : ''}`}>
         <div className={`lux-search-wrap ${isSearchOpen ? 'is-open' : ''}`} ref={searchRef}>
           <button
             type="button"
@@ -194,7 +217,7 @@ export default function HomePage() {
             aria-expanded={isSearchOpen}
           >
             <Search size={18} />
-            <span>Search</span>
+            <span>Поиск</span>
           </button>
 
           {isSearchOpen && (
@@ -208,16 +231,16 @@ export default function HomePage() {
                   onKeyDown={(event) => {
                     if (event.key === 'Enter') saveSearchToHistory(search);
                   }}
-                  placeholder="Product, category, or shop"
-                  aria-label="Search products"
+                  placeholder="Товар, категория или магазин"
+                  aria-label="Поиск товаров"
                 />
               </div>
 
               <div className="lux-history">
-                <p>Search history</p>
+                <p>История поиска</p>
                 <div>
                   {searchHistory.length === 0 ? (
-                    <span className="lux-history-empty">No recent queries</span>
+                    <span className="lux-history-empty">Запросов пока нет</span>
                   ) : (
                     searchHistory.map((item) => (
                       <button
@@ -251,7 +274,7 @@ export default function HomePage() {
             }}
             aria-expanded={isCategoryOpen}
           >
-            <span>Categories</span>
+            <span>Категории</span>
             <ChevronDown size={16} />
           </button>
 
@@ -285,7 +308,7 @@ export default function HomePage() {
             }}
             aria-expanded={isShopOpen}
           >
-            <span>Shops</span>
+            <span>Магазины</span>
             <ChevronDown size={16} />
           </button>
 
@@ -327,7 +350,7 @@ export default function HomePage() {
         <section className="lux-shell lux-grid">
           {filteredProducts.length === 0 && (
             <article className="lux-state">
-              <p>No items match your filters. Try another category, shop, or query.</p>
+              <p>По выбранным фильтрам ничего не найдено.</p>
             </article>
           )}
 

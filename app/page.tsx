@@ -1,7 +1,7 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Search, ChevronDown, Star, MessageCircle, ShoppingBag } from 'lucide-react';
+import { Search, ChevronDown, Star, MessageCircle, Heart, Bell } from 'lucide-react';
 import { supabase } from './lib/supabase';
 
 type Seller = {
@@ -58,6 +58,7 @@ const getDiscountedPrice = (price: number, discount = 0) => {
 };
 
 const SEARCH_HISTORY_KEY = 'marketplace_search_history';
+const FAVORITES_KEY = 'marketplace_favorites';
 
 export default function HomePage() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -67,6 +68,8 @@ export default function HomePage() {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isCategoryOpen, setIsCategoryOpen] = useState(false);
   const [isShopOpen, setIsShopOpen] = useState(false);
+  const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+  const [favorites, setFavorites] = useState<string[]>([]);
   const [isNavHidden, setIsNavHidden] = useState(false);
   const [searchHistory, setSearchHistory] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -114,6 +117,18 @@ export default function HomePage() {
       if (Array.isArray(parsed)) setSearchHistory(parsed.filter((item) => typeof item === 'string').slice(0, 8));
     } catch {
       setSearchHistory([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(FAVORITES_KEY);
+      if (!raw) return;
+
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) setFavorites(parsed.filter((item) => typeof item === 'string'));
+    } catch {
+      setFavorites([]);
     }
   }, []);
 
@@ -174,6 +189,15 @@ export default function HomePage() {
     });
   };
 
+  const toggleFavorite = (id: string) => {
+    setFavorites((prev) => {
+      const exists = prev.includes(id);
+      const next = exists ? prev.filter((item) => item !== id) : [...prev, id];
+      localStorage.setItem(FAVORITES_KEY, JSON.stringify(next));
+      return next;
+    });
+  };
+
   const filteredProducts = useMemo(() => {
     const normalizedQuery = search.trim().toLowerCase();
 
@@ -184,6 +208,7 @@ export default function HomePage() {
       const shopMatch = selectedShop === 'Все магазины' || (product.sellers?.shop_name || '').trim() === selectedShop;
       if (!shopMatch) return false;
 
+      if (showFavoritesOnly && !favorites.includes(product.id)) return false;
       if (!normalizedQuery) return true;
 
       const haystack = `${product.name} ${product.description || ''} ${product.category || ''} ${product.sellers?.shop_name || ''}`.toLowerCase();
@@ -197,7 +222,7 @@ export default function HomePage() {
       const bScore = (b.discount || 0) * 5 + Math.min(bFinal, 200000) * -0.0001;
       return bScore - aScore;
     });
-  }, [products, search, selectedCategory, selectedShop]);
+  }, [products, search, selectedCategory, selectedShop, showFavoritesOnly, favorites]);
 
   return (
     <main className="lux-page">
@@ -330,6 +355,23 @@ export default function HomePage() {
             </div>
           )}
         </div>
+
+        <div className="lux-nav-spacer" />
+
+        <button
+          type="button"
+          className={`lux-nav-trigger lux-nav-action ${showFavoritesOnly ? 'is-active' : ''}`}
+          onClick={() => setShowFavoritesOnly((prev) => !prev)}
+          aria-label="Избранное"
+        >
+          <Heart size={18} fill={showFavoritesOnly ? 'currentColor' : 'none'} />
+          <span>Избранное</span>
+          <b>{favorites.length}</b>
+        </button>
+
+        <button type="button" className="lux-nav-trigger lux-nav-action" aria-label="Уведомления">
+          <Bell size={18} />
+        </button>
       </section>
 
       {error && (
@@ -357,6 +399,7 @@ export default function HomePage() {
           {filteredProducts.map((product, index) => {
             const finalPrice = getDiscountedPrice(product.price, product.discount || 0);
             const sellerLink = getSellerLink(product.sellers);
+            const isFavorite = favorites.includes(product.id);
 
             return (
               <article key={product.id} className="lux-card lux-reveal" style={{ animationDelay: `${Math.min(index * 25, 420)}ms` }}>
@@ -366,6 +409,8 @@ export default function HomePage() {
                 </div>
 
                 <div className="lux-card__body">
+                  <h3>{product.name}</h3>
+
                   <div className="lux-card__meta">
                     <span className="lux-rating">
                       <Star size={14} fill="currentColor" />
@@ -373,7 +418,6 @@ export default function HomePage() {
                     </span>
                   </div>
 
-                  <h3>{product.name}</h3>
                   <p>{product.sellers?.shop_name || 'Verified seller'}</p>
 
                   <div className="lux-card__price">
@@ -382,23 +426,27 @@ export default function HomePage() {
                   </div>
 
                   <div className="lux-card__actions">
+                    <button
+                      type="button"
+                      className={`lux-icon-btn ${isFavorite ? 'is-active' : ''}`}
+                      onClick={() => toggleFavorite(product.id)}
+                      aria-label="Добавить в избранное"
+                    >
+                      <Heart size={18} fill={isFavorite ? 'currentColor' : 'none'} />
+                    </button>
+
                     <a
                       href={sellerLink || '#'}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className={`lux-btn ${sellerLink ? '' : 'is-disabled'}`}
+                      className={`lux-icon-btn ${sellerLink ? '' : 'is-disabled'}`}
                       onClick={(event) => {
                         if (!sellerLink) event.preventDefault();
                       }}
+                      aria-label="Связаться с продавцом"
                     >
-                      <MessageCircle size={15} />
-                      Contact seller
+                      <MessageCircle size={18} />
                     </a>
-
-                    <button type="button" className="lux-btn lux-btn--ghost">
-                      <ShoppingBag size={15} />
-                      Save
-                    </button>
                   </div>
                 </div>
               </article>

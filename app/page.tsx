@@ -64,6 +64,11 @@ const getProductImages = (rawImageUrl?: string) => {
   const value = rawImageUrl.trim();
   if (!value) return [];
 
+  // Never split data URLs (base64 payload contains commas).
+  if (value.startsWith('data:image/')) {
+    return [value];
+  }
+
   if ((value.startsWith('[') && value.endsWith(']')) || (value.startsWith('{"') && value.endsWith('}'))) {
     try {
       const parsed = JSON.parse(value);
@@ -75,10 +80,24 @@ const getProductImages = (rawImageUrl?: string) => {
     }
   }
 
-  return value
-    .split(/[\n,;|]/g)
+  const byPrimarySeparators = value
+    .split(/[\n;|]/g)
     .map((item) => item.trim())
     .filter(Boolean);
+
+  // Optional comma split only for plain URL lists (not data URLs).
+  if (byPrimarySeparators.length === 1 && byPrimarySeparators[0].includes(',')) {
+    const commaParts = byPrimarySeparators[0]
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean);
+
+    if (commaParts.length > 1 && commaParts.every((item) => item.startsWith('http://') || item.startsWith('https://'))) {
+      return commaParts;
+    }
+  }
+
+  return byPrimarySeparators;
 };
 
 const SEARCH_HISTORY_KEY = 'marketplace_search_history';

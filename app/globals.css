@@ -802,11 +802,11 @@ body {
 .lux-page {
   position: relative;
   isolation: isolate;
-  padding: clamp(20px, 3vw, 40px) 0 48px;
+  padding: clamp(28px, 4vw, 56px) 0 64px;
 }
 
 .lux-shell {
-  width: min(1200px, calc(100% - 2rem));
+  width: min(1280px, calc(100% - 2.5rem));
   margin: 0 auto;
 }
 
@@ -902,23 +902,26 @@ body {
 }
 
 .lux-controls {
-  margin-top: 18px;
-  padding: 12px;
-  border-radius: 20px;
+  margin-top: 10px;
+  padding: 14px;
+  border-radius: 22px;
   border: 1px solid var(--lux-line);
   background: var(--lux-panel);
   backdrop-filter: blur(10px);
   display: grid;
   grid-template-columns: 1fr auto auto;
   gap: 10px;
+  position: sticky;
+  top: 12px;
+  z-index: 20;
 }
 
 .lux-search,
 .lux-sort,
 .lux-refresh {
   border: 1px solid rgba(196, 211, 240, 0.22);
-  border-radius: 14px;
-  min-height: 46px;
+  border-radius: 16px;
+  min-height: 54px;
   background: rgba(12, 22, 39, 0.84);
   color: var(--lux-text);
 }
@@ -926,8 +929,20 @@ body {
 .lux-search {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 0 12px;
+  gap: 10px;
+  padding: 0 14px;
+  position: relative;
+  overflow: hidden;
+}
+
+.lux-search::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(112deg, transparent 20%, rgba(137, 224, 255, 0.16) 50%, transparent 80%);
+  transform: translateX(-120%);
+  animation: luxSweep 8s linear infinite;
+  pointer-events: none;
 }
 
 .lux-search input {
@@ -1038,24 +1053,40 @@ body {
 }
 
 .lux-grid {
-  margin-top: 18px;
+  margin-top: 26px;
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 14px;
+  gap: 18px;
 }
 
 .lux-card {
-  border-radius: 20px;
+  border-radius: 24px;
   overflow: hidden;
   border: 1px solid var(--lux-line);
   background: var(--lux-panel-strong);
-  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.3);
-  transition: transform 0.28s ease, border-color 0.28s ease;
+  box-shadow: 0 22px 46px rgba(0, 0, 0, 0.34);
+  transition: transform 0.32s cubic-bezier(0.22, 0.61, 0.36, 1), border-color 0.28s ease;
+  position: relative;
 }
 
 .lux-card:hover {
-  transform: translateY(-4px);
+  transform: translateY(-7px);
   border-color: rgba(212, 169, 95, 0.48);
+}
+
+.lux-card::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  background: conic-gradient(from 180deg, rgba(137, 224, 255, 0.0), rgba(137, 224, 255, 0.34), rgba(212, 169, 95, 0.38), rgba(137, 224, 255, 0.0));
+  opacity: 0;
+  transition: opacity 0.28s ease;
+  pointer-events: none;
+}
+
+.lux-card:hover::before {
+  opacity: 1;
 }
 
 .lux-card__imageWrap {
@@ -1089,7 +1120,7 @@ body {
 }
 
 .lux-card__body {
-  padding: 14px;
+  padding: 16px;
 }
 
 .lux-card__meta {
@@ -1136,14 +1167,14 @@ body {
 }
 
 .lux-card__actions {
-  margin-top: 12px;
+  margin-top: 14px;
   display: grid;
   gap: 8px;
 }
 
 .lux-btn {
-  min-height: 40px;
-  border-radius: 12px;
+  min-height: 42px;
+  border-radius: 14px;
   border: 1px solid rgba(212, 169, 95, 0.4);
   background: linear-gradient(130deg, rgba(212, 169, 95, 0.3), rgba(137, 224, 255, 0.2));
   color: #fef5e6;
@@ -1154,7 +1185,7 @@ body {
   text-decoration: none;
   font-weight: 600;
   cursor: pointer;
-  transition: transform 0.22s ease, filter 0.22s ease;
+  transition: transform 0.24s cubic-bezier(0.22, 0.61, 0.36, 1), filter 0.22s ease;
 }
 
 .lux-btn:hover {
@@ -1213,14 +1244,14 @@ body {
 
 .lux-reveal {
   opacity: 0;
-  transform: translateY(8px);
+  transform: translateY(12px) scale(0.985);
   animation: luxReveal 540ms cubic-bezier(0.2, 0.7, 0.2, 1) forwards;
 }
 
 @keyframes luxReveal {
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateY(0) scale(1);
   }
 }
 
@@ -1243,6 +1274,33 @@ body {
   }
 }
 
+@keyframes luxSweep {
+  to {
+    transform: translateX(120%);
+  }
+}
+
+@supports (animation-timeline: view()) {
+  .lux-card.lux-reveal {
+    animation: luxCardIn 1ms linear both;
+    animation-timeline: view();
+    animation-range: entry 8% cover 34%;
+  }
+}
+
+@keyframes luxCardIn {
+  from {
+    opacity: 0;
+    transform: translateY(22px) scale(0.97);
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
 @media (max-width: 1080px) {
   .lux-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1260,6 +1318,7 @@ body {
 
   .lux-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
   }
 
   .lux-metrics {
@@ -1278,6 +1337,7 @@ body {
 
   .lux-grid {
     grid-template-columns: 1fr;
+    gap: 12px;
   }
 }
 
@@ -1285,7 +1345,8 @@ body {
   .lux-reveal,
   .lux-bg-orb,
   .lux-card,
-  .lux-btn {
+  .lux-btn,
+  .lux-search::after {
     animation: none;
     transition: none;
   }

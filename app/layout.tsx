@@ -3,6 +3,7 @@ import './globals.css';
 import ServiceWorkerRegister from './components/ServiceWorkerRegister';
 import NetworkStatus from './components/NetworkStatus';
 import CategoryScrollSound from './components/CategoryScrollSound';
+import GlobalNavControls from './components/GlobalNavControls';
 
 export const metadata: Metadata = {
   title: 'RA DELL Signature Marketplace',
@@ -51,6 +52,7 @@ export default function RootLayout({
       <body className="antialiased">
         <CategoryScrollSound enabled={true} volume={0.15} />
         <NetworkStatus />
+        <GlobalNavControls />
         {children}
         <ServiceWorkerRegister />
       </body>

@@ -194,7 +194,7 @@ export default function ProductDetailsPage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-[radial-gradient(circle_at_10%_20%,#1f2d4c_0%,transparent_35%),radial-gradient(circle_at_90%_10%,#253b5f_0%,transparent_30%),linear-gradient(180deg,#06090f_0%,#0b1220_100%)] text-white">
+      <main className="min-h-screen text-[var(--app-text)]">
         <div className="mx-auto w-full max-w-6xl px-4 py-8 md:px-8">
           <div className="h-10 w-28 animate-pulse rounded-xl bg-white/10" />
           <div className="mt-6 h-[58vh] animate-pulse rounded-3xl bg-white/10" />
@@ -205,7 +205,7 @@ export default function ProductDetailsPage() {
 
   if (error || !product) {
     return (
-      <main className="min-h-screen bg-[radial-gradient(circle_at_10%_20%,#1f2d4c_0%,transparent_35%),radial-gradient(circle_at_90%_10%,#253b5f_0%,transparent_30%),linear-gradient(180deg,#06090f_0%,#0b1220_100%)] text-white">
+      <main className="min-h-screen text-[var(--app-text)]">
         <div className="mx-auto w-full max-w-6xl px-4 py-8 md:px-8">
           <button
             type="button"
@@ -228,7 +228,7 @@ export default function ProductDetailsPage() {
   const displayImage = failedImages[currentImage] ? PRODUCT_PLACEHOLDER : currentImage;
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_10%_20%,#1f2d4c_0%,transparent_35%),radial-gradient(circle_at_90%_10%,#253b5f_0%,transparent_30%),linear-gradient(180deg,#06090f_0%,#0b1220_100%)] text-white">
+    <main className="min-h-screen text-[var(--app-text)]">
       <div className="mx-auto w-full max-w-6xl px-4 py-8 md:px-8">
         <div className="sticky top-3 z-20 mb-5 flex items-center justify-between rounded-2xl border border-white/15 bg-black/35 p-3 backdrop-blur-xl">
           <button

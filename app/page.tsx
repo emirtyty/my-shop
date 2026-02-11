@@ -149,10 +149,12 @@ export default function HomePage() {
   const [error, setError] = useState<string | null>(null);
   const [brokenCovers, setBrokenCovers] = useState<Record<string, boolean>>({});
   const [isSellerStorefront, setIsSellerStorefront] = useState(false);
+  const [isMobileSearchExpanded, setIsMobileSearchExpanded] = useState(false);
 
   const searchRef = useRef<HTMLDivElement>(null);
   const categoryRef = useRef<HTMLDivElement>(null);
   const shopRef = useRef<HTMLDivElement>(null);
+  const mobileSearchInputRef = useRef<HTMLInputElement>(null);
   const lastScrollYRef = useRef(0);
   const directionDistanceRef = useRef(0);
   const hiddenRef = useRef(false);
@@ -234,6 +236,21 @@ export default function HomePage() {
     document.addEventListener('mousedown', onMouseDown);
     return () => document.removeEventListener('mousedown', onMouseDown);
   }, []);
+
+  useEffect(() => {
+    if (!isMobileSearchExpanded) return;
+    mobileSearchInputRef.current?.focus();
+  }, [isMobileSearchExpanded]);
+
+  useEffect(() => {
+    const onScrollMobile = () => {
+      if (window.innerWidth > 840) return;
+      if (!isMobileSearchExpanded) return;
+      setIsMobileSearchExpanded(false);
+    };
+    window.addEventListener('scroll', onScrollMobile, { passive: true });
+    return () => window.removeEventListener('scroll', onScrollMobile);
+  }, [isMobileSearchExpanded]);
 
   useEffect(() => {
     lastScrollYRef.current = window.scrollY;
@@ -384,41 +401,38 @@ export default function HomePage() {
       <div className="lux-bg-orb lux-bg-orb-b" aria-hidden />
 
       <section className="lux-mobile-topbar">
-        <button
-          type="button"
-          className="lux-mobile-topbar__icon"
-          onClick={() => {
-            setIsSearchOpen((prev) => !prev);
-            setIsCategoryOpen(false);
-            setIsShopOpen(false);
-          }}
-          aria-label="Поиск"
-        >
-          <Search size={20} />
-        </button>
+        <div className={`lux-mobile-search-inline ${isMobileSearchExpanded ? 'is-open' : ''}`}>
+          <button
+            type="button"
+            className="lux-mobile-topbar__icon"
+            onClick={() => {
+              setIsMobileSearchExpanded((prev) => !prev);
+              setIsCategoryOpen(false);
+              setIsShopOpen(false);
+            }}
+            aria-label="Поиск"
+          >
+            <Search size={20} />
+          </button>
 
-        <button type="button" className="lux-mobile-topbar__icon" aria-label="Уведомления">
-          <Bell size={20} />
-        </button>
-      </section>
-
-      {isSearchOpen && (
-        <section className="lux-mobile-search">
-          <div className="lux-search-input">
-            <Search size={16} />
+          {isMobileSearchExpanded && (
             <input
-              autoFocus
+              ref={mobileSearchInputRef}
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               onKeyDown={(event) => {
                 if (event.key === 'Enter') saveSearchToHistory(search);
               }}
-              placeholder="Товар, категория или магазин"
+              placeholder="Поиск товаров"
               aria-label="Поиск товаров"
             />
-          </div>
-        </section>
-      )}
+          )}
+        </div>
+
+        <button type="button" className="lux-mobile-topbar__icon" aria-label="Уведомления">
+          <Bell size={20} />
+        </button>
+      </section>
 
       {!isSellerStorefront && (
         <section className={`lux-shell lux-nav ${isNavHidden ? 'is-hidden' : ''}`}>

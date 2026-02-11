@@ -1821,7 +1821,7 @@ body {
     justify-content: space-between;
     background: color-mix(in srgb, var(--app-bg) 96%, transparent);
     backdrop-filter: blur(8px);
-    border-bottom: 1px solid var(--lux-line);
+    border-bottom: none;
   }
 
   .lux-mobile-topbar__icon {
@@ -1837,14 +1837,29 @@ body {
     cursor: pointer;
   }
 
-  .lux-mobile-search {
-    display: block;
-    position: fixed;
-    top: 48px;
-    left: 10px;
-    right: 10px;
-    z-index: 74;
-    padding-top: max(env(safe-area-inset-top), 0px);
+  .lux-mobile-search-inline {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: 1 1 auto;
+    margin-right: 10px;
+    min-height: 30px;
+    transition: all 0.22s ease;
+  }
+
+  .lux-mobile-search-inline input {
+    width: 100%;
+    min-width: 0;
+    border: none;
+    outline: none;
+    background: transparent;
+    color: var(--app-text);
+    font-size: 15px;
+    line-height: 1.2;
+  }
+
+  .lux-mobile-search-inline input::placeholder {
+    color: var(--lux-muted);
   }
 
   .lux-nav {

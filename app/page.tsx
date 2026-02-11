@@ -95,7 +95,7 @@ export default function HomePage() {
 
       const { data, error: fetchError } = await supabase
         .from('product_market')
-        .select('id, name, price, image_url, discount, category, seller_id, description, sellers(id, shop_name, telegram, vk, whatsapp, instagram, telegram_url, vk_url, whatsapp_url, instagram_url)')
+        .select('id, name, price, image_url, discount, category, seller_id, description, sellers(id, shop_name, telegram_url, vk_url, whatsapp_url, instagram_url)')
         .limit(300);
 
       if (fetchError) {

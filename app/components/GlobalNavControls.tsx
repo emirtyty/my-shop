@@ -3,11 +3,19 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { ArrowLeft, House } from 'lucide-react';
+import { useEffect, useState } from 'react';
 
 export default function GlobalNavControls() {
   const router = useRouter();
   const pathname = usePathname();
+  const [isSellerStorefront, setIsSellerStorefront] = useState(false);
   const isHome = pathname === '/';
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    setIsSellerStorefront(isHome && Boolean(params.get('shop')?.trim()));
+  }, [isHome]);
 
   const onBack = () => {
     if (window.history.length > 1) {
@@ -17,7 +25,7 @@ export default function GlobalNavControls() {
     router.push('/');
   };
 
-  if (isHome) {
+  if (isHome && !isSellerStorefront) {
     return null;
   }
 

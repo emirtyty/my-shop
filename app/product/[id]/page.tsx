@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, ChevronLeft, ChevronRight, Heart, MessageCircle, ShoppingBag, Star } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Heart, MessageCircle, ShoppingBag, Star } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
 type Seller = {

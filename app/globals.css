@@ -784,42 +784,40 @@ body {
 /* === Premium storefront layer === */
 :root {
   --app-bg: #090f1b;
-  --app-bg-end: #0b1322;
-  --app-text: #edf2ff;
-  --lux-bg: #090f1b;
-  --lux-bg-soft: #0f1b2f;
-  --lux-panel: rgba(16, 27, 46, 0.72);
-  --lux-panel-strong: rgba(15, 26, 44, 0.92);
-  --lux-line: rgba(195, 213, 245, 0.2);
-  --lux-text: #edf2ff;
-  --lux-muted: #9fb0cf;
-  --lux-accent: #d4a95f;
-  --lux-accent-2: #89e0ff;
-  --lux-positive: #7ef5c5;
+  --app-bg-end: #000000;
+  --app-text: #f3f4f6;
+  --lux-bg: #0a0a0a;
+  --lux-bg-soft: #111111;
+  --lux-panel: rgba(17, 17, 17, 0.82);
+  --lux-panel-strong: rgba(10, 10, 10, 0.95);
+  --lux-line: rgba(255, 255, 255, 0.16);
+  --lux-text: #f5f5f5;
+  --lux-muted: #a3a3a3;
+  --lux-accent: #ffffff;
+  --lux-accent-2: #e5e5e5;
+  --lux-positive: #e5e5e5;
 }
 
 @media (prefers-color-scheme: light) {
   :root {
-    --app-bg: #f8fbff;
-    --app-bg-end: #f1f6ff;
-    --app-text: #0f1a2e;
-    --lux-bg: #f4f8ff;
-    --lux-bg-soft: #e7f0ff;
-    --lux-panel: rgba(255, 255, 255, 0.8);
-    --lux-panel-strong: rgba(250, 252, 255, 0.95);
-    --lux-line: rgba(22, 46, 86, 0.2);
-    --lux-text: #0f1a2e;
-    --lux-muted: #476186;
-    --lux-accent: #9b6d22;
-    --lux-accent-2: #2d7ea0;
+    --app-bg: #ffffff;
+    --app-bg-end: #f5f5f5;
+    --app-text: #0a0a0a;
+    --lux-bg: #ffffff;
+    --lux-bg-soft: #f5f5f5;
+    --lux-panel: rgba(255, 255, 255, 0.9);
+    --lux-panel-strong: rgba(255, 255, 255, 0.98);
+    --lux-line: rgba(0, 0, 0, 0.14);
+    --lux-text: #0a0a0a;
+    --lux-muted: #525252;
+    --lux-accent: #0a0a0a;
+    --lux-accent-2: #171717;
   }
 }
 
 body {
   font-family: 'Space Grotesk', 'Sora', 'Syne', sans-serif;
-  background: radial-gradient(circle at 10% 20%, color-mix(in srgb, var(--lux-accent-2) 24%, transparent) 0%, transparent 36%),
-    radial-gradient(circle at 95% 0%, color-mix(in srgb, var(--lux-bg-soft) 72%, transparent) 0%, transparent 30%),
-    linear-gradient(180deg, var(--app-bg) 0%, var(--app-bg-end) 100%);
+  background: linear-gradient(180deg, var(--app-bg) 0%, var(--app-bg-end) 100%);
   color: var(--app-text);
   min-height: 100dvh;
 }
@@ -1786,62 +1784,45 @@ body {
   }
 }
 
-@media (prefers-color-scheme: light) {
-  .lux-nav-trigger,
-  .lux-nav-action,
-  .lux-card p,
-  .lux-history-empty {
-    color: #243b5f;
-  }
+.lux-bg-orb {
+  display: none;
+}
 
-  .lux-card {
-    border-color: rgba(36, 69, 116, 0.18);
-    background: linear-gradient(170deg, rgba(255, 255, 255, 0.96), rgba(244, 249, 255, 0.95));
-    box-shadow: 0 24px 60px rgba(33, 60, 104, 0.12);
-  }
+.lux-nav-trigger,
+.lux-nav-action,
+.lux-card p,
+.lux-history-empty,
+.lux-card h3,
+.lux-card__price strong,
+.lux-nav-action.is-active,
+.lux-search-input input {
+  color: var(--app-text);
+}
 
-  .lux-card h3,
-  .lux-card__price strong,
-  .lux-nav-action.is-active {
-    color: #0f1a2e;
-  }
+.lux-card {
+  border-color: var(--lux-line);
+  background: linear-gradient(170deg, color-mix(in srgb, var(--app-bg) 92%, #ffffff 8%), color-mix(in srgb, var(--app-bg) 98%, #000000 2%));
+  box-shadow: 0 24px 60px color-mix(in srgb, var(--app-text) 10%, transparent);
+}
 
-  .lux-card__price small {
-    color: #6e84aa;
-  }
+.lux-card__price small {
+  color: var(--lux-muted);
+}
 
-  .lux-popover {
-    border-color: rgba(45, 82, 136, 0.2);
-    background: rgba(251, 253, 255, 0.95);
-    box-shadow: 0 20px 45px rgba(30, 63, 110, 0.14);
-  }
+.lux-popover,
+.lux-search-input,
+.lux-menu-item,
+.lux-chip,
+.lux-icon-btn,
+.lux-rating,
+.lux-state,
+.lux-search-input {
+  border-color: var(--lux-line);
+  color: var(--app-text);
+  background: color-mix(in srgb, var(--app-bg) 88%, transparent);
+}
 
-  .lux-search-input,
-  .lux-menu-item,
-  .lux-chip {
-    border-color: rgba(45, 82, 136, 0.2);
-    color: #1a2f50;
-  }
-
-  .lux-search-input input {
-    color: #10223f;
-  }
-
-  .lux-rating {
-    color: #6f531f;
-    background: rgba(236, 205, 140, 0.2);
-    border-color: rgba(192, 146, 63, 0.35);
-  }
-
-  .lux-icon-btn {
-    color: #2a446b;
-    border-color: rgba(41, 72, 120, 0.26);
-    background: linear-gradient(132deg, rgba(246, 233, 204, 0.5), rgba(219, 239, 255, 0.45));
-  }
-
-  .lux-state {
-    background: rgba(255, 255, 255, 0.82);
-    border-color: rgba(45, 82, 136, 0.2);
-    color: #36517b;
-  }
+.lux-discount {
+  color: var(--app-bg);
+  background: var(--app-text);
 }

@@ -148,6 +148,7 @@ export default function HomePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [brokenCovers, setBrokenCovers] = useState<Record<string, boolean>>({});
+  const [isSellerStorefront, setIsSellerStorefront] = useState(false);
 
   const searchRef = useRef<HTMLDivElement>(null);
   const categoryRef = useRef<HTMLDivElement>(null);
@@ -190,6 +191,7 @@ export default function HomePage() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const shop = params.get('shop');
+    setIsSellerStorefront(Boolean(shop && shop.trim()));
     if (shop && shop.trim()) {
       setSelectedShop(shop.trim());
     }
@@ -377,7 +379,8 @@ export default function HomePage() {
       <div className="lux-bg-orb lux-bg-orb-a" aria-hidden />
       <div className="lux-bg-orb lux-bg-orb-b" aria-hidden />
 
-      <section className={`lux-shell lux-nav ${isNavHidden ? 'is-hidden' : ''}`}>
+      {!isSellerStorefront && (
+        <section className={`lux-shell lux-nav ${isNavHidden ? 'is-hidden' : ''}`}>
         <div className={`lux-search-wrap ${isSearchOpen ? 'is-open' : ''}`} ref={searchRef}>
           <button
             type="button"
@@ -520,7 +523,8 @@ export default function HomePage() {
         <button type="button" className="lux-nav-trigger lux-nav-action" aria-label="Уведомления">
           <Bell size={18} />
         </button>
-      </section>
+        </section>
+      )}
 
       {error && (
         <section className="lux-shell lux-state lux-state--error">

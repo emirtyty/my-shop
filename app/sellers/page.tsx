@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
-import { Store } from 'lucide-react';
+import { Grid2x2, House, Store } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 type ProductSellerRow = {
@@ -84,6 +84,20 @@ export default function SellersPage() {
           </section>
         )}
       </section>
+      <nav className="lux-mobile-nav" aria-label="Нижняя навигация">
+        <Link href="/" className="lux-mobile-nav__item">
+          <House size={17} />
+          <span>Главная</span>
+        </Link>
+        <Link href="/categories" className="lux-mobile-nav__item">
+          <Grid2x2 size={17} />
+          <span>Категории</span>
+        </Link>
+        <Link href="/sellers" className="lux-mobile-nav__item is-active">
+          <Store size={17} />
+          <span>Продавцы</span>
+        </Link>
+      </nav>
     </main>
   );
 }

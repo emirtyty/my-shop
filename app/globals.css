@@ -1891,9 +1891,13 @@ body {
     align-items: center;
     justify-content: center;
     gap: 6px;
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 600;
     cursor: pointer;
+    text-decoration: none;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .lux-mobile-nav__item.is-active {
@@ -1921,7 +1925,7 @@ body {
   }
 
   .lux-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 12px;
   }
 
@@ -1946,6 +1950,14 @@ body {
 
   .lux-modal__price strong {
     font-size: 28px;
+  }
+
+  .lux-card h3 {
+    font-size: 17px;
+  }
+
+  .lux-card__price strong {
+    font-size: 24px;
   }
 }
 

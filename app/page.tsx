@@ -622,29 +622,25 @@ export default function HomePage() {
         </section>
       )}
 
-      {!isSellerStorefront && (
-        <>
-          <nav className="lux-mobile-nav" aria-label="Нижняя навигация">
-            <Link
-              href="/"
-              className={`lux-mobile-nav__item ${selectedCategory === 'Все категории' && selectedShop === 'Все магазины' ? 'is-active' : ''}`}
-            >
-              <House size={17} />
-              <span>Главная</span>
-            </Link>
+      <nav className="lux-mobile-nav" aria-label="Нижняя навигация">
+        <Link
+          href="/"
+          className={`lux-mobile-nav__item ${selectedCategory === 'Все категории' && selectedShop === 'Все магазины' ? 'is-active' : ''}`}
+        >
+          <House size={17} />
+          <span>Главная</span>
+        </Link>
 
-            <Link href="/categories" className="lux-mobile-nav__item">
-              <Grid2x2 size={17} />
-              <span>Категории</span>
-            </Link>
+        <Link href="/categories" className="lux-mobile-nav__item">
+          <Grid2x2 size={17} />
+          <span>Категории</span>
+        </Link>
 
-            <Link href="/sellers" className="lux-mobile-nav__item">
-              <Store size={17} />
-              <span>Продавцы</span>
-            </Link>
-          </nav>
-        </>
-      )}
+        <Link href="/sellers" className="lux-mobile-nav__item">
+          <Store size={17} />
+          <span>Продавцы</span>
+        </Link>
+      </nav>
     </main>
   );
 }

@@ -33,6 +33,8 @@ type Product = {
 };
 
 const FAVORITES_KEY = 'marketplace_favorites';
+const PRODUCT_PLACEHOLDER =
+  "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 900'><defs><linearGradient id='g' x1='0' x2='1' y1='0' y2='1'><stop stop-color='%230e1a30'/><stop offset='1' stop-color='%23172e51'/></linearGradient></defs><rect width='1200' height='900' fill='url(%23g)'/><circle cx='980' cy='180' r='220' fill='%23ffffff10'/><text x='50%' y='52%' text-anchor='middle' fill='%23d7e7ff' font-size='54' font-family='Arial'>Изображение недоступно</text></svg>";
 
 const toPrice = (value: number) =>
   new Intl.NumberFormat('ru-RU', {
@@ -44,6 +46,29 @@ const toPrice = (value: number) =>
 const getDiscountedPrice = (price: number, discount = 0) => {
   if (!discount || discount <= 0) return price;
   return Math.max(0, Math.round(price * (1 - discount / 100)));
+};
+
+const normalizeImageCandidate = (rawValue: string) => {
+  const value = rawValue.trim();
+  if (!value) return '';
+
+  if (value.startsWith('data:image/')) {
+    const commaIndex = value.indexOf(',');
+    if (commaIndex === -1) return '';
+    const metadata = value.slice(0, commaIndex + 1);
+    const payload = value.slice(commaIndex + 1).replace(/\s+/g, '');
+    return `${metadata}${payload}`;
+  }
+
+  if (value.startsWith('http://') || value.startsWith('https://')) {
+    try {
+      return encodeURI(value);
+    } catch {
+      return value;
+    }
+  }
+
+  return value;
 };
 
 const getSellerLink = (seller?: Seller) => {
@@ -69,14 +94,18 @@ const getProductImages = (rawImageUrl?: string) => {
 
   // Never split data URLs (base64 payload contains commas).
   if (value.startsWith('data:image/')) {
-    return [value];
+    const normalized = normalizeImageCandidate(value);
+    return normalized ? [normalized] : [];
   }
 
   if ((value.startsWith('[') && value.endsWith(']')) || (value.startsWith('{"') && value.endsWith('}'))) {
     try {
       const parsed = JSON.parse(value);
       if (Array.isArray(parsed)) {
-        return parsed.filter((item) => typeof item === 'string' && item.trim()).map((item) => item.trim());
+        return parsed
+          .filter((item) => typeof item === 'string' && item.trim())
+          .map((item) => normalizeImageCandidate(item))
+          .filter(Boolean);
       }
     } catch {
       // Fallback to separators below.
@@ -96,11 +125,11 @@ const getProductImages = (rawImageUrl?: string) => {
       .filter(Boolean);
 
     if (commaParts.length > 1 && commaParts.every((item) => item.startsWith('http://') || item.startsWith('https://'))) {
-      return commaParts;
+      return commaParts.map((item) => normalizeImageCandidate(item)).filter(Boolean);
     }
   }
 
-  return byPrimarySeparators;
+  return byPrimarySeparators.map((item) => normalizeImageCandidate(item)).filter(Boolean);
 };
 
 export default function ProductDetailsPage() {
@@ -112,6 +141,7 @@ export default function ProductDetailsPage() {
   const [error, setError] = useState<string | null>(null);
   const [imageIndex, setImageIndex] = useState(0);
   const [favorites, setFavorites] = useState<string[]>([]);
+  const [failedImages, setFailedImages] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     const load = async () => {
@@ -194,7 +224,8 @@ export default function ProductDetailsPage() {
   const finalPrice = getDiscountedPrice(product.price, product.discount || 0);
   const sellerLink = getSellerLink(product.sellers);
   const isFavorite = favorites.includes(product.id);
-  const currentImage = images[imageIndex] || images[0] || '';
+  const currentImage = images[imageIndex] || images[0] || PRODUCT_PLACEHOLDER;
+  const displayImage = failedImages[currentImage] ? PRODUCT_PLACEHOLDER : currentImage;
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_10%_20%,#1f2d4c_0%,transparent_35%),radial-gradient(circle_at_90%_10%,#253b5f_0%,transparent_30%),linear-gradient(180deg,#06090f_0%,#0b1220_100%)] text-white">
@@ -222,7 +253,12 @@ export default function ProductDetailsPage() {
           <div className="grid grid-cols-1 lg:grid-cols-[1.15fr_1fr]">
             <div className="relative bg-zinc-900">
               <div className="aspect-[4/3]">
-                <img src={currentImage} alt={product.name} className="h-full w-full object-cover" />
+                <img
+                  src={displayImage}
+                  alt={product.name}
+                  className="h-full w-full object-cover"
+                  onError={() => setFailedImages((prev) => (prev[currentImage] ? prev : { ...prev, [currentImage]: true }))}
+                />
               </div>
 
               {images.length > 1 && (

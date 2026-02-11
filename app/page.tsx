@@ -31,6 +31,9 @@ type Product = {
   sellers?: Seller;
 };
 
+const PRODUCT_PLACEHOLDER =
+  "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 800 800'><defs><linearGradient id='g' x1='0' x2='1' y1='0' y2='1'><stop stop-color='%230e1a30'/><stop offset='1' stop-color='%23172e51'/></linearGradient></defs><rect width='800' height='800' fill='url(%23g)'/><circle cx='660' cy='160' r='190' fill='%23ffffff10'/><text x='50%' y='52%' text-anchor='middle' fill='%23d7e7ff' font-size='42' font-family='Arial'>Изображение недоступно</text></svg>";
+
 const toPrice = (value: number) =>
   new Intl.NumberFormat('ru-RU', {
     style: 'currency',
@@ -59,6 +62,29 @@ const getDiscountedPrice = (price: number, discount = 0) => {
   return Math.max(0, Math.round(price * (1 - discount / 100)));
 };
 
+const normalizeImageCandidate = (rawValue: string) => {
+  const value = rawValue.trim();
+  if (!value) return '';
+
+  if (value.startsWith('data:image/')) {
+    const commaIndex = value.indexOf(',');
+    if (commaIndex === -1) return '';
+    const metadata = value.slice(0, commaIndex + 1);
+    const payload = value.slice(commaIndex + 1).replace(/\s+/g, '');
+    return `${metadata}${payload}`;
+  }
+
+  if (value.startsWith('http://') || value.startsWith('https://')) {
+    try {
+      return encodeURI(value);
+    } catch {
+      return value;
+    }
+  }
+
+  return value;
+};
+
 const getProductImages = (rawImageUrl?: string) => {
   if (!rawImageUrl) return [];
   const value = rawImageUrl.trim();
@@ -66,14 +92,18 @@ const getProductImages = (rawImageUrl?: string) => {
 
   // Never split data URLs (base64 payload contains commas).
   if (value.startsWith('data:image/')) {
-    return [value];
+    const normalized = normalizeImageCandidate(value);
+    return normalized ? [normalized] : [];
   }
 
   if ((value.startsWith('[') && value.endsWith(']')) || (value.startsWith('{"') && value.endsWith('}'))) {
     try {
       const parsed = JSON.parse(value);
       if (Array.isArray(parsed)) {
-        return parsed.filter((item) => typeof item === 'string' && item.trim()).map((item) => item.trim());
+        return parsed
+          .filter((item) => typeof item === 'string' && item.trim())
+          .map((item) => normalizeImageCandidate(item))
+          .filter(Boolean);
       }
     } catch {
       // Fallback to plain separators below.
@@ -93,11 +123,11 @@ const getProductImages = (rawImageUrl?: string) => {
       .filter(Boolean);
 
     if (commaParts.length > 1 && commaParts.every((item) => item.startsWith('http://') || item.startsWith('https://'))) {
-      return commaParts;
+      return commaParts.map((item) => normalizeImageCandidate(item)).filter(Boolean);
     }
   }
 
-  return byPrimarySeparators;
+  return byPrimarySeparators.map((item) => normalizeImageCandidate(item)).filter(Boolean);
 };
 
 const SEARCH_HISTORY_KEY = 'marketplace_search_history';
@@ -117,6 +147,7 @@ export default function HomePage() {
   const [searchHistory, setSearchHistory] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [brokenCovers, setBrokenCovers] = useState<Record<string, boolean>>({});
 
   const searchRef = useRef<HTMLDivElement>(null);
   const categoryRef = useRef<HTMLDivElement>(null);
@@ -517,13 +548,21 @@ export default function HomePage() {
             const finalPrice = getDiscountedPrice(product.price, product.discount || 0);
             const sellerLink = getSellerLink(product.sellers);
             const isFavorite = favorites.includes(product.id);
-            const cover = getProductImages(product.image_url)[0] || '';
+            const parsedCover = getProductImages(product.image_url)[0] || PRODUCT_PLACEHOLDER;
+            const cover = brokenCovers[product.id] ? PRODUCT_PLACEHOLDER : parsedCover;
 
             return (
               <article key={product.id} className="lux-card lux-reveal" style={{ animationDelay: `${Math.min(index * 25, 420)}ms` }}>
                 <Link href={`/product/${product.id}`} className="lux-card__entry" aria-label={`Открыть товар ${product.name}`}>
                   <div className="lux-card__imageWrap">
-                    <img src={cover} alt={product.name} loading="lazy" />
+                    <img
+                      src={cover}
+                      alt={product.name}
+                      loading="lazy"
+                      onError={() =>
+                        setBrokenCovers((prev) => (prev[product.id] ? prev : { ...prev, [product.id]: true }))
+                      }
+                    />
                     {(product.discount || 0) > 0 ? <span className="lux-discount">-{product.discount}%</span> : null}
                   </div>
 

@@ -1629,13 +1629,7 @@ body {
   }
 }
 
-@supports (animation-timeline: view()) {
-  .lux-card.lux-reveal {
-    animation: luxCardIn 1ms linear both;
-    animation-timeline: view();
-    animation-range: entry 8% cover 34%;
-  }
-}
+/* Disabled scroll-timeline reveal here to reduce scroll jank on heavy pages. */
 
 @keyframes luxCardIn {
   from {

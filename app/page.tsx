@@ -125,6 +125,7 @@ export default function HomePage() {
   const directionDistanceRef = useRef(0);
   const hiddenRef = useRef(false);
   const tickingRef = useRef(false);
+  const lastToggleAtRef = useRef(0);
 
   const loadProducts = async () => {
     setIsLoading(true);
@@ -202,6 +203,7 @@ export default function HomePage() {
     let latestY = window.scrollY;
 
     const update = () => {
+      const now = performance.now();
       const previousY = lastScrollYRef.current;
       const currentY = latestY;
       const delta = currentY - previousY;
@@ -211,11 +213,25 @@ export default function HomePage() {
         return;
       }
 
+      // Keep nav visible while menus are open.
+      if (isSearchOpen || isCategoryOpen || isShopOpen) {
+        directionDistanceRef.current = 0;
+        if (hiddenRef.current) {
+          hiddenRef.current = false;
+          setIsNavHidden(false);
+          lastToggleAtRef.current = now;
+        }
+        lastScrollYRef.current = currentY;
+        tickingRef.current = false;
+        return;
+      }
+
       if (currentY <= 24) {
         directionDistanceRef.current = 0;
         if (hiddenRef.current) {
           hiddenRef.current = false;
           setIsNavHidden(false);
+          lastToggleAtRef.current = now;
         }
       } else {
         const goingDown = delta > 0;
@@ -224,18 +240,31 @@ export default function HomePage() {
           (directionDistanceRef.current <= 0 && !goingDown);
         directionDistanceRef.current = sameDirection ? directionDistanceRef.current + delta : delta;
 
-        const threshold = 56;
+        const threshold = 84;
+        const minToggleInterval = 240;
 
-        if (goingDown && directionDistanceRef.current > threshold && !hiddenRef.current) {
+        if (
+          goingDown &&
+          directionDistanceRef.current > threshold &&
+          !hiddenRef.current &&
+          now - lastToggleAtRef.current > minToggleInterval
+        ) {
           hiddenRef.current = true;
           setIsNavHidden(true);
           directionDistanceRef.current = 0;
+          lastToggleAtRef.current = now;
         }
 
-        if (!goingDown && directionDistanceRef.current < -threshold && hiddenRef.current) {
+        if (
+          !goingDown &&
+          directionDistanceRef.current < -threshold &&
+          hiddenRef.current &&
+          now - lastToggleAtRef.current > minToggleInterval
+        ) {
           hiddenRef.current = false;
           setIsNavHidden(false);
           directionDistanceRef.current = 0;
+          lastToggleAtRef.current = now;
         }
       }
 
@@ -252,7 +281,7 @@ export default function HomePage() {
 
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
-  }, []);
+  }, [isSearchOpen, isCategoryOpen, isShopOpen]);
 
   const categoryOptions = useMemo(() => {
     const items = Array.from(new Set(products.map((product) => product.category?.trim()).filter(Boolean) as string[]));

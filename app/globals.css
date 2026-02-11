@@ -1289,4 +1289,9 @@ body {
     animation: none;
     transition: none;
   }
+
+  .lux-reveal {
+    opacity: 1;
+    transform: none;
+  }
 }

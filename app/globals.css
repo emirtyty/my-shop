@@ -1131,25 +1131,26 @@ body {
 }
 
 .lux-grid {
-  margin-top: 26px;
+  margin-top: 30px;
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 18px;
+  gap: 22px;
 }
 
 .lux-card {
-  border-radius: 24px;
+  border-radius: 26px;
   overflow: hidden;
-  border: 1px solid var(--lux-line);
-  background: var(--lux-panel-strong);
-  box-shadow: 0 22px 46px rgba(0, 0, 0, 0.34);
-  transition: transform 0.32s cubic-bezier(0.22, 0.61, 0.36, 1), border-color 0.28s ease;
+  border: 1px solid rgba(232, 244, 255, 0.16);
+  background: linear-gradient(170deg, rgba(16, 28, 48, 0.95), rgba(10, 18, 33, 0.92));
+  box-shadow: 0 30px 70px rgba(0, 0, 0, 0.46), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  transition: transform 0.34s cubic-bezier(0.22, 0.61, 0.36, 1), border-color 0.28s ease, box-shadow 0.34s ease;
   position: relative;
 }
 
 .lux-card:hover {
-  transform: translateY(-7px);
-  border-color: rgba(212, 169, 95, 0.48);
+  transform: translateY(-9px) scale(1.012);
+  border-color: rgba(225, 194, 136, 0.58);
+  box-shadow: 0 36px 90px rgba(0, 0, 0, 0.58), inset 0 1px 0 rgba(255, 255, 255, 0.14);
 }
 
 .lux-card::before {
@@ -1157,7 +1158,7 @@ body {
   position: absolute;
   inset: -1px;
   border-radius: inherit;
-  background: conic-gradient(from 180deg, rgba(137, 224, 255, 0.0), rgba(137, 224, 255, 0.34), rgba(212, 169, 95, 0.38), rgba(137, 224, 255, 0.0));
+  background: conic-gradient(from 190deg, rgba(137, 224, 255, 0), rgba(137, 224, 255, 0.45), rgba(212, 169, 95, 0.48), rgba(137, 224, 255, 0));
   opacity: 0;
   transition: opacity 0.28s ease;
   pointer-events: none;
@@ -1169,93 +1170,119 @@ body {
 
 .lux-card__imageWrap {
   position: relative;
-  aspect-ratio: 1;
+  aspect-ratio: 1/1;
   overflow: hidden;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.lux-card__imageWrap::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 15% 10%, rgba(255, 255, 255, 0.22), transparent 42%),
+    linear-gradient(to top, rgba(8, 14, 25, 0.62), rgba(8, 14, 25, 0.08) 40%, rgba(8, 14, 25, 0));
+  pointer-events: none;
 }
 
 .lux-card__imageWrap img {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  transform: scale(1.01);
-  transition: transform 0.35s ease;
+  transform: scale(1.02);
+  transition: transform 0.55s cubic-bezier(0.22, 0.61, 0.36, 1), filter 0.42s ease;
+  filter: saturate(1.05) contrast(1.02);
 }
 
 .lux-card:hover .lux-card__imageWrap img {
-  transform: scale(1.06);
+  transform: scale(1.08);
+  filter: saturate(1.14) contrast(1.08);
 }
 
 .lux-discount {
   position: absolute;
-  top: 10px;
-  left: 10px;
+  top: 12px;
+  left: 12px;
   border-radius: 999px;
-  padding: 6px 10px;
+  padding: 7px 11px;
   font-size: 12px;
   font-weight: 700;
-  color: #051019;
-  background: linear-gradient(130deg, #8cffd0, #67e8ff);
+  letter-spacing: 0.02em;
+  color: #2a1700;
+  background: linear-gradient(132deg, #ffdca0, #ffbf71 55%, #ffe9b5);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.3);
 }
 
 .lux-card__body {
-  padding: 16px;
+  padding: 18px 18px 16px;
 }
 
 .lux-card__meta {
   display: flex;
-  justify-content: space-between;
-  font-size: 12px;
-  color: var(--lux-muted);
+  justify-content: flex-end;
+  margin-bottom: 8px;
 }
 
 .lux-rating {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  color: #ffdca0;
+  padding: 5px 10px;
+  border: 1px solid rgba(255, 232, 176, 0.34);
+  border-radius: 999px;
+  color: #ffe7b9;
+  background: rgba(56, 46, 26, 0.38);
+  font-size: 12px;
 }
 
 .lux-card h3 {
-  margin: 10px 0 6px;
-  font-size: 17px;
-  line-height: 1.2;
+  margin: 0 0 7px;
+  font-size: 20px;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  color: #f8fbff;
 }
 
 .lux-card p {
   margin: 0;
   font-size: 13px;
-  color: var(--lux-muted);
+  color: #9fb1ce;
+  letter-spacing: 0.01em;
 }
 
 .lux-card__price {
-  margin-top: 10px;
+  margin-top: 14px;
   display: flex;
   align-items: baseline;
-  gap: 8px;
+  gap: 10px;
 }
 
 .lux-card__price small {
-  color: #8093b4;
+  color: #7f91b0;
+  font-size: 13px;
   text-decoration: line-through;
 }
 
 .lux-card__price strong {
-  font-size: 22px;
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
   color: #ffffff;
+  text-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
 }
 
 .lux-card__actions {
-  margin-top: 14px;
+  margin-top: 16px;
   display: grid;
   gap: 8px;
 }
 
 .lux-btn {
-  min-height: 42px;
-  border-radius: 14px;
-  border: 1px solid rgba(212, 169, 95, 0.4);
-  background: linear-gradient(130deg, rgba(212, 169, 95, 0.3), rgba(137, 224, 255, 0.2));
-  color: #fef5e6;
+  min-height: 46px;
+  border-radius: 16px;
+  border: 1px solid rgba(240, 217, 169, 0.38);
+  background: linear-gradient(132deg, rgba(214, 182, 128, 0.22), rgba(152, 220, 248, 0.16));
+  color: #fff3d8;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1263,12 +1290,15 @@ body {
   text-decoration: none;
   font-weight: 600;
   cursor: pointer;
-  transition: transform 0.24s cubic-bezier(0.22, 0.61, 0.36, 1), filter 0.22s ease;
+  backdrop-filter: blur(10px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.17);
+  transition: transform 0.24s cubic-bezier(0.22, 0.61, 0.36, 1), filter 0.22s ease, border-color 0.22s ease;
 }
 
 .lux-btn:hover {
-  filter: brightness(1.08);
-  transform: translateY(-1px);
+  filter: brightness(1.1);
+  transform: translateY(-2px);
+  border-color: rgba(244, 226, 191, 0.72);
 }
 
 .lux-btn.is-disabled {
@@ -1277,8 +1307,9 @@ body {
 }
 
 .lux-btn--ghost {
-  border-color: rgba(197, 213, 243, 0.26);
-  background: rgba(13, 23, 38, 0.86);
+  border-color: rgba(197, 213, 243, 0.2);
+  background: rgba(13, 23, 38, 0.54);
+  color: #d8e6ff;
 }
 
 .lux-state {

@@ -367,7 +367,6 @@ export default function HomePage() {
 
                 <div className="lux-card__body">
                   <div className="lux-card__meta">
-                    <span>{product.category || 'Uncategorized'}</span>
                     <span className="lux-rating">
                       <Star size={14} fill="currentColor" />
                       4.9

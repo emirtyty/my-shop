@@ -862,6 +862,12 @@ body {
   pointer-events: none;
 }
 
+@media (max-width: 840px) {
+  .global-nav-controls.is-hidden-mobile {
+    display: none;
+  }
+}
+
 .lux-page {
   position: relative;
   isolation: isolate;

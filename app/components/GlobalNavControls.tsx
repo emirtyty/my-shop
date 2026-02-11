@@ -10,6 +10,7 @@ export default function GlobalNavControls() {
   const pathname = usePathname();
   const [isSellerStorefront, setIsSellerStorefront] = useState(false);
   const isHome = pathname === '/';
+  const isDirectoryPage = pathname === '/categories' || pathname === '/sellers';
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -30,7 +31,7 @@ export default function GlobalNavControls() {
   }
 
   return (
-    <nav className="global-nav-controls" aria-label="Глобальная навигация">
+    <nav className={`global-nav-controls ${isDirectoryPage ? 'is-hidden-mobile' : ''}`} aria-label="Глобальная навигация">
       <button type="button" className="global-nav-controls__btn" onClick={onBack} aria-label="Назад">
         <ArrowLeft size={20} />
       </button>

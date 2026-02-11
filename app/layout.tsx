@@ -4,6 +4,7 @@ import './globals.css';
 import ServiceWorkerRegister from './components/ServiceWorkerRegister';
 import NetworkStatus from './components/NetworkStatus';
 import CategoryScrollSound from './components/CategoryScrollSound';
+import GlobalNavControls from './components/GlobalNavControls';
 
 const manrope = Manrope({
   subsets: ['latin', 'cyrillic'],
@@ -64,6 +65,7 @@ export default function RootLayout({
       <body className={`${manrope.variable} ${cormorant.variable} antialiased`}>
         <CategoryScrollSound enabled={true} volume={0.15} />
         <NetworkStatus />
+        <GlobalNavControls />
         {children}
         <ServiceWorkerRegister />
       </body>

@@ -816,16 +816,18 @@ body {
 }
 
 body {
-  font-family: var(--font-main), 'Segoe UI', sans-serif;
+  font-family: var(--font-main), system-ui, -apple-system, 'Segoe UI', sans-serif;
   background: linear-gradient(180deg, var(--app-bg) 0%, var(--app-bg-end) 100%);
   color: var(--app-text);
   min-height: 100dvh;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
 }
 
 .lux-hero__head h1,
 .lux-card h3,
 .lux-modal__body h2 {
-  font-family: var(--font-accent), Georgia, serif;
+  font-family: var(--font-main), system-ui, -apple-system, 'Segoe UI', sans-serif;
 }
 
 .global-nav-controls {
@@ -2074,4 +2076,95 @@ body {
 .lux-discount {
   color: var(--app-bg);
   background: var(--app-text);
+}
+
+/* Premium marketplace card refinement (priority overrides) */
+.lux-card {
+  border-radius: 16px;
+  border: 1px solid #eeeeee;
+  background: #ffffff;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  transition: transform 0.28s ease, box-shadow 0.28s ease;
+}
+
+.lux-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.12);
+}
+
+.lux-card::before,
+.lux-card__imageWrap::after {
+  display: none;
+}
+
+.lux-card__imageWrap {
+  border-bottom: 1px solid #f0f0f0;
+  background: #f9f9f9;
+}
+
+.lux-card__body {
+  padding: 20px;
+}
+
+.lux-card h3 {
+  color: #1a1a1a;
+  font-size: 0.95rem;
+  font-weight: 500;
+  line-height: 1.45;
+  -webkit-line-clamp: 2;
+}
+
+.lux-card__price strong {
+  font-size: 1.2rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #3f556d;
+  text-shadow: none;
+}
+
+.lux-card__price small {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #9aa3ad;
+}
+
+.lux-discount {
+  top: 10px;
+  left: 10px;
+  padding: 4px 8px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #5f6368;
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  backdrop-filter: blur(6px);
+}
+
+@media (prefers-color-scheme: dark) {
+  .lux-card {
+    border-color: rgba(255, 255, 255, 0.12);
+    background: #121212;
+    box-shadow: 0 6px 22px rgba(0, 0, 0, 0.34);
+  }
+
+  .lux-card h3 {
+    color: #e8e8e8;
+  }
+
+  .lux-card__price strong {
+    color: #b6c2cf;
+  }
+
+  .lux-card__price small {
+    color: #8c97a3;
+  }
+
+  .lux-card__imageWrap {
+    border-bottom-color: rgba(255, 255, 255, 0.1);
+    background: #1a1a1a;
+  }
 }

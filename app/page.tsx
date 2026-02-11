@@ -32,7 +32,7 @@ type Product = {
 };
 
 const PRODUCT_PLACEHOLDER =
-  "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 800 800'><defs><linearGradient id='g' x1='0' x2='1' y1='0' y2='1'><stop stop-color='%230e1a30'/><stop offset='1' stop-color='%23172e51'/></linearGradient></defs><rect width='800' height='800' fill='url(%23g)'/><circle cx='660' cy='160' r='190' fill='%23ffffff10'/><text x='50%' y='52%' text-anchor='middle' fill='%23d7e7ff' font-size='42' font-family='Arial'>Изображение недоступно</text></svg>";
+  "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 800 800'><rect width='800' height='800' fill='%23f9f9f9'/><g fill='none' stroke='%23c7ccd1' stroke-width='20'><rect x='210' y='240' width='380' height='260' rx='28'/><circle cx='322' cy='322' r='34'/><path d='M258 454l92-96 74 74 54-58 64 80'/></g></svg>";
 
 const toPrice = (value: number) =>
   new Intl.NumberFormat('ru-RU', {

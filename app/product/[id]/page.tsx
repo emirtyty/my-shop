@@ -34,7 +34,7 @@ type Product = {
 
 const FAVORITES_KEY = 'marketplace_favorites';
 const PRODUCT_PLACEHOLDER =
-  "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 900'><defs><linearGradient id='g' x1='0' x2='1' y1='0' y2='1'><stop stop-color='%230e1a30'/><stop offset='1' stop-color='%23172e51'/></linearGradient></defs><rect width='1200' height='900' fill='url(%23g)'/><circle cx='980' cy='180' r='220' fill='%23ffffff10'/><text x='50%' y='52%' text-anchor='middle' fill='%23d7e7ff' font-size='54' font-family='Arial'>Изображение недоступно</text></svg>";
+  "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 900'><rect width='1200' height='900' fill='%23f9f9f9'/><g fill='none' stroke='%23c7ccd1' stroke-width='24'><rect x='300' y='230' width='600' height='420' rx='36'/><circle cx='470' cy='390' r='44'/><path d='M372 580l148-154 118 118 86-92 102 128'/></g></svg>";
 
 const toPrice = (value: number) =>
   new Intl.NumberFormat('ru-RU', {

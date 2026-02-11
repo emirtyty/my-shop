@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { ChevronLeft, ChevronRight, Heart, MessageCircle, ShoppingBag, Star } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Heart, MessageCircle, Star } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
 type Seller = {
@@ -230,7 +230,39 @@ export default function ProductDetailsPage() {
   return (
     <main className="min-h-screen text-[var(--app-text)]">
       <div className="mx-auto w-full max-w-6xl px-4 py-8 md:px-8">
-        <div className="sticky top-3 z-20 mb-5 flex items-center justify-end rounded-2xl border border-white/15 bg-black/35 p-3 backdrop-blur-xl">
+        <div className="sticky top-3 z-20 mb-5 flex items-center justify-between gap-3 rounded-2xl border border-white/15 bg-black/35 p-3 backdrop-blur-xl">
+          <div className="flex items-center gap-2">
+            <Link
+              href={`/?shop=${encodeURIComponent(product.sellers?.shop_name || '')}`}
+              className="inline-flex min-h-10 items-center rounded-xl border border-white/20 bg-white/5 px-3 text-sm text-zinc-100 hover:bg-white/10"
+            >
+              {product.sellers?.shop_name || 'Витрина магазина'}
+            </Link>
+
+            <button
+              type="button"
+              className={`inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/20 bg-white/10 ${
+                isFavorite ? 'text-pink-300 border-pink-300/50' : 'text-white'
+              }`}
+              onClick={() => toggleFavorite(product.id)}
+              aria-label="Добавить в избранное"
+            >
+              <Heart size={17} fill={isFavorite ? 'currentColor' : 'none'} />
+            </button>
+
+            <a
+              href={sellerLink || '#'}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/20 bg-white/10 ${
+                sellerLink ? '' : 'pointer-events-none opacity-50'
+              }`}
+              aria-label="Связаться с продавцом"
+            >
+              <MessageCircle size={17} />
+            </a>
+          </div>
+
           <div className="inline-flex items-center gap-2 rounded-full border border-amber-200/30 bg-amber-200/10 px-3 py-1 text-xs text-amber-100">
             <Star size={13} fill="currentColor" />
             4.9
@@ -298,53 +330,9 @@ export default function ProductDetailsPage() {
                 <strong className="text-4xl font-bold tracking-tight text-white">{toPrice(finalPrice)}</strong>
               </div>
 
-              <Link
-                href={`/?shop=${encodeURIComponent(product.sellers?.shop_name || '')}`}
-                className="mt-5 inline-flex rounded-xl border border-white/20 bg-white/5 px-3 py-2 text-sm text-zinc-100 hover:bg-white/10"
-              >
-                {product.sellers?.shop_name || 'Витрина магазина'}
-              </Link>
-
               {product.description?.trim() ? (
                 <p className="mt-5 text-[15px] leading-relaxed text-zinc-300">{product.description.trim()}</p>
               ) : null}
-
-              <div className="mt-7 flex items-center gap-3">
-                <button
-                  type="button"
-                  className={`inline-flex h-11 w-11 items-center justify-center rounded-xl border border-white/20 bg-white/10 ${
-                    isFavorite ? 'text-pink-300 border-pink-300/50' : 'text-white'
-                  }`}
-                  onClick={() => toggleFavorite(product.id)}
-                  aria-label="Добавить в избранное"
-                >
-                  <Heart size={18} fill={isFavorite ? 'currentColor' : 'none'} />
-                </button>
-
-                <a
-                  href={sellerLink || '#'}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={`inline-flex h-11 w-11 items-center justify-center rounded-xl border border-white/20 bg-white/10 ${
-                    sellerLink ? '' : 'pointer-events-none opacity-50'
-                  }`}
-                  aria-label="Купить"
-                >
-                  <ShoppingBag size={18} />
-                </a>
-
-                <a
-                  href={sellerLink || '#'}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={`inline-flex h-11 w-11 items-center justify-center rounded-xl border border-white/20 bg-white/10 ${
-                    sellerLink ? '' : 'pointer-events-none opacity-50'
-                  }`}
-                  aria-label="Связаться с продавцом"
-                >
-                  <MessageCircle size={18} />
-                </a>
-              </div>
             </div>
           </div>
         </section>

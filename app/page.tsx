@@ -78,6 +78,10 @@ export default function HomePage() {
   const searchRef = useRef<HTMLDivElement>(null);
   const categoryRef = useRef<HTMLDivElement>(null);
   const shopRef = useRef<HTMLDivElement>(null);
+  const lastScrollYRef = useRef(0);
+  const directionDistanceRef = useRef(0);
+  const hiddenRef = useRef(false);
+  const tickingRef = useRef(false);
 
   const loadProducts = async () => {
     setIsLoading(true);
@@ -145,21 +149,54 @@ export default function HomePage() {
   }, []);
 
   useEffect(() => {
-    let lastY = window.scrollY;
+    lastScrollYRef.current = window.scrollY;
+    let latestY = window.scrollY;
 
-    const onScroll = () => {
-      const currentY = window.scrollY;
-      const delta = currentY - lastY;
+    const update = () => {
+      const previousY = lastScrollYRef.current;
+      const currentY = latestY;
+      const delta = currentY - previousY;
 
-      if (currentY <= 24) {
-        setIsNavHidden(false);
-      } else if (delta > 8) {
-        setIsNavHidden(true);
-      } else if (delta < -8) {
-        setIsNavHidden(false);
+      if (Math.abs(delta) < 1) {
+        tickingRef.current = false;
+        return;
       }
 
-      lastY = currentY;
+      if (currentY <= 24) {
+        directionDistanceRef.current = 0;
+        if (hiddenRef.current) {
+          hiddenRef.current = false;
+          setIsNavHidden(false);
+        }
+      } else {
+        const goingDown = delta > 0;
+        const sameDirection = (directionDistanceRef.current >= 0 && goingDown) || (directionDistanceRef.current <= 0 && !goingDown);
+        directionDistanceRef.current = sameDirection ? directionDistanceRef.current + delta : delta;
+
+        const threshold = 56;
+
+        if (goingDown && directionDistanceRef.current > threshold && !hiddenRef.current) {
+          hiddenRef.current = true;
+          setIsNavHidden(true);
+          directionDistanceRef.current = 0;
+        }
+
+        if (!goingDown && directionDistanceRef.current < -threshold && hiddenRef.current) {
+          hiddenRef.current = false;
+          setIsNavHidden(false);
+          directionDistanceRef.current = 0;
+        }
+      }
+
+      lastScrollYRef.current = currentY;
+      tickingRef.current = false;
+    };
+
+    const onScroll = () => {
+      latestY = window.scrollY;
+      if (tickingRef.current) return;
+      tickingRef.current = true;
+      window.requestAnimationFrame(update);
     };
 
     window.addEventListener('scroll', onScroll, { passive: true });
@@ -229,7 +266,7 @@ export default function HomePage() {
       <div className="lux-bg-orb lux-bg-orb-a" aria-hidden />
       <div className="lux-bg-orb lux-bg-orb-b" aria-hidden />
 
-      <section className={`lux-shell lux-nav lux-reveal ${isNavHidden ? 'is-hidden' : ''}`}>
+      <section className={`lux-shell lux-nav ${isNavHidden ? 'is-hidden' : ''}`}>
         <div className={`lux-search-wrap ${isSearchOpen ? 'is-open' : ''}`} ref={searchRef}>
           <button
             type="button"

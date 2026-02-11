@@ -2,13 +2,9 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import {
-  ArrowRight,
   Search,
   SlidersHorizontal,
-  Sparkles,
   Star,
-  TrendingUp,
-  ShieldCheck,
   RefreshCw,
   MessageCircle,
   ShoppingBag,
@@ -79,7 +75,6 @@ const getDiscountedPrice = (price: number, discount = 0) => {
 export default function HomePage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [search, setSearch] = useState('');
-  const [activeCategory, setActiveCategory] = useState('All');
   const [sortMode, setSortMode] = useState<SortMode>('featured');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -116,25 +111,10 @@ export default function HomePage() {
     loadProducts();
   }, []);
 
-  const categories = useMemo(() => {
-    const set = new Set<string>();
-
-    for (const product of products) {
-      if (product.category && product.category.trim()) {
-        set.add(product.category.trim());
-      }
-    }
-
-    return ['All', ...Array.from(set).sort((a, b) => a.localeCompare(b, 'ru'))];
-  }, [products]);
-
   const filteredProducts = useMemo(() => {
     const normalizedQuery = search.trim().toLowerCase();
 
     const filtered = products.filter((product) => {
-      const inCategory = activeCategory === 'All' || product.category === activeCategory;
-      if (!inCategory) return false;
-
       if (!normalizedQuery) return true;
 
       const haystack = `${product.name} ${product.description || ''} ${product.category || ''} ${product.sellers?.shop_name || ''}`.toLowerCase();
@@ -153,49 +133,14 @@ export default function HomePage() {
       const bScore = (b.discount || 0) * 5 + Math.min(bFinal, 200000) * -0.0001;
       return bScore - aScore;
     });
-  }, [products, activeCategory, search, sortMode]);
-
-  const highlighted = filteredProducts.slice(0, 3);
-
-  const stats = useMemo(() => {
-    const sellers = new Set(products.map((item) => item.seller_id).filter(Boolean)).size;
-    const discounts = products.filter((item) => (item.discount || 0) > 0).length;
-    return { total: products.length, sellers, discounts };
-  }, [products]);
+  }, [products, search, sortMode]);
 
   return (
     <main className="lux-page">
       <div className="lux-bg-orb lux-bg-orb-a" aria-hidden />
       <div className="lux-bg-orb lux-bg-orb-b" aria-hidden />
 
-      <section className="lux-shell lux-hero">
-        <div className="lux-hero__badge lux-reveal">
-          <Sparkles size={16} />
-          <span>Curated Digital Luxury Marketplace</span>
-        </div>
-
-        <div className="lux-hero__head lux-reveal" style={{ animationDelay: '80ms' }}>
-          <h1>RA DELL Signature Storefront</h1>
-          <p>Premium showcase focused on trust, conversion, and smooth discovery.</p>
-        </div>
-
-        <div className="lux-metrics lux-reveal" style={{ animationDelay: '140ms' }}>
-          <article>
-            <span>Products</span>
-            <strong>{stats.total}</strong>
-          </article>
-          <article>
-            <span>Sellers</span>
-            <strong>{stats.sellers}</strong>
-          </article>
-          <article>
-            <span>Discounts</span>
-            <strong>{stats.discounts}</strong>
-          </article>
-        </div>
-      </section>
-
-      <section className="lux-shell lux-controls lux-reveal" style={{ animationDelay: '200ms' }}>
+      <section className="lux-shell lux-controls lux-reveal">
         <div className="lux-search">
           <Search size={17} />
           <input
@@ -222,19 +167,6 @@ export default function HomePage() {
         </button>
       </section>
 
-      <section className="lux-shell lux-categories lux-reveal" style={{ animationDelay: '260ms' }}>
-        {categories.map((category) => (
-          <button
-            key={category}
-            type="button"
-            className={category === activeCategory ? 'is-active' : ''}
-            onClick={() => setActiveCategory(category)}
-          >
-            {category}
-          </button>
-        ))}
-      </section>
-
       {error && (
         <section className="lux-shell lux-state lux-state--error">
           <p>{error}</p>
@@ -246,30 +178,6 @@ export default function HomePage() {
           {Array.from({ length: 8 }).map((_, index) => (
             <article key={index} className="lux-card lux-card--skeleton" />
           ))}
-        </section>
-      )}
-
-      {!error && !isLoading && highlighted.length > 0 && (
-        <section className="lux-shell lux-highlight">
-          {highlighted.map((product, index) => {
-            const finalPrice = getDiscountedPrice(product.price, product.discount || 0);
-            return (
-              <article key={product.id} className="lux-highlight__card lux-reveal" style={{ animationDelay: `${180 + index * 70}ms` }}>
-                <div>
-                  <span className="lux-highlight__tag">
-                    <TrendingUp size={14} />
-                    Editor pick
-                  </span>
-                  <h3>{product.name}</h3>
-                  <p>{product.description || 'Top performer with strong value-to-price ratio.'}</p>
-                  <div className="lux-highlight__price">
-                    {product.discount ? <small>{toPrice(product.price)}</small> : null}
-                    <strong>{toPrice(finalPrice)}</strong>
-                  </div>
-                </div>
-              </article>
-            );
-          })}
         </section>
       )}
 
@@ -334,14 +242,6 @@ export default function HomePage() {
           })}
         </section>
       )}
-
-      <section className="lux-shell lux-footer-note lux-reveal" style={{ animationDelay: '320ms' }}>
-        <div>
-          <ShieldCheck size={16} />
-          <span>Supabase and Vercel integrations were preserved.</span>
-        </div>
-        <ArrowRight size={18} />
-      </section>
     </main>
   );
 }

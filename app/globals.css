@@ -1170,6 +1170,12 @@ body {
   cursor: pointer;
 }
 
+.lux-card__entry {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}
+
 .lux-card:hover {
   transform: translateY(-9px) scale(1.012);
   border-color: rgba(225, 194, 136, 0.58);

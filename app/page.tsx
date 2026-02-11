@@ -1,7 +1,8 @@
 ﻿'use client';
 
+import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Search, ChevronDown, Star, MessageCircle, Heart, Bell, ShoppingBag, ArrowLeft, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { Search, ChevronDown, Star, MessageCircle, Heart, Bell } from 'lucide-react';
 import { supabase } from './lib/supabase';
 
 type Seller = {
@@ -93,8 +94,6 @@ export default function HomePage() {
   const [isShopOpen, setIsShopOpen] = useState(false);
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [favorites, setFavorites] = useState<string[]>([]);
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-  const [modalImageIndex, setModalImageIndex] = useState(0);
   const [isNavHidden, setIsNavHidden] = useState(false);
   const [searchHistory, setSearchHistory] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -138,10 +137,17 @@ export default function HomePage() {
   }, []);
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const shop = params.get('shop');
+    if (shop && shop.trim()) {
+      setSelectedShop(shop.trim());
+    }
+  }, []);
+
+  useEffect(() => {
     try {
       const raw = localStorage.getItem(SEARCH_HISTORY_KEY);
       if (!raw) return;
-
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) setSearchHistory(parsed.filter((item) => typeof item === 'string').slice(0, 8));
     } catch {
@@ -153,7 +159,6 @@ export default function HomePage() {
     try {
       const raw = localStorage.getItem(FAVORITES_KEY);
       if (!raw) return;
-
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) setFavorites(parsed.filter((item) => typeof item === 'string'));
     } catch {
@@ -195,7 +200,9 @@ export default function HomePage() {
         }
       } else {
         const goingDown = delta > 0;
-        const sameDirection = (directionDistanceRef.current >= 0 && goingDown) || (directionDistanceRef.current <= 0 && !goingDown);
+        const sameDirection =
+          (directionDistanceRef.current >= 0 && goingDown) ||
+          (directionDistanceRef.current <= 0 && !goingDown);
         directionDistanceRef.current = sameDirection ? directionDistanceRef.current + delta : delta;
 
         const threshold = 56;
@@ -260,24 +267,6 @@ export default function HomePage() {
     });
   };
 
-  const openProductModal = (product: Product) => {
-    setSelectedProduct(product);
-    setModalImageIndex(0);
-    document.body.style.overflow = 'hidden';
-  };
-
-  const closeProductModal = () => {
-    setSelectedProduct(null);
-    setModalImageIndex(0);
-    document.body.style.overflow = '';
-  };
-
-  useEffect(() => {
-    return () => {
-      document.body.style.overflow = '';
-    };
-  }, []);
-
   const filteredProducts = useMemo(() => {
     const normalizedQuery = search.trim().toLowerCase();
 
@@ -303,8 +292,6 @@ export default function HomePage() {
       return bScore - aScore;
     });
   }, [products, search, selectedCategory, selectedShop, showFavoritesOnly, favorites]);
-
-  const modalImages = useMemo(() => getProductImages(selectedProduct?.image_url), [selectedProduct]);
 
   return (
     <main className="lux-page">
@@ -482,204 +469,62 @@ export default function HomePage() {
             const finalPrice = getDiscountedPrice(product.price, product.discount || 0);
             const sellerLink = getSellerLink(product.sellers);
             const isFavorite = favorites.includes(product.id);
+            const cover = getProductImages(product.image_url)[0] || '';
 
             return (
-              <article
-                key={product.id}
-                className="lux-card lux-reveal"
-                style={{ animationDelay: `${Math.min(index * 25, 420)}ms` }}
-                role="button"
-                tabIndex={0}
-                onClick={() => openProductModal(product)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter' || event.key === ' ') {
-                    event.preventDefault();
-                    openProductModal(product);
-                  }
-                }}
-              >
-                <div className="lux-card__imageWrap">
-                  <img src={getProductImages(product.image_url)[0] || ''} alt={product.name} loading="lazy" />
-                  {(product.discount || 0) > 0 ? <span className="lux-discount">-{product.discount}%</span> : null}
-                </div>
-
-                <div className="lux-card__body">
-                  <h3>{product.name}</h3>
-
-                  <div className="lux-card__meta">
-                    <span className="lux-rating">
-                      <Star size={14} fill="currentColor" />
-                      4.9
-                    </span>
+              <article key={product.id} className="lux-card lux-reveal" style={{ animationDelay: `${Math.min(index * 25, 420)}ms` }}>
+                <Link href={`/product/${product.id}`} className="lux-card__entry" aria-label={`Открыть товар ${product.name}`}>
+                  <div className="lux-card__imageWrap">
+                    <img src={cover} alt={product.name} loading="lazy" />
+                    {(product.discount || 0) > 0 ? <span className="lux-discount">-{product.discount}%</span> : null}
                   </div>
 
-                  <p>{product.sellers?.shop_name || 'Verified seller'}</p>
+                  <div className="lux-card__body">
+                    <h3>{product.name}</h3>
 
-                  <div className="lux-card__price">
-                    {(product.discount || 0) > 0 ? <small>{toPrice(product.price)}</small> : null}
-                    <strong>{toPrice(finalPrice)}</strong>
+                    <div className="lux-card__meta">
+                      <span className="lux-rating">
+                        <Star size={14} fill="currentColor" />
+                        4.9
+                      </span>
+                    </div>
+
+                    <p>{product.sellers?.shop_name || 'Магазин'}</p>
+
+                    <div className="lux-card__price">
+                      {(product.discount || 0) > 0 ? <small>{toPrice(product.price)}</small> : null}
+                      <strong>{toPrice(finalPrice)}</strong>
+                    </div>
                   </div>
+                </Link>
 
-                  <div className="lux-card__actions">
-                    <button
-                      type="button"
-                      className={`lux-icon-btn ${isFavorite ? 'is-active' : ''}`}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        toggleFavorite(product.id);
-                      }}
-                      aria-label="Добавить в избранное"
-                    >
-                      <Heart size={18} fill={isFavorite ? 'currentColor' : 'none'} />
-                    </button>
+                <div className="lux-card__actions">
+                  <button
+                    type="button"
+                    className={`lux-icon-btn ${isFavorite ? 'is-active' : ''}`}
+                    onClick={() => toggleFavorite(product.id)}
+                    aria-label="Добавить в избранное"
+                  >
+                    <Heart size={18} fill={isFavorite ? 'currentColor' : 'none'} />
+                  </button>
 
-                    <a
-                      href={sellerLink || '#'}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className={`lux-icon-btn ${sellerLink ? '' : 'is-disabled'}`}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        if (!sellerLink) event.preventDefault();
-                      }}
-                      aria-label="Связаться с продавцом"
-                    >
-                      <MessageCircle size={18} />
-                    </a>
-                  </div>
+                  <a
+                    href={sellerLink || '#'}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={`lux-icon-btn ${sellerLink ? '' : 'is-disabled'}`}
+                    onClick={(event) => {
+                      if (!sellerLink) event.preventDefault();
+                    }}
+                    aria-label="Связаться с продавцом"
+                  >
+                    <MessageCircle size={18} />
+                  </a>
                 </div>
               </article>
             );
           })}
         </section>
-      )}
-
-      {selectedProduct && (
-        <div className="lux-modal-backdrop" onClick={closeProductModal}>
-          <div className="lux-modal" onClick={(event) => event.stopPropagation()}>
-            <div className="lux-modal__head">
-              <button type="button" className="lux-modal__back" onClick={closeProductModal}>
-                <ArrowLeft size={17} />
-                Назад
-              </button>
-
-              <button type="button" className="lux-modal__close" onClick={closeProductModal} aria-label="Закрыть">
-                <X size={18} />
-              </button>
-            </div>
-
-            <div className="lux-modal__gallery">
-              <img
-                src={modalImages[modalImageIndex] || getProductImages(selectedProduct.image_url)[0] || ''}
-                alt={selectedProduct.name}
-              />
-
-              {modalImages.length > 1 && (
-                <>
-                  <button
-                    type="button"
-                    className="lux-gallery-nav is-left"
-                    onClick={() => setModalImageIndex((prev) => (prev === 0 ? modalImages.length - 1 : prev - 1))}
-                    aria-label="Предыдущее фото"
-                  >
-                    <ChevronLeft size={18} />
-                  </button>
-
-                  <button
-                    type="button"
-                    className="lux-gallery-nav is-right"
-                    onClick={() => setModalImageIndex((prev) => (prev === modalImages.length - 1 ? 0 : prev + 1))}
-                    aria-label="Следующее фото"
-                  >
-                    <ChevronRight size={18} />
-                  </button>
-                </>
-              )}
-            </div>
-
-            {modalImages.length > 1 && (
-              <div className="lux-gallery-dots">
-                {modalImages.map((_, index) => (
-                  <button
-                    key={`${selectedProduct.id}-dot-${index}`}
-                    type="button"
-                    className={`lux-dot ${index === modalImageIndex ? 'is-active' : ''}`}
-                    onClick={() => setModalImageIndex(index)}
-                    aria-label={`Открыть фото ${index + 1}`}
-                  />
-                ))}
-              </div>
-            )}
-
-            <div className="lux-modal__body">
-              <h2>{selectedProduct.name}</h2>
-
-              <div className="lux-modal__meta">
-                <span className="lux-rating">
-                  <Star size={14} fill="currentColor" />
-                  4.9
-                </span>
-                <span>Доступно: {selectedProduct.stock ?? 0} шт.</span>
-              </div>
-
-              <button
-                type="button"
-                className="lux-shop-link"
-                onClick={() => {
-                  const shopName = selectedProduct.sellers?.shop_name;
-                  if (shopName) setSelectedShop(shopName);
-                  closeProductModal();
-                }}
-              >
-                {selectedProduct.sellers?.shop_name || 'Витрина магазина'}
-              </button>
-
-              <div className="lux-modal__price">
-                {(selectedProduct.discount || 0) > 0 ? <small>{toPrice(selectedProduct.price)}</small> : null}
-                <strong>{toPrice(getDiscountedPrice(selectedProduct.price, selectedProduct.discount || 0))}</strong>
-              </div>
-
-              {selectedProduct.description?.trim() ? <p>{selectedProduct.description.trim()}</p> : null}
-
-              <div className="lux-modal__actions">
-                <button
-                  type="button"
-                  className={`lux-icon-btn ${favorites.includes(selectedProduct.id) ? 'is-active' : ''}`}
-                  onClick={() => toggleFavorite(selectedProduct.id)}
-                  aria-label="Добавить в избранное"
-                >
-                  <Heart size={18} fill={favorites.includes(selectedProduct.id) ? 'currentColor' : 'none'} />
-                </button>
-
-                <a
-                  href={getSellerLink(selectedProduct.sellers) || '#'}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={`lux-icon-btn ${getSellerLink(selectedProduct.sellers) ? '' : 'is-disabled'}`}
-                  onClick={(event) => {
-                    if (!getSellerLink(selectedProduct.sellers)) event.preventDefault();
-                  }}
-                  aria-label="Купить"
-                >
-                  <ShoppingBag size={18} />
-                </a>
-
-                <a
-                  href={getSellerLink(selectedProduct.sellers) || '#'}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={`lux-icon-btn ${getSellerLink(selectedProduct.sellers) ? '' : 'is-disabled'}`}
-                  onClick={(event) => {
-                    if (!getSellerLink(selectedProduct.sellers)) event.preventDefault();
-                  }}
-                  aria-label="Связаться с продавцом"
-                >
-                  <MessageCircle size={18} />
-                </a>
-              </div>
-            </div>
-          </div>
-        </div>
       )}
     </main>
   );

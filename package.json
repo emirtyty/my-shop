@@ -17,6 +17,7 @@
     "@capacitor/status-bar": "^8.0.0",
     "@supabase/supabase-js": "^2.90.1",
     "dotenv": "^17.2.3",
+    "framer-motion": "^12.34.0",
     "lucide-react": "^0.562.0",
     "next": "^16.1.2",
     "react": "^19.2.3",

@@ -230,19 +230,7 @@ export default function ProductDetailsPage() {
   return (
     <main className="min-h-screen text-[var(--app-text)]">
       <div className="mx-auto w-full max-w-6xl px-4 py-8 md:px-8">
-        <div className="sticky top-3 z-20 mb-5 flex items-center justify-between rounded-2xl border border-white/15 bg-black/35 p-3 backdrop-blur-xl">
-          <button
-            type="button"
-            onClick={() => {
-              if (window.history.length > 1) router.back();
-              else router.push('/');
-            }}
-            className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-white/20 bg-white/5 px-3 text-sm"
-          >
-            <ArrowLeft size={16} />
-            Назад
-          </button>
-
+        <div className="sticky top-3 z-20 mb-5 flex items-center justify-end rounded-2xl border border-white/15 bg-black/35 p-3 backdrop-blur-xl">
           <div className="inline-flex items-center gap-2 rounded-full border border-amber-200/30 bg-amber-200/10 px-3 py-1 text-xs text-amber-100">
             <Star size={13} fill="currentColor" />
             4.9

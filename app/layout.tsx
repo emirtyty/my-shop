@@ -1,9 +1,22 @@
 import type { Metadata, Viewport } from 'next';
+import { Manrope, Cormorant_Garamond } from 'next/font/google';
 import './globals.css';
 import ServiceWorkerRegister from './components/ServiceWorkerRegister';
 import NetworkStatus from './components/NetworkStatus';
 import CategoryScrollSound from './components/CategoryScrollSound';
 import GlobalNavControls from './components/GlobalNavControls';
+
+const manrope = Manrope({
+  subsets: ['latin', 'cyrillic'],
+  variable: '--font-main',
+  weight: ['400', '500', '600', '700', '800'],
+});
+
+const cormorant = Cormorant_Garamond({
+  subsets: ['latin', 'cyrillic'],
+  variable: '--font-accent',
+  weight: ['500', '600', '700'],
+});
 
 export const metadata: Metadata = {
   title: 'RA DELL Signature Marketplace',
@@ -49,7 +62,7 @@ export default function RootLayout({
         <meta name="format-detection" content="telephone=no" />
         <meta name="color-scheme" content="dark light" />
       </head>
-      <body className="antialiased">
+      <body className={`${manrope.variable} ${cormorant.variable} antialiased`}>
         <CategoryScrollSound enabled={true} volume={0.15} />
         <NetworkStatus />
         <GlobalNavControls />

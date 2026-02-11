@@ -816,10 +816,16 @@ body {
 }
 
 body {
-  font-family: 'Space Grotesk', 'Sora', 'Syne', sans-serif;
+  font-family: var(--font-main), 'Segoe UI', sans-serif;
   background: linear-gradient(180deg, var(--app-bg) 0%, var(--app-bg-end) 100%);
   color: var(--app-text);
   min-height: 100dvh;
+}
+
+.lux-hero__head h1,
+.lux-card h3,
+.lux-modal__body h2 {
+  font-family: var(--font-accent), Georgia, serif;
 }
 
 .global-nav-controls {

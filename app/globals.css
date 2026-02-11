@@ -906,8 +906,8 @@ body {
   padding: 12px;
   border-radius: 22px;
   border: 1px solid var(--lux-line);
-  background: var(--lux-panel);
-  backdrop-filter: blur(10px);
+  background: transparent;
+  backdrop-filter: none;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -925,7 +925,7 @@ body {
   min-height: 50px;
   border-radius: 14px;
   border: 1px solid rgba(196, 211, 240, 0.24);
-  background: rgba(12, 22, 39, 0.88);
+  background: transparent;
   color: var(--lux-text);
   display: inline-flex;
   align-items: center;
@@ -970,7 +970,7 @@ body {
 .lux-search-input {
   border: 1px solid rgba(196, 211, 240, 0.24);
   border-radius: 12px;
-  background: rgba(12, 22, 39, 0.88);
+  background: transparent;
   min-height: 46px;
   display: flex;
   align-items: center;
@@ -1007,7 +1007,7 @@ body {
 .lux-chip {
   border: 1px solid rgba(197, 213, 243, 0.22);
   border-radius: 999px;
-  background: rgba(15, 28, 48, 0.9);
+  background: transparent;
   color: var(--lux-text);
   padding: 8px 12px;
   cursor: pointer;
@@ -1016,7 +1016,7 @@ body {
 
 .lux-chip:hover {
   border-color: rgba(137, 224, 255, 0.5);
-  background: rgba(19, 36, 61, 0.95);
+  background: transparent;
 }
 
 .lux-history-empty {
@@ -1028,7 +1028,7 @@ body {
   width: 100%;
   border: 1px solid rgba(197, 213, 243, 0.22);
   border-radius: 12px;
-  background: rgba(13, 25, 43, 0.92);
+  background: transparent;
   color: var(--lux-text);
   text-align: left;
   padding: 10px 12px;

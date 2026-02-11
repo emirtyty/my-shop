@@ -400,39 +400,41 @@ export default function HomePage() {
       <div className="lux-bg-orb lux-bg-orb-a" aria-hidden />
       <div className="lux-bg-orb lux-bg-orb-b" aria-hidden />
 
-      <section className="lux-mobile-topbar">
-        <div className={`lux-mobile-search-inline ${isMobileSearchExpanded ? 'is-open' : ''}`}>
-          <button
-            type="button"
-            className="lux-mobile-topbar__icon"
-            onClick={() => {
-              setIsMobileSearchExpanded((prev) => !prev);
-              setIsCategoryOpen(false);
-              setIsShopOpen(false);
-            }}
-            aria-label="Поиск"
-          >
-            <Search size={20} />
-          </button>
-
-          {isMobileSearchExpanded && (
-            <input
-              ref={mobileSearchInputRef}
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') saveSearchToHistory(search);
+      {!isSellerStorefront && (
+        <section className="lux-mobile-topbar">
+          <div className={`lux-mobile-search-inline ${isMobileSearchExpanded ? 'is-open' : ''}`}>
+            <button
+              type="button"
+              className="lux-mobile-topbar__icon"
+              onClick={() => {
+                setIsMobileSearchExpanded((prev) => !prev);
+                setIsCategoryOpen(false);
+                setIsShopOpen(false);
               }}
-              placeholder="Поиск товаров"
-              aria-label="Поиск товаров"
-            />
-          )}
-        </div>
+              aria-label="Поиск"
+            >
+              <Search size={20} />
+            </button>
 
-        <button type="button" className="lux-mobile-topbar__icon" aria-label="Уведомления">
-          <Bell size={20} />
-        </button>
-      </section>
+            {isMobileSearchExpanded && (
+              <input
+                ref={mobileSearchInputRef}
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') saveSearchToHistory(search);
+                }}
+                placeholder="Поиск товаров"
+                aria-label="Поиск товаров"
+              />
+            )}
+          </div>
+
+          <button type="button" className="lux-mobile-topbar__icon" aria-label="Уведомления">
+            <Bell size={20} />
+          </button>
+        </section>
+      )}
 
       {!isSellerStorefront && (
         <section className={`lux-shell lux-nav ${isNavHidden ? 'is-hidden' : ''}`}>

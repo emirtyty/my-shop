@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Search, ChevronDown, Star, MessageCircle, Heart, Bell, House, Grid2x2, Store } from 'lucide-react';
+import { Search, ChevronDown, Heart, Bell, House, Grid2x2, Store } from 'lucide-react';
 import { supabase } from './lib/supabase';
 
 type Seller = {
@@ -554,8 +554,6 @@ export default function HomePage() {
 
           {filteredProducts.map((product, index) => {
             const finalPrice = getDiscountedPrice(product.price, product.discount || 0);
-            const sellerLink = getSellerLink(product.sellers);
-            const isFavorite = favorites.includes(product.id);
             const parsedCover = getProductImages(product.image_url)[0] || PRODUCT_PLACEHOLDER;
             const cover = brokenCovers[product.id] ? PRODUCT_PLACEHOLDER : parsedCover;
 
@@ -577,45 +575,12 @@ export default function HomePage() {
                   <div className="lux-card__body">
                     <h3>{product.name}</h3>
 
-                    <div className="lux-card__meta">
-                      <span className="lux-rating">
-                        <Star size={14} fill="currentColor" />
-                        4.9
-                      </span>
-                    </div>
-
-                    <p>{product.sellers?.shop_name || 'Магазин'}</p>
-
                     <div className="lux-card__price">
                       {(product.discount || 0) > 0 ? <small>{toPrice(product.price)}</small> : null}
                       <strong>{toPrice(finalPrice)}</strong>
                     </div>
                   </div>
                 </Link>
-
-                <div className="lux-card__actions">
-                  <button
-                    type="button"
-                    className={`lux-icon-btn ${isFavorite ? 'is-active' : ''}`}
-                    onClick={() => toggleFavorite(product.id)}
-                    aria-label="Добавить в избранное"
-                  >
-                    <Heart size={18} fill={isFavorite ? 'currentColor' : 'none'} />
-                  </button>
-
-                  <a
-                    href={sellerLink || '#'}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className={`lux-icon-btn ${sellerLink ? '' : 'is-disabled'}`}
-                    onClick={(event) => {
-                      if (!sellerLink) event.preventDefault();
-                    }}
-                    aria-label="Связаться с продавцом"
-                  >
-                    <MessageCircle size={18} />
-                  </a>
-                </div>
               </article>
             );
           })}

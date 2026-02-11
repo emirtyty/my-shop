@@ -1288,7 +1288,7 @@ body {
 
 .lux-card__imageWrap {
   position: relative;
-  aspect-ratio: 1/1;
+  aspect-ratio: 4/5;
   overflow: hidden;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
@@ -1332,24 +1332,11 @@ body {
 }
 
 .lux-card__body {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  grid-template-areas:
-    "title meta"
-    "shop shop"
-    "price price";
-  align-content: start;
-  gap: 8px 12px;
-  min-height: 168px;
-  padding: 18px 18px 16px;
-}
-
-.lux-card__meta {
-  grid-area: meta;
   display: flex;
-  justify-content: flex-end;
-  align-items: flex-start;
-  margin: 0;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 120px;
+  padding: 16px 18px 18px;
 }
 
 .lux-rating {
@@ -1365,33 +1352,20 @@ body {
 }
 
 .lux-card h3 {
-  grid-area: title;
   margin: 0;
-  font-size: 20px;
+  font-size: 22px;
   line-height: 1.15;
   letter-spacing: -0.01em;
   color: #f8fbff;
   display: -webkit-box;
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: 1;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  min-height: 2.3em;
-}
-
-.lux-card p {
-  grid-area: shop;
-  margin: 0;
-  font-size: 13px;
-  color: #9fb1ce;
-  letter-spacing: 0.01em;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  min-height: 1.2em;
 }
 
 .lux-card__price {
-  grid-area: price;
-  margin-top: 2px;
+  margin-top: 0;
   display: flex;
   align-items: baseline;
   gap: 10px;
@@ -1405,17 +1379,11 @@ body {
 }
 
 .lux-card__price strong {
-  font-size: 30px;
+  font-size: 34px;
   font-weight: 700;
   letter-spacing: -0.02em;
   color: #ffffff;
   text-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
-}
-
-.lux-card__actions {
-  margin: 0 18px 16px;
-  display: flex;
-  gap: 10px;
 }
 
 .lux-icon-btn {

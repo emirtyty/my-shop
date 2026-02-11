@@ -1167,12 +1167,18 @@ body {
   box-shadow: 0 30px 70px rgba(0, 0, 0, 0.46), inset 0 1px 0 rgba(255, 255, 255, 0.08);
   transition: transform 0.34s cubic-bezier(0.22, 0.61, 0.36, 1), border-color 0.28s ease, box-shadow 0.34s ease;
   position: relative;
+  cursor: pointer;
 }
 
 .lux-card:hover {
   transform: translateY(-9px) scale(1.012);
   border-color: rgba(225, 194, 136, 0.58);
   box-shadow: 0 36px 90px rgba(0, 0, 0, 0.58), inset 0 1px 0 rgba(255, 255, 255, 0.14);
+}
+
+.lux-card:focus-visible {
+  outline: 2px solid rgba(225, 194, 136, 0.72);
+  outline-offset: 2px;
 }
 
 .lux-card::before {
@@ -1330,6 +1336,179 @@ body {
 .lux-icon-btn.is-disabled {
   opacity: 0.45;
   cursor: not-allowed;
+}
+
+.lux-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background: rgba(5, 10, 18, 0.76);
+  backdrop-filter: blur(10px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  animation: fade-in 0.22s ease-out;
+}
+
+.lux-modal {
+  width: min(920px, 100%);
+  max-height: min(92vh, 920px);
+  overflow: auto;
+  border-radius: 24px;
+  border: 1px solid rgba(226, 240, 255, 0.2);
+  background: linear-gradient(165deg, rgba(13, 23, 40, 0.98), rgba(9, 16, 30, 0.96));
+  box-shadow: 0 38px 100px rgba(0, 0, 0, 0.62);
+  animation: modal-content-in 0.28s ease-out;
+}
+
+.lux-modal__head {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(8, 15, 27, 0.72);
+  backdrop-filter: blur(10px);
+}
+
+.lux-modal__back,
+.lux-modal__close {
+  border: 1px solid rgba(197, 213, 243, 0.24);
+  background: rgba(11, 20, 35, 0.68);
+  color: #e8f0ff;
+  border-radius: 12px;
+  min-height: 36px;
+  padding: 0 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.lux-modal__gallery {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  background: #0a1220;
+}
+
+.lux-modal__gallery img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.lux-gallery-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  background: rgba(9, 16, 30, 0.62);
+  color: #eef4ff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.lux-gallery-nav.is-left {
+  left: 14px;
+}
+
+.lux-gallery-nav.is-right {
+  right: 14px;
+}
+
+.lux-gallery-dots {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 14px 2px;
+}
+
+.lux-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  border: none;
+  background: rgba(168, 189, 220, 0.36);
+  cursor: pointer;
+}
+
+.lux-dot.is-active {
+  width: 22px;
+  background: #f4d8a5;
+}
+
+.lux-modal__body {
+  padding: 16px 18px 20px;
+}
+
+.lux-modal__body h2 {
+  margin: 0;
+  font-size: 28px;
+  line-height: 1.15;
+  color: #f7fbff;
+}
+
+.lux-modal__meta {
+  margin-top: 10px;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.lux-modal__meta > span {
+  color: #a9bfdc;
+  font-size: 13px;
+}
+
+.lux-shop-link {
+  margin-top: 12px;
+  border: 1px solid rgba(183, 207, 243, 0.26);
+  background: rgba(14, 27, 48, 0.64);
+  color: #d9e9ff;
+  border-radius: 12px;
+  min-height: 38px;
+  padding: 0 12px;
+  cursor: pointer;
+}
+
+.lux-modal__price {
+  margin-top: 12px;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.lux-modal__price small {
+  color: #8da2c1;
+  text-decoration: line-through;
+}
+
+.lux-modal__price strong {
+  font-size: 34px;
+  letter-spacing: -0.02em;
+  color: #fff;
+}
+
+.lux-modal__body p {
+  margin: 14px 0 0;
+  color: #bed0ea;
+  line-height: 1.55;
+}
+
+.lux-modal__actions {
+  margin-top: 16px;
+  display: flex;
+  gap: 10px;
 }
 
 .lux-btn {
@@ -1513,6 +1692,23 @@ body {
     left: 0;
     right: 0;
     min-width: 0;
+  }
+
+  .lux-modal {
+    border-radius: 18px;
+    max-height: 94vh;
+  }
+
+  .lux-modal__gallery {
+    aspect-ratio: 1/1;
+  }
+
+  .lux-modal__body h2 {
+    font-size: 24px;
+  }
+
+  .lux-modal__price strong {
+    font-size: 28px;
   }
 }
 

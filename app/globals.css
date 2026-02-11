@@ -990,6 +990,18 @@ body {
   pointer-events: none;
 }
 
+.lux-mobile-nav {
+  display: none;
+}
+
+.lux-mobile-sheet-backdrop {
+  display: none;
+}
+
+.lux-mobile-sheet {
+  display: none;
+}
+
 .lux-nav-spacer {
   flex: 1 1 auto;
 }
@@ -1743,13 +1755,109 @@ body {
 }
 
 @media (max-width: 840px) {
+  .lux-page {
+    padding-bottom: 104px;
+  }
+
   .lux-nav {
-    flex-wrap: wrap;
-    align-items: stretch;
+    display: none;
   }
 
   .lux-nav-spacer {
     display: none;
+  }
+
+  .lux-mobile-sheet-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.35);
+    z-index: 70;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+  }
+
+  .lux-mobile-sheet {
+    display: block;
+    position: fixed;
+    left: 10px;
+    right: 10px;
+    bottom: 72px;
+    z-index: 80;
+    border-radius: 16px;
+    border: 1px solid var(--lux-line);
+    background: color-mix(in srgb, var(--app-bg) 92%, transparent);
+    backdrop-filter: blur(12px);
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.24);
+    padding: 12px;
+    max-height: 52vh;
+    overflow: auto;
+  }
+
+  .lux-mobile-sheet h3 {
+    margin: 2px 4px 10px;
+    font-size: 14px;
+    color: var(--lux-muted);
+    font-weight: 600;
+  }
+
+  .lux-mobile-sheet__list {
+    display: grid;
+    gap: 8px;
+  }
+
+  .lux-mobile-sheet__item {
+    width: 100%;
+    border: 1px solid var(--lux-line);
+    border-radius: 10px;
+    background: transparent;
+    color: var(--app-text);
+    text-align: left;
+    font-size: 14px;
+    min-height: 38px;
+    padding: 0 12px;
+    cursor: pointer;
+  }
+
+  .lux-mobile-sheet__item.is-active {
+    border-color: color-mix(in srgb, var(--app-text) 40%, var(--lux-line));
+  }
+
+  .lux-mobile-nav {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    position: fixed;
+    left: 10px;
+    right: 10px;
+    bottom: max(8px, env(safe-area-inset-bottom));
+    z-index: 90;
+    border-radius: 14px;
+    border: 1px solid var(--lux-line);
+    background: color-mix(in srgb, var(--app-bg) 92%, transparent);
+    backdrop-filter: blur(10px);
+    padding: 4px;
+    gap: 4px;
+  }
+
+  .lux-mobile-nav__item {
+    min-height: 38px;
+    border: none;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--lux-muted);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .lux-mobile-nav__item.is-active {
+    color: var(--app-text);
+    background: color-mix(in srgb, var(--app-text) 10%, transparent);
   }
 
   .lux-grid {

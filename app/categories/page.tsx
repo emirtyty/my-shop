@@ -47,7 +47,7 @@ export default function CategoriesPage() {
   }, [rows]);
 
   return (
-    <main className="lux-page">
+    <main className="lux-page lux-page--with-controls">
       <section className="lux-shell">
         <header className="lux-directory-head">
           <Grid2x2 size={18} />

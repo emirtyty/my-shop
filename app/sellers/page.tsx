@@ -52,7 +52,7 @@ export default function SellersPage() {
   }, [rows]);
 
   return (
-    <main className="lux-page">
+    <main className="lux-page lux-page--with-controls">
       <section className="lux-shell">
         <header className="lux-directory-head">
           <Store size={18} />

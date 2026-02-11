@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { ChevronLeft, ChevronRight, Heart, MessageCircle, Star } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, Heart, MessageCircle, Star, X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
 type Seller = {
@@ -142,6 +142,7 @@ export default function ProductDetailsPage() {
   const [imageIndex, setImageIndex] = useState(0);
   const [favorites, setFavorites] = useState<string[]>([]);
   const [failedImages, setFailedImages] = useState<Record<string, boolean>>({});
+  const [isImageViewerOpen, setIsImageViewerOpen] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -229,20 +230,20 @@ export default function ProductDetailsPage() {
 
   return (
     <main className="min-h-screen text-[var(--app-text)]">
-      <div className="mx-auto w-full max-w-6xl px-4 py-8 md:px-8">
-        <div className="sticky top-3 z-20 mb-5 flex items-center justify-between gap-3 rounded-2xl border border-white/15 bg-black/35 p-3 backdrop-blur-xl">
+      <div className="mx-auto w-full max-w-6xl px-4 pb-8 pt-20 md:px-8 md:py-8">
+        <div className="sticky top-16 z-20 mb-5 flex items-center justify-between gap-3 rounded-2xl border border-[color:var(--lux-line)] bg-[color:var(--lux-panel)] p-3 backdrop-blur-xl md:top-3">
           <div className="flex items-center gap-2">
             <Link
               href={`/?shop=${encodeURIComponent(product.sellers?.shop_name || '')}`}
-              className="inline-flex min-h-10 items-center rounded-xl border border-white/20 bg-white/5 px-3 text-sm text-zinc-100 hover:bg-white/10"
+              className="inline-flex min-h-10 items-center rounded-xl border border-[color:var(--lux-line)] bg-transparent px-3 text-sm text-[var(--app-text)]"
             >
               {product.sellers?.shop_name || 'Витрина магазина'}
             </Link>
 
             <button
               type="button"
-              className={`inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/20 bg-white/10 ${
-                isFavorite ? 'text-pink-300 border-pink-300/50' : 'text-white'
+              className={`inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[color:var(--lux-line)] bg-transparent ${
+                isFavorite ? 'text-pink-300' : 'text-[var(--app-text)]'
               }`}
               onClick={() => toggleFavorite(product.id)}
               aria-label="Добавить в избранное"
@@ -254,7 +255,7 @@ export default function ProductDetailsPage() {
               href={sellerLink || '#'}
               target="_blank"
               rel="noopener noreferrer"
-              className={`inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/20 bg-white/10 ${
+              className={`inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[color:var(--lux-line)] bg-transparent ${
                 sellerLink ? '' : 'pointer-events-none opacity-50'
               }`}
               aria-label="Связаться с продавцом"
@@ -263,20 +264,21 @@ export default function ProductDetailsPage() {
             </a>
           </div>
 
-          <div className="inline-flex items-center gap-2 rounded-full border border-amber-200/30 bg-amber-200/10 px-3 py-1 text-xs text-amber-100">
+          <div className="inline-flex items-center gap-2 rounded-full border border-[color:var(--lux-line)] bg-transparent px-3 py-1 text-xs text-[var(--app-text)]">
             <Star size={13} fill="currentColor" />
             4.9
           </div>
         </div>
 
-        <section className="overflow-hidden rounded-3xl border border-white/15 bg-white/[0.06] shadow-[0_32px_90px_-35px_rgba(0,0,0,0.85)] backdrop-blur-xl">
+        <section className="overflow-hidden rounded-3xl border border-[color:var(--lux-line)] bg-[color:var(--lux-panel)] shadow-[0_24px_60px_-35px_rgba(0,0,0,0.65)] backdrop-blur-xl">
           <div className="grid grid-cols-1 lg:grid-cols-[1.15fr_1fr]">
-            <div className="relative bg-zinc-900">
+            <div className="relative bg-[color:var(--app-bg)]">
               <div className="aspect-[4/3]">
                 <img
                   src={displayImage}
                   alt={product.name}
-                  className="h-full w-full object-cover"
+                  className="h-full w-full cursor-zoom-in object-cover"
+                  onClick={() => setIsImageViewerOpen(true)}
                   onError={() => setFailedImages((prev) => (prev[currentImage] ? prev : { ...prev, [currentImage]: true }))}
                 />
               </div>
@@ -319,24 +321,46 @@ export default function ProductDetailsPage() {
             </div>
 
             <div className="p-5 md:p-7">
-              <h1 className="text-3xl font-semibold tracking-tight text-zinc-100">{product.name}</h1>
+              <h1 className="text-3xl font-semibold tracking-tight text-[var(--app-text)]">{product.name}</h1>
 
-              <div className="mt-3 inline-flex items-center rounded-xl border border-cyan-200/25 bg-cyan-200/10 px-3 py-1 text-sm text-cyan-100">
+              <div className="mt-3 inline-flex items-center rounded-xl border border-[color:var(--lux-line)] bg-transparent px-3 py-1 text-sm text-[var(--app-text)]">
                 Доступно: {product.stock ?? 0} шт.
               </div>
 
               <div className="mt-4 flex items-end gap-3">
-                {(product.discount || 0) > 0 ? <span className="text-sm text-zinc-500 line-through">{toPrice(product.price)}</span> : null}
-                <strong className="text-4xl font-bold tracking-tight text-white">{toPrice(finalPrice)}</strong>
+                {(product.discount || 0) > 0 ? <span className="text-sm text-[var(--lux-muted)] line-through">{toPrice(product.price)}</span> : null}
+                <strong className="text-4xl font-bold tracking-tight text-[var(--app-text)]">{toPrice(finalPrice)}</strong>
               </div>
 
               {product.description?.trim() ? (
-                <p className="mt-5 text-[15px] leading-relaxed text-zinc-300">{product.description.trim()}</p>
+                <p className="mt-5 text-[15px] leading-relaxed text-[var(--lux-muted)]">{product.description.trim()}</p>
               ) : null}
             </div>
           </div>
         </section>
       </div>
+
+      {isImageViewerOpen && (
+        <div className="fixed inset-0 z-[120] bg-black/90 backdrop-blur-sm" onClick={() => setIsImageViewerOpen(false)}>
+          <button
+            type="button"
+            className="absolute right-4 top-4 inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/30 text-white"
+            onClick={() => setIsImageViewerOpen(false)}
+            aria-label="Закрыть просмотр"
+          >
+            <X size={18} />
+          </button>
+
+          <div className="flex h-full w-full items-center justify-center p-4">
+            <img
+              src={displayImage}
+              alt={product.name}
+              className="max-h-full max-w-full object-contain"
+              onClick={(event) => event.stopPropagation()}
+            />
+          </div>
+        </div>
+      )}
     </main>
   );
 }

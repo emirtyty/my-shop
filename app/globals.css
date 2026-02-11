@@ -874,6 +874,14 @@ body {
   padding: clamp(28px, 4vw, 56px) 0 64px;
 }
 
+.lux-page--mobile-header {
+  padding-top: clamp(44px, 6vw, 70px);
+}
+
+.lux-page--with-controls {
+  padding-top: clamp(60px, 7vw, 86px);
+}
+
 .lux-shell {
   width: min(1280px, calc(100% - 2.5rem));
   margin: 0 auto;
@@ -1288,7 +1296,7 @@ body {
 
 .lux-card__imageWrap {
   position: relative;
-  aspect-ratio: 4/5;
+  aspect-ratio: 3/4;
   overflow: hidden;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
@@ -1335,8 +1343,15 @@ body {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  min-height: 120px;
-  padding: 16px 18px 18px;
+  min-height: 92px;
+  padding: 14px 16px 16px;
+}
+
+.lux-card__headline {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 .lux-rating {
@@ -1353,7 +1368,7 @@ body {
 
 .lux-card h3 {
   margin: 0;
-  font-size: 22px;
+  font-size: 20px;
   line-height: 1.15;
   letter-spacing: -0.01em;
   color: #f8fbff;
@@ -1362,6 +1377,7 @@ body {
   -webkit-box-orient: vertical;
   overflow: hidden;
   min-height: 1.2em;
+  flex: 1 1 auto;
 }
 
 .lux-card__price {
@@ -1369,7 +1385,8 @@ body {
   display: flex;
   align-items: baseline;
   gap: 10px;
-  min-height: 38px;
+  min-height: 0;
+  flex: 0 0 auto;
 }
 
 .lux-card__price small {
@@ -1379,11 +1396,19 @@ body {
 }
 
 .lux-card__price strong {
-  font-size: 34px;
+  font-size: 28px;
   font-weight: 700;
   letter-spacing: -0.02em;
   color: #ffffff;
   text-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+}
+
+.lux-mobile-topbar {
+  display: none;
+}
+
+.lux-mobile-search {
+  display: none;
 }
 
 .lux-icon-btn {
@@ -1774,6 +1799,52 @@ body {
     padding-bottom: 104px;
   }
 
+  .lux-page--mobile-header {
+    padding-top: 92px;
+  }
+
+  .lux-page--with-controls {
+    padding-top: 18px;
+  }
+
+  .lux-mobile-topbar {
+    display: flex;
+    position: fixed;
+    left: 0;
+    right: 0;
+    top: 0;
+    z-index: 75;
+    padding: max(env(safe-area-inset-top), 10px) 14px 10px;
+    align-items: center;
+    justify-content: space-between;
+    background: color-mix(in srgb, var(--app-bg) 96%, transparent);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--lux-line);
+  }
+
+  .lux-mobile-topbar__icon {
+    border: none;
+    background: transparent;
+    color: var(--app-text);
+    padding: 0;
+    width: 22px;
+    height: 22px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+  }
+
+  .lux-mobile-search {
+    display: block;
+    position: fixed;
+    top: 48px;
+    left: 10px;
+    right: 10px;
+    z-index: 74;
+    padding-top: max(env(safe-area-inset-top), 0px);
+  }
+
   .lux-nav {
     display: none;
   }
@@ -1884,6 +1955,17 @@ body {
     gap: 14px;
   }
 
+  .lux-reveal {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+
+  .lux-card,
+  .lux-card:hover {
+    transform: none;
+  }
+
   .lux-metrics {
     grid-template-columns: 1fr;
   }
@@ -1927,11 +2009,11 @@ body {
   }
 
   .lux-card h3 {
-    font-size: 17px;
+    font-size: 16px;
   }
 
   .lux-card__price strong {
-    font-size: 24px;
+    font-size: 22px;
   }
 }
 

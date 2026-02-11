@@ -379,9 +379,46 @@ export default function HomePage() {
   }, [products, search, selectedCategory, selectedShop, showFavoritesOnly, favorites]);
 
   return (
-    <main className="lux-page">
+    <main className="lux-page lux-page--mobile-header">
       <div className="lux-bg-orb lux-bg-orb-a" aria-hidden />
       <div className="lux-bg-orb lux-bg-orb-b" aria-hidden />
+
+      <section className="lux-mobile-topbar">
+        <button
+          type="button"
+          className="lux-mobile-topbar__icon"
+          onClick={() => {
+            setIsSearchOpen((prev) => !prev);
+            setIsCategoryOpen(false);
+            setIsShopOpen(false);
+          }}
+          aria-label="Поиск"
+        >
+          <Search size={20} />
+        </button>
+
+        <button type="button" className="lux-mobile-topbar__icon" aria-label="Уведомления">
+          <Bell size={20} />
+        </button>
+      </section>
+
+      {isSearchOpen && (
+        <section className="lux-mobile-search">
+          <div className="lux-search-input">
+            <Search size={16} />
+            <input
+              autoFocus
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') saveSearchToHistory(search);
+              }}
+              placeholder="Товар, категория или магазин"
+              aria-label="Поиск товаров"
+            />
+          </div>
+        </section>
+      )}
 
       {!isSellerStorefront && (
         <section className={`lux-shell lux-nav ${isNavHidden ? 'is-hidden' : ''}`}>
@@ -573,11 +610,11 @@ export default function HomePage() {
                   </div>
 
                   <div className="lux-card__body">
-                    <h3>{product.name}</h3>
-
-                    <div className="lux-card__price">
-                      {(product.discount || 0) > 0 ? <small>{toPrice(product.price)}</small> : null}
-                      <strong>{toPrice(finalPrice)}</strong>
+                    <div className="lux-card__headline">
+                      <h3>{product.name}</h3>
+                      <div className="lux-card__price">
+                        <strong>{toPrice(finalPrice)}</strong>
+                      </div>
                     </div>
                   </div>
                 </Link>

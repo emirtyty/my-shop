@@ -139,7 +139,7 @@ export default function AdminLayout({
       </main>
 
       {/* Мобильная навигация внизу - всегда видима */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-gradient-to-t from-white via-white to-transparent z-50">
+      <div data-mobile-nav className="md:hidden fixed bottom-0 left-0 right-0 bg-gradient-to-t from-white via-white to-transparent z-50">
         {/* Облако с градиентом и эффектами */}
         <div className="absolute -top-8 left-1/2 transform -translate-x-1/2">
           <div className="relative animate-bounce-slow">

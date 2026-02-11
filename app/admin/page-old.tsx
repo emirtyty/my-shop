@@ -23,7 +23,7 @@ interface Product {
 }
 
 interface Notification {
-  type: 'success' | 'error' | 'warning';
+  type: 'success' | 'error';
   message: string;
 }
 
@@ -166,7 +166,7 @@ export default function ProductsPage() {
     }
   };
 
-  const showNotification = (type: 'success' | 'error' | 'warning', message: string) => {
+  const showNotification = (type: 'success' | 'error', message: string) => {
     setNotification({ type, message });
     setTimeout(() => setNotification(null), 3000);
   };
@@ -232,7 +232,7 @@ export default function ProductsPage() {
       let imageUrl = '';
 
       // Загрузка изображения
-      if (formData.image && formData.image.name) {
+      if (formData.image) {
         const fileExt = formData.image.name.split('.').pop();
         const fileName = `${Date.now()}.${fileExt}`;
         
@@ -252,14 +252,6 @@ export default function ProductsPage() {
         imageUrl = publicUrl;
       }
 
-      // Получаем текущего сессионного пользователя
-      const { data: { user }, error: authError } = await supabase.auth.getUser();
-
-      if (authError || !user) {
-        showNotification('error', 'Ошибка: Вы не авторизованы!');
-        return;
-      }
-
       // Сохранение товара (добавление или редактирование)
       const productData = {
         name: formData.name.trim(),
@@ -269,32 +261,25 @@ export default function ProductsPage() {
         description: formData.description.trim(),
         stock: formData.stock ? parseInt(formData.stock) : 0,
         image_url: imageUrl || null,
-        seller_id: user.id // Явно передаем ID, чтобы не было NULL
       };
-
-      console.log('🔄 Сохраняем товар:', productData);
-      console.log('🔄 Режим:', editingProduct ? 'редактирование' : 'добавление');
 
       let error;
       if (editingProduct) {
         // Редактирование существующего товара
-        console.log('🔄 Обновляем товар ID:', editingProduct.id);
         const result = await supabase
           .from('product_market')
           .update(productData)
-          .eq('id', editingProduct.id)
-          .select();
+          .eq('id', editingProduct.id);
         error = result.error;
-        console.log('🔄 Результат обновления:', { result, error });
       } else {
         // Добавление нового товара
-        console.log('🔄 Добавляем новый товар');
         const result = await supabase
           .from('product_market')
-          .insert([productData])
-          .select();
+          .insert({
+            ...productData,
+            created_at: new Date().toISOString()
+          });
         error = result.error;
-        console.log('🔄 Результат добавления:', { result, error });
       }
 
       if (error) {
@@ -334,14 +319,10 @@ export default function ProductsPage() {
         <div className={`fixed top-4 right-4 z-50 flex items-center gap-2 px-4 py-3 rounded-lg shadow-lg ${
           notification.type === 'success' 
             ? 'bg-green-50 text-green-800 border border-green-200' 
-            : notification.type === 'warning'
-            ? 'bg-yellow-50 text-yellow-800 border border-yellow-200'
             : 'bg-red-50 text-red-800 border border-red-200'
         }`}>
           {notification.type === 'success' ? (
             <CheckCircle className="w-5 h-5" />
-          ) : notification.type === 'warning' ? (
-            <AlertCircle className="w-5 h-5 text-yellow-600" />
           ) : (
             <AlertCircle className="w-5 h-5" />
           )}
@@ -396,194 +377,8 @@ export default function ProductsPage() {
 
       {/* Модальное окно */}
       {showModal && (
-        <div 
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-end justify-center z-[60] md:items-center"
-          onClick={() => setShowModal(false)}
-        >
-          {/* Мобильная версия - карусель снизу */}
-          <div className="md:hidden bg-white rounded-t-2xl w-full max-h-[85vh] overflow-y-auto animate-slide-up" onClick={(e) => e.stopPropagation()}>
-            {/* Заголовок модального окна */}
-            <div className="sticky top-0 bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between z-10">
-              <h2 className="text-lg font-semibold text-gray-900">
-                {editingProduct ? 'Редактировать товар' : 'Новый товар'}
-              </h2>
-              <button
-                onClick={() => setShowModal(false)}
-                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                <X className="w-5 h-5 text-gray-500" />
-              </button>
-            </div>
-            
-            {/* Форма */}
-            <div className="px-4 py-4">
-              <form onSubmit={handleSubmit} className="space-y-4">
-                {/* Название товара */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Название товара
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-                    style={{ color: 'black' }}
-                    placeholder="Введите название товара"
-                    required
-                  />
-                </div>
-
-                {/* Категория */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Категория
-                  </label>
-                  <div className="space-y-2">
-                    <select
-                      value={formData.category}
-                      onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-                      style={{ color: 'black' }}
-                    >
-                      <option value="">Выберите категорию</option>
-                      {categories.map((category) => (
-                        <option key={category} value={category}>
-                          {category}
-                        </option>
-                      ))}
-                    </select>
-                    <input
-                      type="text"
-                      value={formData.category}
-                      onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-                      style={{ color: 'black' }}
-                      placeholder="или введите новую категорию"
-                    />
-                  </div>
-                </div>
-
-                {/* Цена */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Цена (₽)
-                  </label>
-                  <input
-                    type="number"
-                    value={formData.price}
-                    onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-                    style={{ color: 'black' }}
-                    placeholder="0"
-                    min="0"
-                    step="0.01"
-                  />
-                </div>
-
-                {/* Скидка */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Скидка (%)
-                  </label>
-                  <input
-                    type="number"
-                    value={formData.discount}
-                    onChange={(e) => setFormData({ ...formData, discount: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-                    style={{ color: 'black' }}
-                    placeholder="0"
-                    min="0"
-                    max="100"
-                  />
-                </div>
-
-                {/* Описание */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Описание
-                  </label>
-                  <textarea
-                    value={formData.description}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-                    style={{ color: 'black' }}
-                    placeholder="Описание товара..."
-                    rows={3}
-                  />
-                </div>
-
-                {/* Количество на складе */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Количество на складе
-                  </label>
-                  <input
-                    type="number"
-                    value={formData.stock}
-                    onChange={(e) => setFormData({ ...formData, stock: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-                    style={{ color: 'black' }}
-                    placeholder="0"
-                    min="0"
-                  />
-                </div>
-
-                {/* Фото товара */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Фото товара
-                  </label>
-                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-gray-400 transition-colors">
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => setFormData({ ...formData, image: e.target.files?.[0] || null })}
-                      className="hidden"
-                      id="image-upload-mobile"
-                    />
-                    <label
-                      htmlFor="image-upload-mobile"
-                      className="cursor-pointer flex flex-col items-center"
-                    >
-                      <Upload className="w-8 h-8 text-gray-400 mb-2" />
-                      <span className="text-sm text-gray-600">
-                        {formData.image ? formData.image.name : 'Нажмите для загрузки фото'}
-                      </span>
-                    </label>
-                  </div>
-                </div>
-
-                {/* Кнопки */}
-                <div className="flex gap-3 pt-4 pb-8">
-                  <button
-                    type="button"
-                    onClick={() => setShowModal(false)}
-                    className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                  >
-                    Отмена
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50"
-                  >
-                    {loading ? (
-                      'Сохранение...'
-                    ) : (
-                      <>
-                        {editingProduct ? 'Сохранить' : 'Добавить'}
-                        <ArrowRight className="w-4 h-4" />
-                      </>
-                    )}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-
-          {/* Десктопная версия */}
-          <div className="hidden md:flex bg-white rounded-xl shadow-xl w-full max-w-md mx-4 max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-40">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4">
             {/* Заголовок модального окна */}
             <div className="flex items-center justify-between p-6 border-b border-gray-200">
               <h2 className="text-xl font-semibold text-gray-900">
@@ -609,9 +404,7 @@ export default function ProductsPage() {
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-                  style={{ color: 'black' }}
                   placeholder="Введите название товара"
-                  required
                 />
               </div>
 
@@ -625,7 +418,6 @@ export default function ProductsPage() {
                     value={formData.category}
                     onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-                    style={{ color: 'black' }}
                   >
                     <option value="">Выберите категорию</option>
                     {categories.map((category) => (
@@ -639,7 +431,6 @@ export default function ProductsPage() {
                     value={formData.category}
                     onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-                    style={{ color: 'black' }}
                     placeholder="или введите новую категорию"
                   />
                 </div>
@@ -655,7 +446,6 @@ export default function ProductsPage() {
                   value={formData.price}
                   onChange={(e) => setFormData({ ...formData, price: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-                  style={{ color: 'black' }}
                   placeholder="0"
                   min="0"
                   step="0.01"
@@ -672,7 +462,6 @@ export default function ProductsPage() {
                   value={formData.discount}
                   onChange={(e) => setFormData({ ...formData, discount: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-                  style={{ color: 'black' }}
                   placeholder="0"
                   min="0"
                   max="100"
@@ -688,7 +477,6 @@ export default function ProductsPage() {
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-                  style={{ color: 'black' }}
                   placeholder="Описание товара..."
                   rows={3}
                 />
@@ -704,7 +492,6 @@ export default function ProductsPage() {
                   value={formData.stock}
                   onChange={(e) => setFormData({ ...formData, stock: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-                  style={{ color: 'black' }}
                   placeholder="0"
                   min="0"
                 />
